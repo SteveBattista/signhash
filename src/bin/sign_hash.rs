@@ -1,14 +1,15 @@
 #![forbid(unsafe_code)]
-use std::io::Write;
 use clap::{App, Arg};
 use data_encoding::HEXUPPER;
-use ring::digest::{Context, SHA256, SHA384, SHA512,Algorithm,Digest};
+use ring::digest::{Algorithm, Context, Digest, SHA256, SHA384, SHA512};
 use scoped_threadpool::Pool;
+use std::collections::BTreeMap;
 use std::error::Error;
+use std::fs;
 use std::fs::File;
+use std::io::Write;
 use std::io::{BufReader, Read};
 use std::process::exit;
-use std::collections::BTreeMap;
 
 fn main() {
     let matches = App::new("sign_hash")
@@ -61,7 +62,10 @@ fn main() {
 
     let inputfiles: Vec<_> = matches.values_of("files").unwrap().collect();
     //   println!("Files chosen is {}", inputpool.len());
-    let inputfiles = inputfiles.into_iter().filter(|&file| !(file.ends_with(".sig")) ).collect::<Vec<_>>();
+    let inputfiles = inputfiles
+        .into_iter()
+        .filter(|&file| !(file.ends_with(".sig")))
+        .collect::<Vec<_>>();
 
     pool.scoped(|scoped| {
         for file in inputfiles {
@@ -88,8 +92,9 @@ fn var_digest<R: Read>(
     }
     Ok(context.finish())
 }
-fn write_hash(hash: &[u8],path: &str){
+fn write_sigfile(hash: &[u8], path: &str, filen: u64) {
     let mut map = BTreeMap::new();
+    map.insert("LENGTH".to_string(), filen.to_string());
     map.insert("HASH".to_string(), HEXUPPER.encode(&hash));
     let s = serde_yaml::to_string(&map).unwrap();
     //println!("{}", s);
@@ -103,7 +108,9 @@ fn gethashofile(path: &str, hashalgo: &'static Algorithm) -> Result<(), Box<dyn 
     let input = File::open(path)?;
     let reader = BufReader::new(input);
     let digest = var_digest(reader, hashalgo)?;
-    write_hash(& digest.as_ref(), path);
-//    println!("{} : {}", path, HEXUPPER.encode(digest.as_ref()));
+    let metadata = fs::metadata(path).unwrap();
+    let filelen = metadata.len();
+    write_sigfile(&digest.as_ref(), path, filelen);
+    //    println!("{} : {}", path, HEXUPPER.encode(digest.as_ref()));
     Ok(())
 }

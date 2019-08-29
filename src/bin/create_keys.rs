@@ -2,13 +2,12 @@
 use serde_yaml;
 use std::collections::BTreeMap;
 extern crate arrayref;
-use ring::signature::KeyPair;
 use data_encoding::HEXUPPER;
+use ring::signature::KeyPair;
 use std::fs::File;
 use std::io::prelude::*;
 
-
-fn create_keys(public_key_bytes: & mut [u8] ,  private_key_bytes :  & mut [u8]) {
+fn create_keys(public_key_bytes: &mut [u8], private_key_bytes: &mut [u8]) {
     let rng = ring::rand::SystemRandom::new();
     let pkcs8_bytes = ring::signature::Ed25519KeyPair::generate_pkcs8(&rng).unwrap();
 
@@ -23,19 +22,17 @@ fn create_keys(public_key_bytes: & mut [u8] ,  private_key_bytes :  & mut [u8]) 
     for x in 0..85 {
         private_key_bytes[x] = pkcs8_bytes.as_ref()[x];
     }
-
 }
-fn write_pubic_key(public_key_bytes: &[u8]){
+fn write_pubic_key(public_key_bytes: &[u8]) {
     let mut map = BTreeMap::new();
     map.insert("Public".to_string(), HEXUPPER.encode(&public_key_bytes));
     let s = serde_yaml::to_string(&map).unwrap();
     //println!("{}", s);
     let mut file = File::create("Signpub.key").unwrap();
     file.write_all(s.as_bytes()).unwrap();
-
 }
 
-fn write_private_key(private_key_bytes: &[u8]){
+fn write_private_key(private_key_bytes: &[u8]) {
     let mut map = BTreeMap::new();
     map.insert("Private".to_string(), HEXUPPER.encode(&private_key_bytes));
     let s = serde_yaml::to_string(&map).unwrap();
@@ -44,7 +41,7 @@ fn write_private_key(private_key_bytes: &[u8]){
     file.write_all(s.as_bytes()).unwrap();
 }
 
-fn write_keys(public_key_bytes: &[u8], private_key_bytes : &[u8]){
+fn write_keys(public_key_bytes: &[u8], private_key_bytes: &[u8]) {
     write_pubic_key(&public_key_bytes);
     write_private_key(&private_key_bytes)
 }
@@ -73,11 +70,10 @@ fn read_public_key(public_key_bytes :  & mut [u8]){
 }
 */
 
-
 fn main() {
-    let mut public_key_bytes: [u8;32]=[0;32];
-    let mut private_key_bytes :  [u8;85]= [0;85];
-    create_keys(& mut public_key_bytes,& mut private_key_bytes);
+    let mut public_key_bytes: [u8; 32] = [0; 32];
+    let mut private_key_bytes: [u8; 85] = [0; 85];
+    create_keys(&mut public_key_bytes, &mut private_key_bytes);
     println!("Public : {}", HEXUPPER.encode(&public_key_bytes));
     println!("Private : {}", HEXUPPER.encode(&private_key_bytes));
     write_keys(&public_key_bytes, &private_key_bytes);
@@ -89,5 +85,4 @@ fn main() {
     println!("Private : {}", HEXUPPER.encode(&private_key_bytes2));
     assert_eq!(HEXUPPER.encode(&public_key_bytes),HEXUPPER.encode(&public_key_bytes2));
     assert_eq!(HEXUPPER.encode(&private_key_bytes),HEXUPPER.encode(&private_key_bytes2)); */
-
 }
