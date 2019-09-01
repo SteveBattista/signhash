@@ -2,6 +2,7 @@
 use clap::{App, Arg};
 use data_encoding::HEXUPPER;
 use ring::digest::{Algorithm, Context, Digest, SHA256, SHA384, SHA512};
+use rand::Rng;
 use scoped_threadpool::Pool;
 use std::collections::BTreeMap;
 use std::error::Error;
@@ -76,13 +77,15 @@ fn main() {
     });
 }
 
-fn read_private_key(private_key_bytes :  & mut [u8]){
+fn read_private_key(private_key_bytes: &mut [u8]) {
     let mut file = File::open("Signpriv.key").unwrap();
     let mut contents = String::new();
     file.read_to_string(&mut contents).unwrap();
     let deserialized_map: BTreeMap<String, String> = serde_yaml::from_str(&contents).unwrap();
     //println!("{}",deserialized_map["Private"]);
-    let  local_key = HEXUPPER.decode(deserialized_map["Private"].as_bytes()).unwrap();
+    let local_key = HEXUPPER
+        .decode(deserialized_map["Private"].as_bytes())
+        .unwrap();
     for x in 0..85 {
         private_key_bytes[x] = local_key[x];
     }
@@ -105,11 +108,11 @@ fn var_digest<R: Read>(
     }
     Ok(context.finish())
 }
-fn write_sigfile(hash: &[u8], path: &str, filen: u64, sig: &[u8]) {
+fn write_sigfile(hash: &[u8], path: &str, filen: u64, nonce: &[u8], sig: &[u8]) {
     let mut map = BTreeMap::new();
-    //map.insert("PATH".to_string(), path.to_string());
     map.insert("LENGTH".to_string(), filen.to_string());
     map.insert("HASH".to_string(), HEXUPPER.encode(&hash));
+    map.insert("NONCE".to_string(),HEXUPPER.encode(&nonce));
     map.insert("SIG".to_string(), HEXUPPER.encode(&sig));
     let s = serde_yaml::to_string(&map).unwrap();
     //println!("{}", s);
@@ -119,8 +122,8 @@ fn write_sigfile(hash: &[u8], path: &str, filen: u64, sig: &[u8]) {
     file.write_all(s.as_bytes()).unwrap();
 }
 
-fn sign_sigfile(hash: &[u8], filen: u64, private_key_bytes: &[u8]) -> ring::signature::Signature {
-    let data = format!("{}:{}",HEXUPPER.encode(&hash),filen.to_string());
+fn sign_sigfile(hash: &[u8], filen: u64, nonce: &[u8], private_key_bytes: &[u8]) -> ring::signature::Signature {
+    let data = format!("{}:{}:{}", HEXUPPER.encode(&hash), filen.to_string(),HEXUPPER.encode(&nonce)) ;
     //println!("{}",data);
     let key_pair = ring::signature::Ed25519KeyPair::from_pkcs8(private_key_bytes.as_ref()).unwrap();
     let sig = key_pair.sign(data.as_bytes());
@@ -133,10 +136,16 @@ fn gethashofile(path: &str, hashalgo: &'static Algorithm) -> Result<(), Box<dyn 
     let digest = var_digest(reader, hashalgo)?;
     let metadata = fs::metadata(path).unwrap();
     let filelen = metadata.len();
-    let mut private_key_bytes :  [u8;85]= [0;85];
-    read_private_key(& mut private_key_bytes);
-    let sig = sign_sigfile ( &digest.as_ref(), filelen, &private_key_bytes);
-    write_sigfile(&digest.as_ref(), path, filelen, sig.as_ref());
-    //    println!("{} : {}", path, HEXUPPER.encode(digest.as_ref()));
+    let mut private_key_bytes: [u8; 85] = [0; 85];
+    let mut rng = rand::thread_rng();
+    let mut number: u8;
+    let mut nonce_bytes : [u8; 16] = [0; 16];
+    for x in 0..16 {
+        number = rng.gen();
+        nonce_bytes[x] = number;
+    }
+    read_private_key(&mut private_key_bytes);
+    let sig = sign_sigfile(&digest.as_ref(), filelen, &nonce_bytes, &private_key_bytes);
+    write_sigfile(&digest.as_ref(), path, filelen, &nonce_bytes, sig.as_ref());
     Ok(())
 }
