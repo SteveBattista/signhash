@@ -1,4 +1,5 @@
 #![forbid(unsafe_code)]
+//use core::ptr::hash;
 use clap::{App, Arg};
 use data_encoding::HEXUPPER;
 use ring::digest::{Algorithm, Context, Digest, SHA256, SHA384, SHA512};
@@ -9,6 +10,7 @@ use std::fs;
 use std::fs::File;
 use std::io::{BufReader, Read};
 use std::process::exit;
+use ring::signature;
 
 fn main() {
     let matches = App::new("check_hash")
@@ -56,7 +58,7 @@ fn main() {
     }
     //  println!("Hash chosen is {}", inputhash);
 
-    let inputpool = matches.value_of("pool").unwrap_or("10");
+    let inputpool = matches.value_of("pool").unwrap_or("1");
     let poolresult = inputpool.parse();
     let poolnumber;
     match poolresult {
@@ -67,10 +69,7 @@ fn main() {
         }
     }
     let mut pool = Pool::new(poolnumber);
-    //    println!("pool chosen is {}", inputpool);
-
     let inputfiles: Vec<_> = matches.values_of("files").unwrap().collect();
-    //   println!("Files chosen is {}", inputpool.len());
     let inputfiles = inputfiles
         .into_iter()
         .filter(|&file| !(file.ends_with(".sig")))
@@ -106,19 +105,37 @@ fn read_sigfile(
     filelen: &mut u64,
     path: &str,
     hashlengh_in_bytes: usize,
+    signed_hash : & mut [u8]
 ) {
     let mut file = File::open(path).unwrap();
     let mut contents = String::new();
     file.read_to_string(&mut contents).unwrap();
     let deserialized_map: BTreeMap<String, String> = serde_yaml::from_str(&contents).unwrap();
-    //println!("{}",deserialized_map["Private"]);
-    let local_key_vec = HEXUPPER
+    let local_hash_vec = HEXUPPER
         .decode(deserialized_map["HASH"].as_bytes())
         .unwrap();
     *filelen = deserialized_map["LENGTH"].parse::<u64>().unwrap();
-    //println!("{:?}",local_key_vec);
+
     for x in 0..(hashlengh_in_bytes / 8) {
-        hash_from_file[x] = local_key_vec[x];
+        hash_from_file[x] = local_hash_vec[x];
+    }
+    let local_sig_vec = HEXUPPER
+        .decode(deserialized_map["SIG"].as_bytes())
+        .unwrap();
+    for x in 0..(512 / 8) {
+            signed_hash[x] = local_sig_vec[x];
+    }
+}
+
+fn read_public_key(public_key_bytes :  & mut [u8]){
+    let mut file = File::open("Signpub.key").unwrap();
+    let mut contents = String::new();
+    file.read_to_string(&mut contents).unwrap();
+    let deserialized_map: BTreeMap<String, String> = serde_yaml::from_str(&contents).unwrap();
+    //println!("{}",deserialized_map["Public"]);
+    let  local_key = HEXUPPER.decode(deserialized_map["Public"].as_bytes()).unwrap();
+    for x in 0..32 {
+        public_key_bytes[x] = local_key[x];
     }
 }
 
@@ -131,23 +148,28 @@ fn gethashofile(
     let mut filelen_from_file: u64 = 0;
     let metadata = fs::metadata(path).unwrap();
     let filelen = metadata.len();
+    let mut signed_bytes = [0; 64];
+
     if !(metadata.is_dir()) {
-        //println!("{}", path);
+        //println!("{}, {} ", path, &[path, ".sig"].concat());
         read_sigfile(
             &mut hash_from_file,
             &mut filelen_from_file,
             &[path, ".sig"].concat(),
             hashlengh_in_bytes,
+            &mut signed_bytes
         );
+        //println!("here");
         if filelen != filelen_from_file {
             eprintln!(
                 "File {} failed length check.",
                 path
             );
         } else {
-            //println!("{}", path);
+
             let input = File::open(path)?;
             let reader = BufReader::new(input);
+            //println!("BufReader");
             let digest = var_digest(reader, hashalgo)?;
             let mut hash_match = true;
             for x in 0..(hashlengh_in_bytes / 8) {
@@ -161,7 +183,22 @@ fn gethashofile(
                 }
             }
             if hash_match {
-                //eprintln!("File {} passed.", path);
+                /*eprintln!(
+                    "File {} passed hash check.",
+                    path); */
+                let mut public_key_bytes: [u8;32]=[0;32];
+                //println!("readpublickey");
+                read_public_key(&mut public_key_bytes);
+                //println!("{}",HEXUPPER.encode(&public_key_bytes));
+                let peer_public_key =
+    signature::UnparsedPublicKey::new(&signature::ED25519, public_key_bytes);
+                let data = format!("{}:{}",HEXUPPER.encode(&digest.as_ref()),filelen.to_string());
+                //println!("{}",HEXUPPER.encode(signed_bytes.as_ref()));
+    let results = peer_public_key.verify(data.as_bytes(), signed_bytes.as_ref());
+    match results{
+        Ok(_n) => (), //eprintln!( "File {} passed.",path),
+        Err(_err) => eprintln!( "File {}.sig failed signature check.",path)
+    }
             }
         }
     }

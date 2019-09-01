@@ -86,6 +86,7 @@ fn read_private_key(private_key_bytes :  & mut [u8]){
     for x in 0..85 {
         private_key_bytes[x] = local_key[x];
     }
+    //println!("{}", HEXUPPER.encode(private_key_bytes));
 }
 
 fn var_digest<R: Read>(
@@ -106,7 +107,7 @@ fn var_digest<R: Read>(
 }
 fn write_sigfile(hash: &[u8], path: &str, filen: u64, sig: &[u8]) {
     let mut map = BTreeMap::new();
-    map.insert("PATH".to_string(), path.to_string());
+    //map.insert("PATH".to_string(), path.to_string());
     map.insert("LENGTH".to_string(), filen.to_string());
     map.insert("HASH".to_string(), HEXUPPER.encode(&hash));
     map.insert("SIG".to_string(), HEXUPPER.encode(&sig));
@@ -118,8 +119,9 @@ fn write_sigfile(hash: &[u8], path: &str, filen: u64, sig: &[u8]) {
     file.write_all(s.as_bytes()).unwrap();
 }
 
-fn sign_sigfile(hash: &[u8], path: &str, filen: u64, private_key_bytes: &[u8]) -> ring::signature::Signature {
-     let data = format!("{}:{}:{}",path, HEXUPPER.encode(&hash),filen.to_string());
+fn sign_sigfile(hash: &[u8], filen: u64, private_key_bytes: &[u8]) -> ring::signature::Signature {
+    let data = format!("{}:{}",HEXUPPER.encode(&hash),filen.to_string());
+    //println!("{}",data);
     let key_pair = ring::signature::Ed25519KeyPair::from_pkcs8(private_key_bytes.as_ref()).unwrap();
     let sig = key_pair.sign(data.as_bytes());
     return sig;
@@ -133,7 +135,7 @@ fn gethashofile(path: &str, hashalgo: &'static Algorithm) -> Result<(), Box<dyn 
     let filelen = metadata.len();
     let mut private_key_bytes :  [u8;85]= [0;85];
     read_private_key(& mut private_key_bytes);
-    let sig = sign_sigfile ( &digest.as_ref(), path, filelen, &private_key_bytes);
+    let sig = sign_sigfile ( &digest.as_ref(), filelen, &private_key_bytes);
     write_sigfile(&digest.as_ref(), path, filelen, sig.as_ref());
     //    println!("{} : {}", path, HEXUPPER.encode(digest.as_ref()));
     Ok(())
