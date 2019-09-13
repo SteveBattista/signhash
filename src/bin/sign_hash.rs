@@ -16,6 +16,7 @@ use num_cpus;
 use std::io::{BufReader, Read};
 use std::sync::mpsc;
 use std::sync::mpsc::{Receiver, Sender};
+use chrono::{DateTime, Utc};
 
 
 const PRIVATEKEY_LENGH_IN_BYTES: usize = 680;
@@ -23,6 +24,7 @@ const NONCE_LENGH_IN_BYTES: usize = 128;
 const HASH_READ_BUUFER_IN_BYTES: usize = 8192;
 
 fn main() {
+
     let matches = App::new("sign_hash")
                           .version("0.1.0")
                           .author("Stephen Battista <stephen.battista@gmail.com>")
@@ -87,7 +89,6 @@ fn main() {
     if poolnumber < 1  {
         poolnumber = num_cpus::get();
     }
-    //println!("threads {}",poolnumber);
     let mut pool = Pool::new(poolnumber.try_into().unwrap());
     let (tx, rx): (
         Sender<String>,
@@ -107,7 +108,7 @@ fn main() {
             let thread_tx = tx.clone();
             provide_unique_nonce(& mut nonce_bytes,& mut nonces,rng);
             let child = scoped.execute(move || {
-                let _x = create_line(&file, hashalgo, &nonce_bytes, &private_key_bytes,thread_tx);
+                let _x = create_line(file.to_string(), hashalgo, &nonce_bytes, &private_key_bytes,thread_tx);
             });
             children.push(child);
         }
@@ -179,30 +180,34 @@ fn var_digest<R: Read>(
     context.finish()
 }
 
-fn sign_sigfile(path: &str, filen: u64, hash: &[u8], nonce: &[u8], private_key_bytes: &[u8]) -> ring::signature::Signature {
-    let data = format!("{}:{}:{}:{}:", path, filen.to_string(),HEXUPPER.encode(&hash),HEXUPPER.encode(&nonce)) ;
+fn sign_data(data: &str,  private_key_bytes: &[u8]) -> ring::signature::Signature {
     let key_pair = ring::signature::Ed25519KeyPair::from_pkcs8(private_key_bytes.as_ref()).unwrap();
     let sig = key_pair.sign(data.as_bytes());
     return sig;
 }
 
-fn create_line(path: &str, hashalgo: &'static Algorithm, nonce_bytes: &[u8], private_key_bytes : &[u8], tx : std::sync::mpsc::Sender<String>){
+fn create_line(path: String, hashalgo: &'static Algorithm, nonce_bytes: &[u8], private_key_bytes : &[u8], tx : std::sync::mpsc::Sender<String>){
+    let path2 =path.clone();
+    let path3 =path.clone();
     let metadata = fs::metadata(path).unwrap();
+    let filelen = metadata.len();
+    let datetime = metadata.modified().unwrap();
+    let datetime: DateTime<Utc> = datetime.into();
+    let mut data :String;
+    let signature : ring::signature::Signature;
 
     if !(metadata.is_dir()) {
-        let filelen = metadata.len();
-        let input = File::open(path).unwrap();
+        let input = File::open(path2).unwrap();
         let reader = BufReader::new(input);
         let digest = var_digest(reader, hashalgo);
-
-        let signature = sign_sigfile(path, filelen, &digest.as_ref(), &nonce_bytes, &private_key_bytes);
-        let data = format!("{}:{}:{}:{}:{}", path, filelen.to_string(),HEXUPPER.encode(&digest.as_ref()),HEXUPPER.encode(&nonce_bytes),HEXUPPER.encode(&signature.as_ref())) ;
-        //println!("{}",data);
-        tx.send(data).unwrap();
+        data = format!("File|{}|{}|{}|{}|{}", path3, filelen.to_string(),datetime.format("%d/%m/%Y %T"),HEXUPPER.encode(&digest.as_ref()),HEXUPPER.encode(&nonce_bytes)) ;
     }
     else {
-        let data = format!("Directory: {}", path);
-     //println!("{}",data);
-     tx.send(data).unwrap();
+        data = format!("Dir|{}|{}|{}|{}", path3,filelen.to_string(),datetime.format("%d/%m/%Y %T"),HEXUPPER.encode(&nonce_bytes));
+
     }
+        signature = sign_data(&data, &private_key_bytes);
+        data = format!("{}|{}", data,HEXUPPER.encode(&signature.as_ref()));
+        tx.send(data).unwrap();
+
 }
