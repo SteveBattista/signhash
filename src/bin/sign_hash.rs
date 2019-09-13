@@ -1,6 +1,7 @@
 #![forbid(unsafe_code)]
 use std::convert::TryInto;
 use rand::prelude::ThreadRng;
+use std::thread;
 //use std::io::Write;
 use clap::{App, Arg};
 use data_encoding::HEXUPPER;
@@ -22,6 +23,7 @@ use chrono::{DateTime, Utc};
 const PRIVATEKEY_LENGH_IN_BYTES: usize = 680;
 const NONCE_LENGH_IN_BYTES: usize = 128;
 const HASH_READ_BUUFER_IN_BYTES: usize = 8192;
+const SEPERATOR : & 'static str = "********************************************************************************************************************";
 
 fn main() {
 
@@ -103,6 +105,12 @@ fn main() {
     let mut nonce_bytes: [u8; (NONCE_LENGH_IN_BYTES / 8)] = [0; (NONCE_LENGH_IN_BYTES / 8)];
     let rng = rand::thread_rng();
     let mut nonces: HashMap<[u8; NONCE_LENGH_IN_BYTES / 8], i32> = HashMap::new();
+    tx.send("Header".to_string()).unwrap();
+    tx.send(SEPERATOR.to_string()).unwrap();
+    let writer_child = thread::spawn(move || {
+    write_from_channel(num_files +2 ,hashalgo, &private_key_bytes, rx);
+ });
+
     pool.scoped(|scoped| {
         for file in inputfiles {
             let thread_tx = tx.clone();
@@ -114,17 +122,30 @@ fn main() {
         }
     });
 
+let _res = writer_child.join();
+
+
+}
+
+fn write_from_channel(num_lines : usize, hashalgo : &'static Algorithm, private_key_bytes : &[u8], rx : std::sync::mpsc::Receiver<String>) {
+let mut context = Context::new(hashalgo);
     let mut strings = Vec::new();
-    for _ in 0..num_files {
+    let mut data :String;
+    for _ in 0..num_lines {
         // The `recv` method picks a message from the channel
         // `recv` will block the current thread if there are no messages available
         strings.push(rx.recv().unwrap());
-    }
 
-    // Show the order in which the messages were sent
-    for _ in 0..strings.len() {
-        println!("{}",strings.remove(0));
-}
+        data = format!("{}",strings.remove(0));
+        println!("{}", data);
+        context.update(&data[..].as_bytes());
+    }
+    println!("{}", SEPERATOR);
+    context.update(SEPERATOR.as_bytes());
+    let digest = context.finish();
+    println!("{}",HEXUPPER.encode(&digest.as_ref()));
+    let signature = sign_data(&HEXUPPER.encode(&digest.as_ref()),  private_key_bytes);
+    println!("{}", HEXUPPER.encode(&signature.as_ref()));
 }
 
 fn provide_unique_nonce(nonce_bytes: &mut [u8; 16], nonces: &mut std::collections::HashMap<[u8; 16], i32>, mut rng : ThreadRng ){
