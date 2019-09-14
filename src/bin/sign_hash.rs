@@ -27,7 +27,7 @@ struct Message {
     file_len: u64,
 }
 
-const HEADER_MESSAGES: usize = 4;
+const HEADER_MESSAGES: usize = 5;
 const PRIVATEKEY_LENGH_IN_BYTES: usize = 680;
 const NONCE_LENGH_IN_BYTES: usize = 128; // Chance of collistion is low 2^64. Progam checks for this.
 const HASH_READ_BUUFER_IN_BYTES: usize = 4096; //Emperical test finds this faster than 8192
@@ -65,6 +65,12 @@ fn main() {
                             .value_name("#")
                             .help("Sets the size of the pool of maximum number of concurrent threads when hashing. Default is number of CPU cores. Negative numbers set pool to default. Warning: Large numbers (> 60) may cause the progam not to hash all files.")
                             .takes_value(true))
+                            .arg(Arg::with_name("header")
+         			            .short("h")
+                                .long("header")
+                                .value_name("FILE")
+                                .help("Name of file that you would like to include in the header.")
+                                .takes_value(true))
                         .arg(Arg::with_name("files")
                              .value_name("FILES")
                              .help("Place one or more files to hash. Those that can not be found will be ommited from the results. Directories will be ommitted. Links will be treated like normal files.")
@@ -108,6 +114,9 @@ fn main() {
     ) = mpsc::channel();
     let mut children = Vec::new();
 
+    let header_file = matches.value_of("header").unwrap_or("|||");
+
+
     let inputfiles: Vec<_> = matches.values_of("files").unwrap().collect();
     let num_files = inputfiles.len();
     let mut private_key_bytes: [u8; (PRIVATEKEY_LENGH_IN_BYTES/8)] = [0; (PRIVATEKEY_LENGH_IN_BYTES/8)];
@@ -123,6 +132,20 @@ fn main() {
     message.text = command_line.to_string();
     message.file_len =0;
     tx.send(message).unwrap();
+
+    let mut message = Message {
+        text: String::new(),
+        file_len: 0,
+    };
+    if header_file == "|||" {
+        message.text = "No Header File".to_string();
+    }
+    else {
+        message.text = dump_header(header_file);
+    }
+    message.file_len =0;
+    tx.send(message).unwrap();
+
     let mut message = Message {
         text: String::new(),
         file_len: 0,
@@ -232,7 +255,15 @@ fn provide_unique_nonce(nonce_bytes: &mut [u8; 16], nonces: &mut std::collection
     }
 
 }
-
+fn dump_header (header_file: &str) ->String{
+    let mut file = match File::open(& header_file){
+        Err(why) => panic!("Couldn't open header file named {}: {}", header_file, why.description()),
+        Ok(file) => file,
+    };
+    let mut contents = String::new();
+    file.read_to_string(&mut contents).unwrap();
+    return contents
+}
 fn read_private_key(private_key_bytes: &mut [u8], private_key_file: &str) {
     let mut file = match File::open(& private_key_file){
         Err(why) => panic!("Couldn't open private key file named {}: {}", private_key_file, why.description()),
