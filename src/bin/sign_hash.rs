@@ -318,10 +318,10 @@ fn create_line(path: String, hashalgo: &'static Algorithm, nonce_bytes: &[u8], p
         let input = File::open(path2).unwrap();
         let reader = BufReader::new(input);
         let digest = var_digest(reader, hashalgo);
-        data = format!("File|{}|{}|{}|{}|{}", path3, convert(filelen as f64),datetime.format("%d/%m/%Y %T"),HEXUPPER.encode(&digest.as_ref()),HEXUPPER.encode(&nonce_bytes)) ;
+        data = format!("File|{}|{}|{}|{}|{}", path3, filelen,datetime.format("%d/%m/%Y %T"),HEXUPPER.encode(&digest.as_ref()),HEXUPPER.encode(&nonce_bytes)) ;
     }
     else {
-        data = format!("Dir|{}|{}|{}|{}", path3,convert(filelen as f64),datetime.format("%d/%m/%Y %T"),HEXUPPER.encode(&nonce_bytes));
+        data = format!("Dir|{}|{}|{}|{}", path3,filelen,datetime.format("%d/%m/%Y %T"),HEXUPPER.encode(&nonce_bytes));
 
     }
         signature = sign_data(&data, &private_key_bytes);
