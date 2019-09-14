@@ -18,15 +18,25 @@ use std::io::{BufReader, Read};
 use std::sync::mpsc;
 use std::sync::mpsc::{Receiver, Sender};
 use chrono::{DateTime, Utc};
+use std::env;
+use std::time::{Instant};
+use pretty_bytes::converter::convert;
 
+struct Message {
+    text: String,
+    file_len: u64,
+}
 
+const HEADER_MESSAGES: usize = 4;
 const PRIVATEKEY_LENGH_IN_BYTES: usize = 680;
-const NONCE_LENGH_IN_BYTES: usize = 128;
-const HASH_READ_BUUFER_IN_BYTES: usize = 8192;
+const NONCE_LENGH_IN_BYTES: usize = 128; // Chance of collistion is low 2^64. Progam checks for this.
+const HASH_READ_BUUFER_IN_BYTES: usize = 4096; //Emperical test finds this faster than 8192
 const SEPERATOR : & 'static str = "********************************************************************************************************************";
 
 fn main() {
-
+    let now: DateTime<Utc> = Utc::now();
+    let start = Instant::now();
+    let args: Vec<String> = env::args().collect();
     let matches = App::new("sign_hash")
                           .version("0.1.0")
                           .author("Stephen Battista <stephen.battista@gmail.com>")
@@ -63,7 +73,6 @@ fn main() {
 
     let hashalgo: &Algorithm;
     let inputhash = matches.value_of("algo").unwrap_or("256");
-    //println!("Hash: {}", inputhash);
     match inputhash.as_ref() {
         "128" => hashalgo = &SHA1_FOR_LEGACY_USE_ONLY,
         "256" => hashalgo = &SHA256,
@@ -75,12 +84,12 @@ fn main() {
     }
     let private_key_file = matches.value_of("private").unwrap_or("Signpriv.key");
     let _manifest_file_name = matches.value_of("output").unwrap_or("Manifest.txt");
-    let inputpool = matches.value_of("pool").unwrap_or("0");
-    let poolresult = inputpool.parse();
     /*let _manifest_file = match File::open(& manifest_file_name){
         Err(why) => panic!("Couldn't open manifest file named {}: {}", manifest_file_name, why.description()),
         Ok(file) => file,
     };*/
+    let inputpool = matches.value_of("pool").unwrap_or("0");
+    let poolresult = inputpool.parse();
     let mut poolnumber;
     match poolresult {
         Ok(n) => poolnumber = n,
@@ -91,10 +100,11 @@ fn main() {
     if poolnumber < 1  {
         poolnumber = num_cpus::get();
     }
+
     let mut pool = Pool::new(poolnumber.try_into().unwrap());
     let (tx, rx): (
-        Sender<String>,
-        Receiver<String>,
+        Sender<Message>,
+        Receiver<Message>,
     ) = mpsc::channel();
     let mut children = Vec::new();
 
@@ -105,10 +115,35 @@ fn main() {
     let mut nonce_bytes: [u8; (NONCE_LENGH_IN_BYTES / 8)] = [0; (NONCE_LENGH_IN_BYTES / 8)];
     let rng = rand::thread_rng();
     let mut nonces: HashMap<[u8; NONCE_LENGH_IN_BYTES / 8], i32> = HashMap::new();
-    tx.send("Header".to_string()).unwrap();
-    tx.send(SEPERATOR.to_string()).unwrap();
+    let command_line  = args.join(" ");
+    let mut message = Message {
+        text: String::new(),
+        file_len: 0,
+    };
+    message.text = command_line.to_string();
+    message.file_len =0;
+    tx.send(message).unwrap();
+    let mut message = Message {
+        text: String::new(),
+        file_len: 0,
+    };
+    message.text = format!("Start time was {}",now.to_string());
+    tx.send(message).unwrap();
+    let mut message = Message {
+        text: String::new(),
+        file_len: 0,
+    };
+    message.text = format!("Threads for main hashing was {}",poolnumber);
+
+    tx.send(message).unwrap();
+    let mut message = Message {
+        text: String::new(),
+        file_len: 0,
+    };
+    message.text = SEPERATOR.to_string();
+    tx.send(message).unwrap();
     let writer_child = thread::spawn(move || {
-    write_from_channel(num_files +2 ,hashalgo, &private_key_bytes, rx);
+    write_from_channel(num_files + HEADER_MESSAGES ,hashalgo, &private_key_bytes, rx, start );
  });
 
     pool.scoped(|scoped| {
@@ -127,23 +162,54 @@ let _res = writer_child.join();
 
 }
 
-fn write_from_channel(num_lines : usize, hashalgo : &'static Algorithm, private_key_bytes : &[u8], rx : std::sync::mpsc::Receiver<String>) {
-let mut context = Context::new(hashalgo);
+fn write_from_channel(num_lines : usize, hashalgo : &'static Algorithm, private_key_bytes : &[u8], rx : std::sync::mpsc::Receiver<Message>, start: Instant) {
+    let mut context = Context::new(hashalgo);
+    let mut byte_count = 0;
     let mut strings = Vec::new();
     let mut data :String;
+    let mut total_file_len :u64 =0;
+    let mut message : Message;
     for _ in 0..num_lines {
         // The `recv` method picks a message from the channel
         // `recv` will block the current thread if there are no messages available
         strings.push(rx.recv().unwrap());
-
-        data = format!("{}",strings.remove(0));
+        message = strings.remove(0);
+        data = format!("{}",message.text);
+        byte_count = byte_count + data.len();
         println!("{}", data);
         context.update(&data[..].as_bytes());
+        total_file_len = total_file_len + message.file_len;
+
     }
-    println!("{}", SEPERATOR);
-    context.update(SEPERATOR.as_bytes());
+    let mut data = format!("{}", SEPERATOR);
+    println!("{}",data);
+    byte_count = byte_count + data.len();
+    context.update(data.as_bytes());
+
+    let duration = start.elapsed();
+    data  = format!("Time elapsed was {:?}", duration);
+    println!("{}",data);
+    byte_count = byte_count + data.len();
+
+
+    data  = format!("Total number of files is {:?}", num_lines-HEADER_MESSAGES);
+    println!("{}",data);
+    byte_count = byte_count + data.len();
+    context.update(data.as_bytes());
+
+    data  = format!("Total byte count of files is {:?}", convert(total_file_len as f64));
+    println!("{}",data);
+    byte_count = byte_count + data.len();
+    context.update(data.as_bytes());
+
+
+    data  = format!("Byte count of output is {:?}", convert(byte_count as f64));
+    println!("{}",data);
+    context.update(data.as_bytes());
+
     let digest = context.finish();
     println!("{}",HEXUPPER.encode(&digest.as_ref()));
+
     let signature = sign_data(&HEXUPPER.encode(&digest.as_ref()),  private_key_bytes);
     println!("{}", HEXUPPER.encode(&signature.as_ref()));
 }
@@ -207,7 +273,7 @@ fn sign_data(data: &str,  private_key_bytes: &[u8]) -> ring::signature::Signatur
     return sig;
 }
 
-fn create_line(path: String, hashalgo: &'static Algorithm, nonce_bytes: &[u8], private_key_bytes : &[u8], tx : std::sync::mpsc::Sender<String>){
+fn create_line(path: String, hashalgo: &'static Algorithm, nonce_bytes: &[u8], private_key_bytes : &[u8], tx : std::sync::mpsc::Sender<Message>){
     let path2 =path.clone();
     let path3 =path.clone();
     let metadata = fs::metadata(path).unwrap();
@@ -221,14 +287,20 @@ fn create_line(path: String, hashalgo: &'static Algorithm, nonce_bytes: &[u8], p
         let input = File::open(path2).unwrap();
         let reader = BufReader::new(input);
         let digest = var_digest(reader, hashalgo);
-        data = format!("File|{}|{}|{}|{}|{}", path3, filelen.to_string(),datetime.format("%d/%m/%Y %T"),HEXUPPER.encode(&digest.as_ref()),HEXUPPER.encode(&nonce_bytes)) ;
+        data = format!("File|{}|{}|{}|{}|{}", path3, convert(filelen as f64),datetime.format("%d/%m/%Y %T"),HEXUPPER.encode(&digest.as_ref()),HEXUPPER.encode(&nonce_bytes)) ;
     }
     else {
-        data = format!("Dir|{}|{}|{}|{}", path3,filelen.to_string(),datetime.format("%d/%m/%Y %T"),HEXUPPER.encode(&nonce_bytes));
+        data = format!("Dir|{}|{}|{}|{}", path3,convert(filelen as f64),datetime.format("%d/%m/%Y %T"),HEXUPPER.encode(&nonce_bytes));
 
     }
         signature = sign_data(&data, &private_key_bytes);
         data = format!("{}|{}", data,HEXUPPER.encode(&signature.as_ref()));
-        tx.send(data).unwrap();
+        let mut message = Message {
+            text: String::new(),
+            file_len: 0,
+        };
+        message.text = data;
+        message.file_len = filelen;
+        tx.send(message).unwrap();
 
 }
