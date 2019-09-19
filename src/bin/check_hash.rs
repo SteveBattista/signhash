@@ -120,7 +120,9 @@ fn read_sigfile(
     for x in 0..(hashlengh_in_bytes / 8) {
         hash_from_file[x] = local_hash_vec[x];
     }
-    let local_nonce_vec = HEXUPPER.decode(deserialized_map["NONCE"].as_bytes()).unwrap();
+    let local_nonce_vec = HEXUPPER
+        .decode(deserialized_map["NONCE"].as_bytes())
+        .unwrap();
     for x in 0..(128 / 8) {
         nonce[x] = local_nonce_vec[x];
     }
@@ -154,7 +156,7 @@ fn gethashofile(
     let metadata = fs::metadata(path).unwrap();
     let filelen = metadata.len();
     let mut signed_bytes = [0; 64];
-    let mut nonce_bytes =[0;16];
+    let mut nonce_bytes = [0; 16];
 
     if !(metadata.is_dir()) {
         //println!("{}, {} ", path, &[path, ".sig"].concat());
