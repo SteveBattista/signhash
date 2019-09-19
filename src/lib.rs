@@ -146,12 +146,12 @@ pub fn write_from_channel(
     context.update(data.as_bytes());
     write_line(& mut wherefile,  data);
 
-    data = format!("C|Total byte count of files in bytes is {:?}\n", total_file_len);
+    data = format!("C|Total byte count of files in bytes is {:?}\n", convert(total_file_len as f64));
     byte_count = byte_count + data.len();
     context.update(data.as_bytes());
     write_line(& mut wherefile,  data);
 
-    data = format!("C|Sum of size of files is {:?}\n", convert(byte_count as f64));
+    data = format!("C|Sum of size of file so far is {:?}\n", byte_count);
     context.update(data.as_bytes());
     write_line(& mut wherefile,  data);
 
