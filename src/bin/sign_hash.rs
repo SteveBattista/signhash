@@ -32,6 +32,11 @@ use std::sync::mpsc;
 use std::sync::mpsc::{Receiver, Sender};
 use std::time::Instant;
 
+use std::io::Write;
+use std::io::stdout;
+
+use indicatif::ProgressBar;
+use indicatif::ProgressStyle;
 
 fn main() {
     let now: DateTime<Utc> = Utc::now();
@@ -89,6 +94,10 @@ fn main() {
         }
     }
     let manifest_file = matches.value_of("output").unwrap_or("|||").to_string();
+    let mut fileoutput = true;
+    if manifest_file == "|||" {
+        fileoutput = false;
+    }
 
     let public_key_file = matches.value_of("public").unwrap_or("Signpub.key");
 
@@ -108,7 +117,7 @@ fn main() {
     let mut pool = Pool::new(poolnumber.try_into().unwrap());
 
     let (tx, rx): (Sender<Message>, Receiver<Message>) = mpsc::channel();
-    let mut children = Vec::new();
+
 
     let header_file = matches.value_of("header").unwrap_or("|||");
 
@@ -129,7 +138,10 @@ fn main() {
 
 
     write_headers(&tx,inputhash,&args.join(" "),header_file,&now,poolnumber);
-
+    let bar = ProgressBar::new(inputfiles.len().try_into().unwrap());
+    bar.set_prefix("Number of Files Hashed");
+    bar.set_style(ProgressStyle::default_bar()
+    .template("{prefix} {wide_bar} {pos}/{len}"));
     let writer_child = thread::spawn(move || {
         write_from_channel(
             num_files + signhash::HEADER_MESSAGES,
@@ -138,25 +150,31 @@ fn main() {
             rx,
             start,
             manifest_file,
+            &bar,
+            fileoutput
         );
     });
 
-    pool.scoped(|scoped| {
+     pool.scoped(|scoped| {
+        stdout().flush().unwrap();
         for file in inputfiles {
+
             let thread_tx = tx.clone();
             provide_unique_nonce(&mut nonce_bytes, &mut nonces, rng);
-            let child = scoped.execute(move || {
-                let _x = create_line(
+            scoped.execute(move || {
+                create_line(
                     file.to_string(),
                     hashalgo,
                     &nonce_bytes,
                     &private_key_bytes,
                     thread_tx,
+
                 );
             });
-            children.push(child);
-        }
-    });
 
+
+        }
+
+    });
     let _res = writer_child.join();
 }

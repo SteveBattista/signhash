@@ -6,7 +6,6 @@ use data_encoding::HEXUPPER;
 //use std::convert::TryInto;
 //use std::io::Write;
 use chrono::{DateTime, Utc};
-use pretty_bytes::converter::convert;
 
 use ring::digest::{Algorithm, Context, Digest};
 use std::collections::BTreeMap;
@@ -16,15 +15,19 @@ use std::error::Error;
 use std::fs;
 use std::fs::File;
 use std::io::{BufReader, Read};
+use std::io::Write;
 
 use std::time::Instant;
 
 
 use ring::signature::KeyPair;
 
-use std::io::prelude::*;
+
 
 use serde_yaml;
+
+use indicatif::ProgressBar;
+use indicatif::HumanBytes;
 
 pub const HEADER_MESSAGES: usize = 6;
 pub const NONCE_LENGTH_IN_BYTES: usize = 128; // Chance of collistion is low 2^64. Progam checks for this.
@@ -93,7 +96,9 @@ pub fn write_from_channel(
     private_key_bytes: &[u8],
     rx: std::sync::mpsc::Receiver<Message>,
     start: Instant,
-    manifest_file: String
+    manifest_file: String,
+    bar: &ProgressBar,
+    fileoutput: bool
 ) {
     let mut context = Context::new(hashalgo);
     let mut byte_count = 0;
@@ -118,7 +123,7 @@ pub fn write_from_channel(
         wherefile = Whereoutput::FilePointer(filepointer);
     }
 
-    for _ in 0..num_lines {
+    for x in 0..num_lines {
         // The `recv` method picks a message from the channel
         // `recv` will block the current thread if there are no messages available
         strings.push(rx.recv().unwrap());
@@ -129,6 +134,12 @@ pub fn write_from_channel(
         context.update(&data[..].as_bytes());
         total_file_len = total_file_len + message.file_len;
         write_line(& mut wherefile,  data);
+        if x> HEADER_MESSAGES
+        {
+            if fileoutput{
+                bar.inc(1);
+            }
+        }
     }
     let mut data = format!("{}\n", SEPERATOR);
     byte_count = byte_count + data.len();
@@ -146,7 +157,7 @@ pub fn write_from_channel(
     context.update(data.as_bytes());
     write_line(& mut wherefile,  data);
 
-    data = format!("Total byte count of files in bytes is |{:?}\n", convert(total_file_len as f64));
+    data = format!("Total byte count of files in bytes is |{}\n", HumanBytes(total_file_len));
     byte_count = byte_count + data.len();
     context.update(data.as_bytes());
     write_line(& mut wherefile,  data);
@@ -174,6 +185,9 @@ pub fn write_from_channel(
     let signature = sign_data(&HEXUPPER.encode(&digest.as_ref()), private_key_bytes);
     data = format!("Signature of file |{}\n", HEXUPPER.encode(&signature.as_ref()));
     write_line(& mut wherefile,  data);
+    if fileoutput {
+        bar.finish();
+    }
 }
 
 fn sign_data(data: &str, private_key_bytes: &[u8]) -> ring::signature::Signature {
@@ -333,6 +347,8 @@ pub fn create_line(
         Ok(input) => input,
         Err(why) => panic!("Couldn't send message {}", why.description()),
     };
+
+
 }
 
 pub fn create_keys(public_key_bytes: &mut [u8], private_key_bytes: &mut [u8]) {
