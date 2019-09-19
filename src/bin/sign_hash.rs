@@ -128,10 +128,23 @@ fn main() {
     let input_directoy = matches.value_of("directory").unwrap_or(".");
 
     let mut inputfiles: Vec<String> = Vec::new();
+    let bar = ProgressBar::new_spinner();
+    if fileoutput {
+        bar.set_prefix("Constucting file list time:");
+        bar.set_style(ProgressStyle::default_bar()
+    .template("{prefix}{elapsed_precise} {spinner}"));
+    }
     for entry in WalkDir::new(input_directoy) {
         //println!("{}", entry.unwrap().path().display());
         inputfiles.push(entry.unwrap().path().display().to_string());
+        if fileoutput {
+            bar.tick();
+        }
     }
+    if fileoutput {
+        bar.finish();
+    }
+
     let num_files = inputfiles.len();
     let mut private_key_bytes: [u8; (PRIVATEKEY_LENGTH_IN_BYTES / 8)] =
         [0; (PRIVATEKEY_LENGTH_IN_BYTES / 8)];
@@ -148,9 +161,11 @@ fn main() {
 
     write_headers(&tx,inputhash,&args.join(" "),header_file,&now,poolnumber);
     let bar = ProgressBar::new(inputfiles.len().try_into().unwrap());
-    bar.set_prefix("Number of Files Hashed");
-    bar.set_style(ProgressStyle::default_bar()
-    .template("{prefix} {wide_bar} {pos}/{len}"));
+    if fileoutput {
+        bar.set_prefix("Number of Files Hashed");
+        bar.set_style(ProgressStyle::default_bar()
+        .template("{prefix} {wide_bar} {pos}/{len} {elapsed_precise}"));
+    }
     let writer_child = thread::spawn(move || {
         write_from_channel(
             num_files + signhash::HEADER_MESSAGES,
