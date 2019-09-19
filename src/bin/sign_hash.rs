@@ -38,6 +38,8 @@ use std::io::stdout;
 use indicatif::ProgressBar;
 use indicatif::ProgressStyle;
 
+use walkdir::WalkDir;
+
 fn main() {
     let now: DateTime<Utc> = Utc::now();
     let start = Instant::now();
@@ -76,10 +78,12 @@ fn main() {
                                 .value_name("FILE")
                                 .help("Name of file that you would like to include in the header.")
                                 .takes_value(true))
-                        .arg(Arg::with_name("files")
-                             .value_name("FILES")
-                             .help("Place one or more files to hash. Those that can not be found will be ommited from the results. Directories will be ommitted. Links will be treated like normal files.")
-                               .required(true).min_values(1))
+                        .arg(Arg::with_name("directory")
+                            .short("d")
+                            .long("directory")
+                             .value_name("DIRECTORY")
+                             .help("Place one directory. Default is current working directory.Those that can not be found will be ommited from the results. Directories will be ommitted. Links will be treated like normal files.")
+                             .takes_value(true))
                         .get_matches();
 
     let hashalgo: &Algorithm;
@@ -121,8 +125,13 @@ fn main() {
 
     let header_file = matches.value_of("header").unwrap_or("|||");
 
+    let input_directoy = matches.value_of("directory").unwrap_or(".");
 
-    let inputfiles: Vec<_> = matches.values_of("files").unwrap().collect();
+    let mut inputfiles: Vec<String> = Vec::new();
+    for entry in WalkDir::new(input_directoy) {
+        //println!("{}", entry.unwrap().path().display());
+        inputfiles.push(entry.unwrap().path().display().to_string());
+    }
     let num_files = inputfiles.len();
     let mut private_key_bytes: [u8; (PRIVATEKEY_LENGTH_IN_BYTES / 8)] =
         [0; (PRIVATEKEY_LENGTH_IN_BYTES / 8)];

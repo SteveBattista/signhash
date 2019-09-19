@@ -1,10 +1,10 @@
 #![forbid(unsafe_code)]
 
+
 use rand::prelude::ThreadRng;
 use rand::Rng;
 use data_encoding::HEXUPPER;
-//use std::convert::TryInto;
-//use std::io::Write;
+
 use chrono::{DateTime, Utc};
 
 use ring::digest::{Algorithm, Context, Digest};
@@ -19,9 +19,7 @@ use std::io::Write;
 
 use std::time::Instant;
 
-
 use ring::signature::KeyPair;
-
 
 
 use serde_yaml;
@@ -152,12 +150,17 @@ pub fn write_from_channel(
     context.update(data.as_bytes());
     write_line(& mut wherefile,  data);
 
-    data = format!("Total number of files is |{:?}\n", num_lines - HEADER_MESSAGES);
+    data = format!("Total number of files hashed is |{:?}\n", num_lines - HEADER_MESSAGES);
     byte_count = byte_count + data.len();
     context.update(data.as_bytes());
     write_line(& mut wherefile,  data);
 
     data = format!("Total byte count of files in bytes is |{}\n", HumanBytes(total_file_len));
+    byte_count = byte_count + data.len();
+    context.update(data.as_bytes());
+    write_line(& mut wherefile,  data);
+
+    data = format!("Average byte count of files in bytes is |{}\n", HumanBytes(( (total_file_len as f64) / ((num_lines - HEADER_MESSAGES) as f64)) as u64));
     byte_count = byte_count + data.len();
     context.update(data.as_bytes());
     write_line(& mut wherefile,  data);
@@ -179,11 +182,11 @@ pub fn write_from_channel(
     write_line(& mut wherefile,  data);
 
     let digest = context.finish();
-    data = format!("Hash of file |{}\n", HEXUPPER.encode(&digest.as_ref()));
+    data = format!("Hash of file so far |{}\n", HEXUPPER.encode(&digest.as_ref()));
     write_line(& mut wherefile,  data);
 
     let signature = sign_data(&HEXUPPER.encode(&digest.as_ref()), private_key_bytes);
-    data = format!("Signature of file |{}\n", HEXUPPER.encode(&signature.as_ref()));
+    data = format!("Signature of hash |{}\n", HEXUPPER.encode(&signature.as_ref()));
     write_line(& mut wherefile,  data);
     if fileoutput {
         bar.finish();
