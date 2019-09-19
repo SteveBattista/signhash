@@ -27,9 +27,9 @@ use std::io::prelude::*;
 use serde_yaml;
 
 pub const HEADER_MESSAGES: usize = 6;
-pub const NONCE_LENGHT_IN_BYTES: usize = 128; // Chance of collistion is low 2^64. Progam checks for this.
-pub const PRIVATEKEY_LENGH_IN_BYTES: usize = 680;
-pub const PUBLICKEY_LENGH_IN_BYTES: usize = 256;
+pub const NONCE_LENGTH_IN_BYTES: usize = 128; // Chance of collistion is low 2^64. Progam checks for this.
+pub const PRIVATEKEY_LENGTH_IN_BYTES: usize = 680;
+pub const PUBLICKEY_LENGTH_IN_BYTES: usize = 256;
 
 const HASH_READ_BUFFER_IN_BYTES: usize = 4096; //Emperical test finds this faster than 8192
 const SEPERATOR : & 'static str = "********************************************************************************************************************";
@@ -54,7 +54,7 @@ pub fn provide_unique_nonce(
     let mut number: u8;
     while duplicate {
         duplicate = false;
-        for x in 0..(NONCE_LENGHT_IN_BYTES / 8) {
+        for x in 0..(NONCE_LENGTH_IN_BYTES / 8) {
             number = rng.gen();
             nonce_bytes[x] = number;
         }
@@ -136,31 +136,43 @@ pub fn write_from_channel(
     write_line(& mut wherefile,  data);
 
     let duration = start.elapsed();
-    data = format!("C|Time elapsed was {:?}\n", duration);
+    data = format!("Time elapsed was {:?}\n", duration);
     byte_count = byte_count + data.len();
     context.update(data.as_bytes());
     write_line(& mut wherefile,  data);
 
-    data = format!("C|Total number of files is {:?}\n", num_lines - HEADER_MESSAGES);
+    data = format!("Total number of files is {:?}\n", num_lines - HEADER_MESSAGES);
     byte_count = byte_count + data.len();
     context.update(data.as_bytes());
     write_line(& mut wherefile,  data);
 
-    data = format!("C|Total byte count of files in bytes is {:?}\n", convert(total_file_len as f64));
+    data = format!("Total byte count of files in bytes is {:?}\n", convert(total_file_len as f64));
     byte_count = byte_count + data.len();
     context.update(data.as_bytes());
     write_line(& mut wherefile,  data);
 
-    data = format!("C|Sum of size of file so far is {:?}\n", byte_count);
+    let mut nonce_bytes: [u8; (NONCE_LENGTH_IN_BYTES / 8)] = [0; (NONCE_LENGTH_IN_BYTES / 8)];
+    let mut rng = rand::thread_rng();
+    let mut number: u8;
+    for x in 0..(NONCE_LENGTH_IN_BYTES / 8) {
+        number = rng.gen();
+        nonce_bytes[x] = number;
+    }
+    data = format!("Nonce for file {}\n",HEXUPPER.encode(&nonce_bytes) );
+    byte_count = byte_count + data.len();
+    context.update(data.as_bytes());
+    write_line(& mut wherefile,  data);
+
+    data = format!("Sum of size of file so far is {:?}\n", byte_count);
     context.update(data.as_bytes());
     write_line(& mut wherefile,  data);
 
     let digest = context.finish();
-    data = format!("C|{}\n", HEXUPPER.encode(&digest.as_ref()));
+    data = format!("{}\n", HEXUPPER.encode(&digest.as_ref()));
     write_line(& mut wherefile,  data);
 
     let signature = sign_data(&HEXUPPER.encode(&digest.as_ref()), private_key_bytes);
-    data = format!("C|{}\n", HEXUPPER.encode(&signature.as_ref()));
+    data = format!("{}\n", HEXUPPER.encode(&signature.as_ref()));
     write_line(& mut wherefile,  data);
 }
 
@@ -206,7 +218,7 @@ pub fn read_private_key(private_key_bytes: &mut [u8], private_key_file: &str) {
             why.description()
         ),
     };
-    for x in 0..(PRIVATEKEY_LENGH_IN_BYTES / 8) {
+    for x in 0..(PRIVATEKEY_LENGTH_IN_BYTES / 8) {
         private_key_bytes[x] = local_key[x];
     }
 }
@@ -335,10 +347,10 @@ pub fn create_keys(public_key_bytes: &mut [u8], private_key_bytes: &mut [u8]) {
         Ok(pkcs8_bytes) => pkcs8_bytes,
     };
 
-    for x in 0..(PUBLICKEY_LENGH_IN_BYTES / 8) {
+    for x in 0..(PUBLICKEY_LENGTH_IN_BYTES / 8) {
         public_key_bytes[x] = key_pair.public_key().as_ref()[x];
     }
-    for x in 0..(PRIVATEKEY_LENGH_IN_BYTES / 8) {
+    for x in 0..(PRIVATEKEY_LENGTH_IN_BYTES / 8) {
         private_key_bytes[x] = pkcs8_bytes.as_ref()[x];
     }
 }
@@ -387,7 +399,7 @@ pub fn write_headers(tx: &std::sync::mpsc::Sender<Message>, inputhash: &str, com
     text: String::new(),
     file_len: 0,
 };
-message.text = format!("C|{}\n",&inputhash).to_string();
+message.text = format!("{}\n",&inputhash).to_string();
 message.file_len = 0;
 match tx.send(message) {
     Ok(_x) => (),
@@ -401,7 +413,7 @@ let mut message = Message {
     text: String::new(),
     file_len: 0,
 };
-message.text = format!("C|{}\n",&command_line).to_string();
+message.text = format!("{}\n",&command_line).to_string();
 message.file_len = 0;
 match tx.send(message) {
     Ok(_x) => (),
@@ -416,7 +428,7 @@ let mut message = Message {
     file_len: 0,
 };
 if header_file == "|||" {
-    message.text = "C|No Header File\n".to_string();
+    message.text = "No Header File\n".to_string();
 } else {
     message.text = dump_header(header_file);
 }
@@ -433,7 +445,7 @@ let mut message = Message {
     text: String::new(),
     file_len: 0,
 };
-message.text = format!("C|Start time was {}\n", now.to_string());
+message.text = format!("Start time was {}\n", now.to_string());
 match tx.send(message) {
     Ok(_x) => (),
     Err(why) => panic!(
@@ -446,7 +458,7 @@ let mut message = Message {
     text: String::new(),
     file_len: 0,
 };
-message.text = format!("C|Threads for main hashing was {}\n", poolnumber);
+message.text = format!("Threads for main hashing was {}\n", poolnumber);
 match tx.send(message) {
     Ok(_x) => (),
     Err(why) => panic!(

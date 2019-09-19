@@ -8,9 +8,9 @@ use signhash::provide_unique_nonce;
 use signhash::write_from_channel;
 use signhash::Message;
 use signhash::create_line;
-use signhash::PRIVATEKEY_LENGH_IN_BYTES;
-use signhash::PUBLICKEY_LENGH_IN_BYTES;
-use signhash::NONCE_LENGHT_IN_BYTES;
+use signhash::PRIVATEKEY_LENGTH_IN_BYTES;
+use signhash::PUBLICKEY_LENGTH_IN_BYTES;
+use signhash::NONCE_LENGTH_IN_BYTES;
 
 
 
@@ -115,17 +115,17 @@ fn main() {
 
     let inputfiles: Vec<_> = matches.values_of("files").unwrap().collect();
     let num_files = inputfiles.len();
-    let mut private_key_bytes: [u8; (PRIVATEKEY_LENGH_IN_BYTES / 8)] =
-        [0; (PRIVATEKEY_LENGH_IN_BYTES / 8)];
-    let mut public_key_bytes: [u8; (PUBLICKEY_LENGH_IN_BYTES / 8)] =
-            [0; (PUBLICKEY_LENGH_IN_BYTES / 8)];
+    let mut private_key_bytes: [u8; (PRIVATEKEY_LENGTH_IN_BYTES / 8)] =
+        [0; (PRIVATEKEY_LENGTH_IN_BYTES / 8)];
+    let mut public_key_bytes: [u8; (PUBLICKEY_LENGTH_IN_BYTES / 8)] =
+            [0; (PUBLICKEY_LENGTH_IN_BYTES / 8)];
 
     create_keys(&mut public_key_bytes, &mut private_key_bytes);
     write_key(&public_key_bytes, public_key_file, "Public");
 
-    let mut nonce_bytes: [u8; (NONCE_LENGHT_IN_BYTES / 8)] = [0; (NONCE_LENGHT_IN_BYTES / 8)];
+    let mut nonce_bytes: [u8; (NONCE_LENGTH_IN_BYTES / 8)] = [0; (NONCE_LENGTH_IN_BYTES / 8)];
     let rng = rand::thread_rng();
-    let mut nonces: HashMap<[u8; NONCE_LENGHT_IN_BYTES / 8], i32> = HashMap::new();
+    let mut nonces: HashMap<[u8; NONCE_LENGTH_IN_BYTES / 8], i32> = HashMap::new();
 
 
     write_headers(&tx,inputhash,&args.join(" "),header_file,&now,poolnumber);
