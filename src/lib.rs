@@ -136,17 +136,17 @@ pub fn write_from_channel(
     write_line(& mut wherefile,  data);
 
     let duration = start.elapsed();
-    data = format!("Time elapsed was {:?}\n", duration);
+    data = format!("Time elapsed was |{:?}\n", duration);
     byte_count = byte_count + data.len();
     context.update(data.as_bytes());
     write_line(& mut wherefile,  data);
 
-    data = format!("Total number of files is {:?}\n", num_lines - HEADER_MESSAGES);
+    data = format!("Total number of files is |{:?}\n", num_lines - HEADER_MESSAGES);
     byte_count = byte_count + data.len();
     context.update(data.as_bytes());
     write_line(& mut wherefile,  data);
 
-    data = format!("Total byte count of files in bytes is {:?}\n", convert(total_file_len as f64));
+    data = format!("Total byte count of files in bytes is |{:?}\n", convert(total_file_len as f64));
     byte_count = byte_count + data.len();
     context.update(data.as_bytes());
     write_line(& mut wherefile,  data);
@@ -158,21 +158,21 @@ pub fn write_from_channel(
         number = rng.gen();
         nonce_bytes[x] = number;
     }
-    data = format!("Nonce for file {}\n",HEXUPPER.encode(&nonce_bytes) );
+    data = format!("Nonce for file |{}\n",HEXUPPER.encode(&nonce_bytes) );
     byte_count = byte_count + data.len();
     context.update(data.as_bytes());
     write_line(& mut wherefile,  data);
 
-    data = format!("Sum of size of file so far is {:?}\n", byte_count);
+    data = format!("Sum of size of file so far is |{:?}\n", byte_count);
     context.update(data.as_bytes());
     write_line(& mut wherefile,  data);
 
     let digest = context.finish();
-    data = format!("{}\n", HEXUPPER.encode(&digest.as_ref()));
+    data = format!("Hash of file |{}\n", HEXUPPER.encode(&digest.as_ref()));
     write_line(& mut wherefile,  data);
 
     let signature = sign_data(&HEXUPPER.encode(&digest.as_ref()), private_key_bytes);
-    data = format!("{}\n", HEXUPPER.encode(&signature.as_ref()));
+    data = format!("Signature of file |{}\n", HEXUPPER.encode(&signature.as_ref()));
     write_line(& mut wherefile,  data);
 }
 
@@ -399,7 +399,7 @@ pub fn write_headers(tx: &std::sync::mpsc::Sender<Message>, inputhash: &str, com
     text: String::new(),
     file_len: 0,
 };
-message.text = format!("{}\n",&inputhash).to_string();
+message.text = format!("Hash size|{}\n",&inputhash).to_string();
 message.file_len = 0;
 match tx.send(message) {
     Ok(_x) => (),
@@ -413,7 +413,7 @@ let mut message = Message {
     text: String::new(),
     file_len: 0,
 };
-message.text = format!("{}\n",&command_line).to_string();
+message.text = format!("Command Line |{}\n",&command_line).to_string();
 message.file_len = 0;
 match tx.send(message) {
     Ok(_x) => (),
@@ -445,7 +445,7 @@ let mut message = Message {
     text: String::new(),
     file_len: 0,
 };
-message.text = format!("Start time was {}\n", now.to_string());
+message.text = format!("Start time was |{}\n", now.to_string());
 match tx.send(message) {
     Ok(_x) => (),
     Err(why) => panic!(
@@ -458,7 +458,7 @@ let mut message = Message {
     text: String::new(),
     file_len: 0,
 };
-message.text = format!("Threads for main hashing was {}\n", poolnumber);
+message.text = format!("Threads used for main hashing was |{}\n", poolnumber);
 match tx.send(message) {
     Ok(_x) => (),
     Err(why) => panic!(
