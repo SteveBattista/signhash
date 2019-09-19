@@ -160,7 +160,7 @@ pub fn write_from_channel(
     context.update(data.as_bytes());
     write_line(& mut wherefile,  data);
 
-    data = format!("Speed is |{} per second\n", HumanBytes(((total_file_len as f64) / (duration.as_millis() as f64)/1000.0) as u64));
+    data = format!("Speed is |{}ps\n", HumanBytes((((total_file_len as f64) * 1000.0) / (duration.as_millis() as f64)) as u64));
     byte_count = byte_count + data.len();
     context.update(data.as_bytes());
     write_line(& mut wherefile,  data);
