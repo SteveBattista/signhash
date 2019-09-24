@@ -1,44 +1,54 @@
 #![forbid(unsafe_code)]
 
-
+use data_encoding::HEXUPPER;
 use rand::prelude::ThreadRng;
 use rand::Rng;
-use data_encoding::HEXUPPER;
 
 use chrono::{DateTime, Utc};
 
 use ring::digest::{Algorithm, Context, Digest};
+use ring::digest::{SHA1_FOR_LEGACY_USE_ONLY, SHA256, SHA384, SHA512};
 use std::collections::BTreeMap;
 use std::collections::HashMap;
 
 use std::error::Error;
 use std::fs;
 use std::fs::File;
-use std::io::{BufReader, Read};
+use std::io::BufRead;
 use std::io::Write;
+use std::io::{BufReader, Read};
 
 use std::time::Instant;
 
 use ring::signature::KeyPair;
 
-
 use serde_yaml;
 
-use indicatif::ProgressBar;
 use indicatif::HumanBytes;
+use indicatif::ProgressBar;
+use indicatif::ProgressStyle;
 
-pub const HEADER_MESSAGES: usize = 6;
+pub const HEADER_MESSAGE_COUNT: usize = 8;
 pub const NONCE_LENGTH_IN_BYTES: usize = 128; // Chance of collistion is low 2^64. Progam checks for this.
 pub const PRIVATEKEY_LENGTH_IN_BYTES: usize = 680;
 pub const PUBLICKEY_LENGTH_IN_BYTES: usize = 256;
 
 const HASH_READ_BUFFER_IN_BYTES: usize = 4096; //Emperical test finds this faster than 8192
-const SEPERATOR : & 'static str = "********************************************************************************************************************";
+pub const SEPERATOR : & 'static str = "********************************************************************************************************************";
 
-
-pub struct Message {
+pub struct SignMessage {
     pub text: String,
     pub file_len: u64,
+}
+
+pub struct ToPrintLine {
+    pub text: String,
+    pub verbose: bool,
+}
+
+pub enum CheckMessage {
+    PrintLine(ToPrintLine),
+    EndOfFile(bool),
 }
 
 enum Whereoutput {
@@ -70,53 +80,47 @@ pub fn provide_unique_nonce(
         }
     }
 }
-fn write_line(wherefile: &mut Whereoutput, data: String){
-    match wherefile{
-        Whereoutput::FilePointer(ref mut file)  =>
-        match file.write_all(data.as_bytes()) {
+
+fn write_manifest_line(wherefile: &mut Whereoutput, data: String) {
+    match wherefile {
+        Whereoutput::FilePointer(ref mut file) => match file.write_all(data.as_bytes()) {
             Ok(_) => (),
-            Err(why) => panic!(
-                "Couldn't write {} to manifest: {}",
-                data,
-                why.description()
-            )
+            Err(why) => panic!("Couldn't write {} to manifest: {}", data, why.description()),
         },
-    Whereoutput::StringText(_string) => {
-        print!("{}", data);
-    }
-};
+        Whereoutput::StringText(_string) => {
+            print!("{}", data);
+        }
+    };
 }
 
-
-pub fn write_from_channel(
+pub fn write_manifest_from_channel(
     num_lines: usize,
     hashalgo: &'static Algorithm,
     private_key_bytes: &[u8],
-    rx: std::sync::mpsc::Receiver<Message>,
+    rx: std::sync::mpsc::Receiver<SignMessage>,
     start: Instant,
     manifest_file: String,
     bar: &ProgressBar,
-    fileoutput: bool
+    fileoutput: bool,
 ) {
     let mut context = Context::new(hashalgo);
     let mut byte_count = 0;
     let mut strings = Vec::new();
     let mut data: String;
     let mut total_file_len: u64 = 0;
-    let mut message: Message;
+    let mut message: SignMessage;
     let mut wherefile: Whereoutput;
     let filepointer: File;
-    if manifest_file == "|||"
-    {
-        wherefile= Whereoutput::StringText("STDIO".to_owned());
+    if manifest_file == "|||" {
+        wherefile = Whereoutput::StringText("STDIO".to_owned());
     } else {
-         filepointer = match File::create(&manifest_file) {
+        filepointer = match File::create(&manifest_file) {
             Ok(filepointer) => filepointer,
             Err(why) => panic!(
                 "couldn't create manifestfile requested at {}: {}",
                 manifest_file,
                 why.description()
-            )
+            ),
         };
         wherefile = Whereoutput::FilePointer(filepointer);
     }
@@ -131,10 +135,9 @@ pub fn write_from_channel(
 
         context.update(&data[..].as_bytes());
         total_file_len = total_file_len + message.file_len;
-        write_line(& mut wherefile,  data);
-        if x> HEADER_MESSAGES
-        {
-            if fileoutput{
+        write_manifest_line(&mut wherefile, data);
+        if x > HEADER_MESSAGE_COUNT {
+            if fileoutput {
                 bar.inc(1);
             }
         }
@@ -142,33 +145,45 @@ pub fn write_from_channel(
     let mut data = format!("{}\n", SEPERATOR);
     byte_count = byte_count + data.len();
 
-    write_line(& mut wherefile,  data);
+    write_manifest_line(&mut wherefile, data);
 
     let duration = start.elapsed();
     data = format!("Time elapsed was |{:?}\n", duration);
     byte_count = byte_count + data.len();
     context.update(data.as_bytes());
-    write_line(& mut wherefile,  data);
+    write_manifest_line(&mut wherefile, data);
 
-    data = format!("Total number of files hashed is |{:?}\n", num_lines - HEADER_MESSAGES);
+    data = format!(
+        "Total number of files hashed is |{:?}\n",
+        num_lines - HEADER_MESSAGE_COUNT
+    );
     byte_count = byte_count + data.len();
     context.update(data.as_bytes());
-    write_line(& mut wherefile,  data);
+    write_manifest_line(&mut wherefile, data);
 
-    data = format!("Total byte count of files in bytes is |{}\n", HumanBytes(total_file_len));
+    data = format!(
+        "Total byte count of files in bytes is |{}\n",
+        HumanBytes(total_file_len)
+    );
     byte_count = byte_count + data.len();
     context.update(data.as_bytes());
-    write_line(& mut wherefile,  data);
+    write_manifest_line(&mut wherefile, data);
 
-    data = format!("Speed is |{}ps\n", HumanBytes((((total_file_len as f64) * 1000.0) / (duration.as_millis() as f64)) as u64));
+    data = format!(
+        "Speed is |{}ps\n",
+        HumanBytes((((total_file_len as f64) * 1000.0) / (duration.as_millis() as f64)) as u64)
+    );
     byte_count = byte_count + data.len();
     context.update(data.as_bytes());
-    write_line(& mut wherefile,  data);
+    write_manifest_line(&mut wherefile, data);
 
-    data = format!("Average byte count of files in bytes is |{}\n", HumanBytes(( (total_file_len as f64) / ((num_lines - HEADER_MESSAGES) as f64)) as u64));
+    data = format!(
+        "Average byte count of files in bytes is |{}\n",
+        HumanBytes(((total_file_len as f64) / ((num_lines - HEADER_MESSAGE_COUNT) as f64)) as u64)
+    );
     byte_count = byte_count + data.len();
     context.update(data.as_bytes());
-    write_line(& mut wherefile,  data);
+    write_manifest_line(&mut wherefile, data);
 
     let mut nonce_bytes: [u8; (NONCE_LENGTH_IN_BYTES / 8)] = [0; (NONCE_LENGTH_IN_BYTES / 8)];
     let mut rng = rand::thread_rng();
@@ -177,24 +192,51 @@ pub fn write_from_channel(
         number = rng.gen();
         nonce_bytes[x] = number;
     }
-    data = format!("Nonce for file |{}\n",HEXUPPER.encode(&nonce_bytes) );
+    data = format!("Nonce for file |{}\n", HEXUPPER.encode(&nonce_bytes));
     byte_count = byte_count + data.len();
     context.update(data.as_bytes());
-    write_line(& mut wherefile,  data);
+    write_manifest_line(&mut wherefile, data);
 
     data = format!("Sum of size of file so far is |{:?}\n", byte_count);
     context.update(data.as_bytes());
-    write_line(& mut wherefile,  data);
+    write_manifest_line(&mut wherefile, data);
 
     let digest = context.finish();
-    data = format!("Hash of file so far |{}\n", HEXUPPER.encode(&digest.as_ref()));
-    write_line(& mut wherefile,  data);
+    data = format!(
+        "Hash of file so far |{}\n",
+        HEXUPPER.encode(&digest.as_ref())
+    );
+    write_manifest_line(&mut wherefile, data);
 
     let signature = sign_data(&HEXUPPER.encode(&digest.as_ref()), private_key_bytes);
-    data = format!("Signature of hash |{}\n", HEXUPPER.encode(&signature.as_ref()));
-    write_line(& mut wherefile,  data);
+    data = format!(
+        "Signature of hash |{}\n",
+        HEXUPPER.encode(&signature.as_ref())
+    );
+    write_manifest_line(&mut wherefile, data);
     if fileoutput {
         bar.finish();
+    }
+}
+
+pub fn parse_hash_manifest_line(firstline: &String, mut hashalgo: &Algorithm) {
+    let tokens: Vec<&str> = firstline.split('|').collect();
+    match tokens[1].as_ref() {
+        "128" => {
+            hashalgo = &SHA1_FOR_LEGACY_USE_ONLY;
+        }
+        "256" => {
+            hashalgo = &SHA256;
+        }
+        "384" => {
+            hashalgo = &SHA384;
+        }
+        "512" => {
+            hashalgo = &SHA512;
+        }
+        _ => {
+            panic!("Hash line does not give a proper hash size.");
+        }
     }
 }
 
@@ -245,7 +287,6 @@ pub fn read_private_key(private_key_bytes: &mut [u8], private_key_file: &str) {
     }
 }
 
-
 pub fn dump_header(header_file: &str) -> String {
     let mut file = match File::open(&header_file) {
         Ok(file) => file,
@@ -267,7 +308,6 @@ pub fn dump_header(header_file: &str) -> String {
     return contents;
 }
 
-
 pub fn var_digest<R: Read>(mut reader: R, hashalgo: &'static Algorithm) -> Digest {
     let mut context = Context::new(hashalgo);
     let mut buffer = [0; (HASH_READ_BUFFER_IN_BYTES / 8)];
@@ -288,13 +328,12 @@ pub fn var_digest<R: Read>(mut reader: R, hashalgo: &'static Algorithm) -> Diges
     context.finish()
 }
 
-
 pub fn create_line(
     path: String,
     hashalgo: &'static Algorithm,
     nonce_bytes: &[u8],
     private_key_bytes: &[u8],
-    tx: std::sync::mpsc::Sender<Message>,
+    tx: std::sync::mpsc::Sender<SignMessage>,
 ) {
     let path2 = path.clone();
     let path3 = path.clone();
@@ -345,7 +384,7 @@ pub fn create_line(
     }
     signature = sign_data(&data, &private_key_bytes);
     data = format!("{}|{}\n", data, HEXUPPER.encode(&signature.as_ref()));
-    let mut message = Message {
+    let mut message = SignMessage {
         text: String::new(),
         file_len: 0,
     };
@@ -355,8 +394,6 @@ pub fn create_line(
         Ok(input) => input,
         Err(why) => panic!("Couldn't send message {}", why.description()),
     };
-
-
 }
 
 pub fn create_keys(public_key_bytes: &mut [u8], private_key_bytes: &mut [u8]) {
@@ -393,8 +430,7 @@ pub fn write_key(public_key_bytes: &[u8], pubic_key_file: &str, key_name: &str) 
             key_name,
             pubic_key_file,
             why.description()
-        )
-
+        ),
     };
     match file.write_all(s.as_bytes()) {
         Ok(_) => (),
@@ -403,8 +439,48 @@ pub fn write_key(public_key_bytes: &[u8], pubic_key_file: &str, key_name: &str) 
             key_name,
             pubic_key_file,
             why.description()
-        )
+        ),
     };
+}
+
+pub fn read_public_key(public_key_file: &str, public_key_bytes: &mut [u8]) {
+    let mut file = match File::open(public_key_file) {
+        Ok(filepointer) => filepointer,
+        Err(why) => panic!(
+            "Couldn't find public key file requested at {}: {}",
+            public_key_file,
+            why.description()
+        ),
+    };
+
+    let mut contents = String::new();
+    match file.read_to_string(&mut contents) {
+        Ok(_x) => (),
+        Err(why) => panic!(
+            "Couldn't read from public key file requested at {}: {}",
+            public_key_file,
+            why.description()
+        ),
+    };
+    let deserialized_map: BTreeMap<String, String> = match serde_yaml::from_str(&contents) {
+        Ok(deserialized_map) => (deserialized_map),
+        Err(why) => panic!(
+            "Couldn't pase public key from YAML file requested at {}: {}",
+            public_key_file,
+            why.description()
+        ),
+    };
+    let local_key = match HEXUPPER.decode(deserialized_map["Public"].as_bytes()) {
+        Ok(local_key) => (local_key),
+        Err(why) => panic!(
+            "Couldn't decode hex from public key file requested at {}: {}",
+            public_key_file,
+            why.description()
+        ),
+    };
+    for x in 0..PUBLICKEY_LENGTH_IN_BYTES / 8 {
+        public_key_bytes[x] = local_key[x];
+    }
 }
 
 pub fn write_keys(
@@ -417,90 +493,154 @@ pub fn write_keys(
     write_key(&private_key_bytes, private_key_file, "Private");
 }
 
-pub fn write_headers(tx: &std::sync::mpsc::Sender<Message>, inputhash: &str, command_line : &str, header_file : & str, now : &chrono::DateTime<Utc>, poolnumber: usize,  ){
+pub fn write_headers(
+    tx: &std::sync::mpsc::Sender<SignMessage>,
+    inputhash: &str,
+    command_line: &str,
+    header_file: &str,
+    now: &chrono::DateTime<Utc>,
+    poolnumber: usize,
+) {
+    let mut message = SignMessage {
+        text: String::new(),
+        file_len: 0,
+    };
+    message.text = format!("Manifest version | 0.5.0\n").to_string();
+    message.file_len = 0;
+    match tx.send(message) {
+        Ok(_x) => (),
+        Err(why) => panic!(
+            "Couldn't send manifest version to writing thread. : {}",
+            why.description()
+        ),
+    };
 
-    let mut message = Message {
-    text: String::new(),
-    file_len: 0,
-};
-message.text = format!("Hash size|{}\n",&inputhash).to_string();
-message.file_len = 0;
-match tx.send(message) {
-    Ok(_x) => (),
-    Err(why) => panic!(
-        "Couldn't send hash type to writing thread. : {}",
-        why.description()
-    ),
-};
+    let mut message = SignMessage {
+        text: String::new(),
+        file_len: 0,
+    };
+    message.text = format!("Command Line |{}\n", &command_line).to_string();
+    message.file_len = 0;
+    match tx.send(message) {
+        Ok(_x) => (),
+        Err(why) => panic!(
+            "Couldn't send command line to writing thread. : {}",
+            why.description()
+        ),
+    };
 
-let mut message = Message {
-    text: String::new(),
-    file_len: 0,
-};
-message.text = format!("Command Line |{}\n",&command_line).to_string();
-message.file_len = 0;
-match tx.send(message) {
-    Ok(_x) => (),
-    Err(why) => panic!(
-        "Couldn't send command line to writing thread. : {}",
-        why.description()
-    ),
-};
+    let mut message = SignMessage {
+        text: String::new(),
+        file_len: 0,
+    };
+    message.text = format!("Hash size|{}\n", &inputhash).to_string();
+    message.file_len = 0;
+    match tx.send(message) {
+        Ok(_x) => (),
+        Err(why) => panic!(
+            "Couldn't send hash type to writing thread. : {}",
+            why.description()
+        ),
+    };
 
-let mut message = Message {
-    text: String::new(),
-    file_len: 0,
-};
-if header_file == "|||" {
-    message.text = "No Header File\n".to_string();
-} else {
-    message.text = dump_header(header_file);
+    let mut message = SignMessage {
+        text: String::new(),
+        file_len: 0,
+    };
+    message.text = format!("Signature algorthim |ED25519\n").to_string();
+    message.file_len = 0;
+    match tx.send(message) {
+        Ok(_x) => (),
+        Err(why) => panic!(
+            "Couldn't send signture type to writing thread. : {}",
+            why.description()
+        ),
+    };
+
+    let mut message = SignMessage {
+        text: String::new(),
+        file_len: 0,
+    };
+
+    if header_file == "|||" {
+        message.text = "No header file requested to include\n".to_string();
+    } else {
+        message.text = dump_header(header_file);
+    }
+    message.file_len = 0;
+    match tx.send(message) {
+        Ok(_x) => (),
+        Err(why) => panic!(
+            "Couldn't send header file to writing thread. : {}",
+            why.description()
+        ),
+    };
+
+    let mut message = SignMessage {
+        text: String::new(),
+        file_len: 0,
+    };
+    message.text = format!("Start time was |{}\n", now.to_string());
+    match tx.send(message) {
+        Ok(_x) => (),
+        Err(why) => panic!(
+            "Couldn't send start time to writing thread. : {}",
+            why.description()
+        ),
+    };
+
+    let mut message = SignMessage {
+        text: String::new(),
+        file_len: 0,
+    };
+    message.text = format!("Threads used for main hashing was |{}\n", poolnumber);
+    match tx.send(message) {
+        Ok(_x) => (),
+        Err(why) => panic!(
+            "Couldn't send number of threads message to writing thread. : {}",
+            why.description()
+        ),
+    };
+
+    let mut message = SignMessage {
+        text: String::new(),
+        file_len: 0,
+    };
+    message.text = format!("{}\n", SEPERATOR);
+    match tx.send(message) {
+        Ok(_x) => (),
+        Err(why) => panic!(
+            "Couldn't send seprator to writing thread. : {}",
+            why.description()
+        ),
+    };
 }
-message.file_len = 0;
-match tx.send(message) {
-    Ok(_x) => (),
-    Err(why) => panic!(
-        "Couldn't send header file to writing thread. : {}",
-        why.description()
-    ),
-};
 
-let mut message = Message {
-    text: String::new(),
-    file_len: 0,
-};
-message.text = format!("Start time was |{}\n", now.to_string());
-match tx.send(message) {
-    Ok(_x) => (),
-    Err(why) => panic!(
-        "Couldn't send start time to writing thread. : {}",
-        why.description()
-    ),
-};
-
-let mut message = Message {
-    text: String::new(),
-    file_len: 0,
-};
-message.text = format!("Threads used for main hashing was |{}\n", poolnumber);
-match tx.send(message) {
-    Ok(_x) => (),
-    Err(why) => panic!(
-        "Couldn't send number of threads message to writing thread. : {}",
-        why.description()
-    ),
-};
-
-let mut message = Message {
-    text: String::new(),
-    file_len: 0,
-};
-message.text = format!("{}\n",SEPERATOR);
-match tx.send(message) {
-    Ok(_x) => (),
-    Err(why) => panic!(
-        "Couldn't send seprator to writing thread. : {}",
-        why.description()
-    ),
-};
+pub fn read_manifest_file(vec_of_lines: &mut Vec<String>, input_file: &str, fileoutput: bool) {
+    let f = match File::open(input_file) {
+        Ok(f) => f,
+        Err(why) => panic!(
+            "Couldn't open manifestfile for input at {}: {}",
+            input_file,
+            why.description()
+        ),
+    };
+    let spinner = ProgressBar::new_spinner();
+    let file = BufReader::new(&f);
+    if fileoutput {
+        spinner.set_prefix("Reading Manifest:");
+        spinner.set_style(
+            ProgressStyle::default_bar().template("{prefix} {elapsed_precise} {spinner}"),
+        );
+    }
+    for line in file.lines() {
+        if fileoutput {
+            spinner.tick();
+        }
+        let l = line.unwrap();
+        vec_of_lines.push(l);
+    }
+    if fileoutput {
+        spinner.finish();
+    }
 }
