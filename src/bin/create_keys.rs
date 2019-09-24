@@ -8,7 +8,6 @@ use signhash::write_keys;
 const PRIVATEKEY_LENGH_IN_BYTES: usize = 680;
 const PUBLICKEY_LENGH_IN_BYTES: usize = 256;
 
-
 fn main() {
     let matches = App::new("Create Keys")
                           .version("1.0")
