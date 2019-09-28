@@ -28,7 +28,8 @@ use indicatif::HumanBytes;
 use indicatif::ProgressBar;
 use indicatif::ProgressStyle;
 
-pub const HEADER_MESSAGE_COUNT: usize = 8;
+pub const SIGN_HEADER_MESSAGE_COUNT: usize = 8;
+pub const CHECK_HEADER_MESSAGE_COUNT: usize = 4;
 pub const NONCE_LENGTH_IN_BYTES: usize = 128; // Chance of collistion is low 2^64. Progam checks for this.
 pub const PRIVATEKEY_LENGTH_IN_BYTES: usize = 680;
 pub const PUBLICKEY_LENGTH_IN_BYTES: usize = 256;
@@ -41,19 +42,44 @@ pub struct SignMessage {
     pub file_len: u64,
 }
 
-pub struct ToPrintLine {
+
+pub struct CheckMessage {
     pub text: String,
     pub verbose: bool,
-}
-
-pub enum CheckMessage {
-    PrintLine(ToPrintLine),
-    EndOfFile(bool),
 }
 
 enum Whereoutput {
     FilePointer(File),
     StringText(String),
+}
+
+pub struct ManifestLine {
+    pub  type_of_line : String,
+    pub  bytes_line : String,
+    pub time_line: String,
+    pub hash_line: String,
+    pub nonce_line : String,
+    pub sign_line: String,
+}
+
+pub fn report_duplicatve_and_insert_nonce(nonces: &mut HashMap<String, String>, nonce :String,file_name_line: String, tx: std::sync::mpsc::Sender<CheckMessage>){
+    match nonces.insert(nonce.clone(),file_name_line){
+        None => (),
+        Some(answer) => {
+            let mut message = CheckMessage {
+                text: String::new(),
+                verbose: true,
+            };
+            message.text = format!("{} and {} share the same nonce", nonce.clone(), answer);
+            match tx.send(message) {
+                Ok(_x) => (),
+                Err(why) => panic!(
+                    "Couldn't send nonce duplicate to writing thread. : {}",
+                    why.description()
+                ),
+            };
+        }
+    };
 }
 
 pub fn provide_unique_nonce(
@@ -81,17 +107,56 @@ pub fn provide_unique_nonce(
     }
 }
 
-fn write_manifest_line(wherefile: &mut Whereoutput, data: String) {
+pub fn write_check_from_channel(num_lines: usize,
+rx: std::sync::mpsc::Receiver<CheckMessage>,
+output_file: String,
+bar: &ProgressBar,
+fileoutput: bool) {
+    let mut message: CheckMessage;
+    let mut wherefile: Whereoutput;
+    let filepointer: File;
+    if !fileoutput {
+        wherefile = Whereoutput::StringText("STDIO".to_owned());
+    } else {
+        filepointer = match File::create(&output_file) {
+            Ok(filepointer) => filepointer,
+            Err(why) => panic!(
+                "couldn't create check file requested at {}: {}",
+                output_file,
+                why.description()
+            ),
+        };
+        wherefile = Whereoutput::FilePointer(filepointer);
+    }
+    let mut data : String;
+    for x in 0..num_lines {
+        // The `recv` method picks a message from the channel
+        // `recv` will block the current thread if there are no messages available
+        message = rx.recv().unwrap();
+        data = format!("{}", message.text);
+
+        write_line(&mut wherefile, data,"check");
+        if x > SIGN_HEADER_MESSAGE_COUNT {
+            if fileoutput {
+                bar.inc(1);
+            }
+        }
+    }
+
+}
+
+fn write_line(wherefile: &mut Whereoutput, data: String, filename: &str) {
     match wherefile {
         Whereoutput::FilePointer(ref mut file) => match file.write_all(data.as_bytes()) {
             Ok(_) => (),
-            Err(why) => panic!("Couldn't write {} to manifest: {}", data, why.description()),
+            Err(why) => panic!("Couldn't write {} to {}: {}", data, filename, why.description()),
         },
         Whereoutput::StringText(_string) => {
             print!("{}", data);
         }
     };
 }
+
 
 pub fn write_manifest_from_channel(
     num_lines: usize,
@@ -105,7 +170,7 @@ pub fn write_manifest_from_channel(
 ) {
     let mut context = Context::new(hashalgo);
     let mut byte_count = 0;
-    let mut strings = Vec::new();
+    //let mut strings = Vec::new();
     let mut data: String;
     let mut total_file_len: u64 = 0;
     let mut message: SignMessage;
@@ -128,15 +193,14 @@ pub fn write_manifest_from_channel(
     for x in 0..num_lines {
         // The `recv` method picks a message from the channel
         // `recv` will block the current thread if there are no messages available
-        strings.push(rx.recv().unwrap());
-        message = strings.remove(0);
+        message = rx.recv().unwrap();
         data = format!("{}", message.text);
         byte_count = byte_count + data.len();
 
         context.update(&data[..].as_bytes());
         total_file_len = total_file_len + message.file_len;
-        write_manifest_line(&mut wherefile, data);
-        if x > HEADER_MESSAGE_COUNT {
+        write_line(&mut wherefile, data,"manifest");
+        if x > SIGN_HEADER_MESSAGE_COUNT {
             if fileoutput {
                 bar.inc(1);
             }
@@ -145,21 +209,21 @@ pub fn write_manifest_from_channel(
     let mut data = format!("{}\n", SEPERATOR);
     byte_count = byte_count + data.len();
 
-    write_manifest_line(&mut wherefile, data);
+    write_line(&mut wherefile, data, "manifest");
 
     let duration = start.elapsed();
     data = format!("Time elapsed was |{:?}\n", duration);
     byte_count = byte_count + data.len();
     context.update(data.as_bytes());
-    write_manifest_line(&mut wherefile, data);
+    write_line(&mut wherefile, data, "manifest");
 
     data = format!(
         "Total number of files hashed is |{:?}\n",
-        num_lines - HEADER_MESSAGE_COUNT
+        num_lines - SIGN_HEADER_MESSAGE_COUNT
     );
     byte_count = byte_count + data.len();
     context.update(data.as_bytes());
-    write_manifest_line(&mut wherefile, data);
+    write_line(&mut wherefile, data, "manifest");
 
     data = format!(
         "Total byte count of files in bytes is |{}\n",
@@ -167,7 +231,7 @@ pub fn write_manifest_from_channel(
     );
     byte_count = byte_count + data.len();
     context.update(data.as_bytes());
-    write_manifest_line(&mut wherefile, data);
+    write_line(&mut wherefile, data, "manifest");
 
     data = format!(
         "Speed is |{}ps\n",
@@ -175,15 +239,15 @@ pub fn write_manifest_from_channel(
     );
     byte_count = byte_count + data.len();
     context.update(data.as_bytes());
-    write_manifest_line(&mut wherefile, data);
+    write_line(&mut wherefile, data, "manifest");
 
     data = format!(
         "Average byte count of files in bytes is |{}\n",
-        HumanBytes(((total_file_len as f64) / ((num_lines - HEADER_MESSAGE_COUNT) as f64)) as u64)
+        HumanBytes(((total_file_len as f64) / ((num_lines - SIGN_HEADER_MESSAGE_COUNT) as f64)) as u64)
     );
     byte_count = byte_count + data.len();
     context.update(data.as_bytes());
-    write_manifest_line(&mut wherefile, data);
+    write_line(&mut wherefile, data, "manifest");
 
     let mut nonce_bytes: [u8; (NONCE_LENGTH_IN_BYTES / 8)] = [0; (NONCE_LENGTH_IN_BYTES / 8)];
     let mut rng = rand::thread_rng();
@@ -195,25 +259,25 @@ pub fn write_manifest_from_channel(
     data = format!("Nonce for file |{}\n", HEXUPPER.encode(&nonce_bytes));
     byte_count = byte_count + data.len();
     context.update(data.as_bytes());
-    write_manifest_line(&mut wherefile, data);
+    write_line(&mut wherefile, data, "manifest");
 
     data = format!("Sum of size of file so far is |{:?}\n", byte_count);
     context.update(data.as_bytes());
-    write_manifest_line(&mut wherefile, data);
+    write_line(&mut wherefile, data, "manifest");
 
     let digest = context.finish();
     data = format!(
         "Hash of file so far |{}\n",
         HEXUPPER.encode(&digest.as_ref())
     );
-    write_manifest_line(&mut wherefile, data);
+    write_line(&mut wherefile, data, "manifest");
 
     let signature = sign_data(&HEXUPPER.encode(&digest.as_ref()), private_key_bytes);
     data = format!(
         "Signature of hash |{}\n",
         HEXUPPER.encode(&signature.as_ref())
     );
-    write_manifest_line(&mut wherefile, data);
+    write_line(&mut wherefile, data, "manifest");
     if fileoutput {
         bar.finish();
     }
@@ -643,4 +707,25 @@ pub fn read_manifest_file(vec_of_lines: &mut Vec<String>, input_file: &str, file
     if fileoutput {
         spinner.finish();
     }
+}
+
+
+pub fn parse_next_manifest_line (manifest_line: String, mut type_of_line :String ,mut file_name_line: String , mut bytes_line :String, mut time_line: String ,mut hash_line: String ,mut nonce_line : String, sign_line : String) {
+    let tokens: Vec<&str> = manifest_line.split('|').collect();
+    let mut x = 0;
+    type_of_line = tokens[x].to_string();
+    x += 1;
+    file_name_line = tokens[x].to_string();
+    x += 1;
+    bytes_line = tokens[x].to_string();
+    x += 1;
+    time_line = tokens[x].to_string();
+    x += 1;
+    if type_of_line == "file".to_string() {
+        hash_line = tokens[x].to_string();
+        x += 1;
+    }
+    nonce_line = tokens[x].to_string();
+    x += 1;
+    time_line = tokens[x].to_string();
 }
