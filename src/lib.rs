@@ -54,12 +54,12 @@ enum Whereoutput {
 }
 
 pub struct ManifestLine {
-    pub  type_of_line : String,
-    pub  bytes_line : String,
-    pub time_line: String,
-    pub hash_line: String,
-    pub nonce_line : String,
-    pub sign_line: String,
+    pub file_type : String,
+    pub bytes : String,
+    pub time: String,
+    pub hash: String,
+    pub nonce: String,
+    pub sign: String,
 }
 
 pub fn report_duplicatve_and_insert_nonce(nonces: &mut HashMap<String, String>, nonce :String,file_name_line: String, tx: std::sync::mpsc::Sender<CheckMessage>){
@@ -70,7 +70,7 @@ pub fn report_duplicatve_and_insert_nonce(nonces: &mut HashMap<String, String>, 
                 text: String::new(),
                 verbose: true,
             };
-            message.text = format!("{} and {} share the same nonce", nonce.clone(), answer);
+            message.text = format!("{} and {} share the same nonce. Suspect replay attack.", nonce.clone(), answer);
             match tx.send(message) {
                 Ok(_x) => (),
                 Err(why) => panic!(

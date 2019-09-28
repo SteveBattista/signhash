@@ -8,6 +8,7 @@ use signhash::parse_hash_manifest_line;
 use signhash::read_public_key;
 use signhash::write_check_from_channel;
 
+
 use signhash::CheckMessage;
 use signhash::parse_next_manifest_line;
 use signhash::report_duplicatve_and_insert_nonce;
@@ -263,17 +264,15 @@ fn main() {
     };
 
 
-    let mut type_of_line = String::new();
-    let mut file_name_line= String::new();
-    let mut bytes_line= String::new();
-    let mut time_line= String::new();
-    let mut nonce_line = String::new();
-    let mut hash_line = String::new();
-    let mut sign_line = String::new();
-    let mut manifest_line= String::new();
-    manifest_line =vec_of_lines.remove(0);
+    let type_of_line = String::new();
+    let file_name_line= String::new();
+    let bytes_line= String::new();
+    let time_line= String::new();
+    let nonce_line = String::new();
+    let hash_line = String::new();
+    let sign_line = String::new();
+    let mut manifest_line=vec_of_lines.remove(0);
     let mut working_on_files = true;
-    manifest_line = vec_of_lines.remove(0);
     if manifest_line == SEPERATOR{
         working_on_files =false;
         manifest_line = manifest_line + "/n";
@@ -283,13 +282,21 @@ fn main() {
     let nonces: &mut HashMap<String, String> = &mut HashMap::new();
     let manifest_map : &mut HashMap<String,ManifestLine> = &mut HashMap::new();
     while working_on_files{
-    parse_next_manifest_line(manifest_line,type_of_line,file_name_line,bytes_line,time_line,hash_line,nonce_line,sign_line);
+    parse_next_manifest_line(manifest_line.clone(),type_of_line.clone(),file_name_line.clone(),bytes_line.clone(),time_line.clone(),hash_line.clone(),nonce_line.clone(),sign_line.clone());
     manifest_line = manifest_line + "/n";
     file_hash_context.update(manifest_line.as_bytes());
     file_len = file_len + manifest_line.len();
-    report_duplicatve_and_insert_nonce(nonces,nonce_line,file_name_line,tx);
-    add_line_to_manifest_map(manifest_map,type_of_line,file_name_line,bytes_line,time_line,hash_line,nonce_line,sign_line);
-    manifest_map.insert(file_name_line,type_of_line,bytes_line,time_line,hash_line,nonce_line,sign_line);
+    report_duplicatve_and_insert_nonce(nonces,nonce_line.clone(),file_name_line.clone(),tx.clone());
+
+    let manifist_line = ManifestLine {
+        file_type: type_of_line.clone(),
+        bytes: bytes_line.clone(),
+        time: time_line.clone(),
+        hash: hash_line.clone(),
+        nonce: nonce_line.clone(),
+        sign: sign_line.clone(),
+    };
+    manifest_map.insert(file_name_line.clone(),manifist_line);
     manifest_line = vec_of_lines.remove(0);
     if manifest_line == SEPERATOR{
         working_on_files =false;
@@ -299,20 +306,52 @@ fn main() {
     }
 }
 
-    // find line in manifest to match current file, if not in manifest send message to writer and go to next one
-    //Check for duplicate nonce, if so send message to the writer
-    //scope this to items until next seprator
+
     pool.scoped(|scoped| {
         for file in inputfiles {
-            scoped.execute(move || {
-        //        let _x = compare_lines(&file, hashalgo, hashlength_in_bytes);
-            });
+            match manifest_map.remove(&file) {
+             Some(_file_line) => {
+                 scoped.execute(move || {
+             //        let _x = compare_lines(&file, hashalgo, hashlength_in_bytes);
+                 });
+             },
+             None => {
+                 let mut message = CheckMessage {
+                     text: String::new(),
+                     verbose: false,
+                 };
+                 message.text = format!("{} was in the manifest but not found in direcorty search\n",file);
+                 match tx.send(message) {
+                     Ok(_x) => (),
+                     Err(why) => panic!(
+                         "Couldn't send non found file to writing thread. : {}",
+                         why.description()
+                     ),
+                 };
+     },
+ };
+
         }
     });
 
-    //for each leftover file/directory send message
+    if manifest_map.len() > 0 {
+        for (file_line, _manifest_structure) in manifest_map.drain().take(1) {
+        let mut message = CheckMessage {
+                text: String::new(),
+                verbose: true,
+            };
+            message.text = format!("{} was in the manifest but not found in direcorty search\n",file_line);
+            match tx.send(message) {
+                Ok(_x) => (),
+                Err(why) => panic!(
+                    "Couldn't send non found file to writing thread. : {}",
+                    why.description()
+                ),
+            };
+}
+    }
 
-    //SEPERATOR
+
     // pass elasped Time
     // check number of Files
     // check total files size
@@ -322,6 +361,7 @@ fn main() {
     // check size of file so far
     //gen hash and check it
     //check sig
+    //send an ending message
 
 
     let _res = writer_child.join();
