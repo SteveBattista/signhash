@@ -7,7 +7,7 @@ use signhash::write_headers;
 use signhash::write_key;
 use signhash::write_manifest_from_channel;
 use signhash::SignMessage;
-use signhash::HEADER_MESSAGE_COUNT;
+use signhash::SIGN_HEADER_MESSAGE_COUNT;
 use signhash::NONCE_LENGTH_IN_BYTES;
 use signhash::PRIVATEKEY_LENGTH_IN_BYTES;
 use signhash::PUBLICKEY_LENGTH_IN_BYTES;
@@ -187,7 +187,7 @@ fn main() {
     }
     let writer_child = thread::spawn(move || {
         write_manifest_from_channel(
-            num_files + HEADER_MESSAGE_COUNT,
+            num_files + SIGN_HEADER_MESSAGE_COUNT,
             hashalgo,
             &private_key_bytes,
             rx,
