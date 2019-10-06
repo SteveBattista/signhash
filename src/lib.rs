@@ -779,7 +779,7 @@ pub fn write_headers(
         text: String::new(),
         file_len: 0,
     };
-    message.text = format!("Manifest version | 0.5.0\n").to_string();
+    message.text = format!("Manifest version | 0.6.0\n").to_string();
     message.file_len = 0;
     match tx.send(message) {
         Ok(_x) => (),
