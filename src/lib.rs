@@ -29,14 +29,14 @@ use indicatif::ProgressBar;
 use indicatif::ProgressStyle;
 
 pub const SIGN_HEADER_MESSAGE_COUNT: usize = 8;
-pub const CHECK_HEADER_MESSAGE_COUNT: usize = 4;
+
 pub const NONCE_LENGTH_IN_BYTES: usize = 128; // Chance of collistion is low 2^64. Progam checks for this.
 pub const PRIVATEKEY_LENGTH_IN_BYTES: usize = 680;
 pub const PUBLICKEY_LENGTH_IN_BYTES: usize = 256;
 
 const HASH_READ_BUFFER_IN_BYTES: usize = 4096; //Emperical test finds this faster than 8192
 pub const SEPERATOR : & 'static str = "********************************************************************************************************************";
-
+const DIR_HASH : & 'static str = "0000000000000000000000000000000000000000000000000000000000000000";
 pub struct SignMessage {
     pub text: String,
     pub file_len: u64,
@@ -65,27 +65,16 @@ pub fn report_duplicatve_and_insert_nonce(
     nonces: &mut HashMap<String, String>,
     nonce: String,
     file_name_line: String,
-    tx: std::sync::mpsc::Sender<CheckMessage>,
+    check_tx: std::sync::mpsc::Sender<CheckMessage>,
 ) {
     match nonces.insert(nonce.clone(), file_name_line) {
         None => (),
         Some(answer) => {
-            let mut message = CheckMessage {
-                text: String::new(),
-                verbose: true,
-            };
-            message.text = format!(
+            send_check_message(format!(
                 "{} and {} share the same nonce. Suspect replay attack.\n",
                 nonce.clone(),
                 answer
-            );
-            match tx.send(message) {
-                Ok(_x) => (),
-                Err(why) => panic!(
-                    "Couldn't send nonce duplicate to writing thread. : {}",
-                    why.description()
-                ),
-            };
+            ).to_string(), false, & check_tx);
         }
     };
 }
@@ -117,7 +106,7 @@ pub fn provide_unique_nonce(
 
 pub fn write_check_from_channel(
     verbose: bool,
-    rx: std::sync::mpsc::Receiver<CheckMessage>,
+    check_rx: std::sync::mpsc::Receiver<CheckMessage>,
     output_file: String,
     bar: &ProgressBar,
     fileoutput: bool,
@@ -139,7 +128,7 @@ pub fn write_check_from_channel(
         wherefile = Whereoutput::FilePointer(filepointer);
     }
     let mut data: String;
-    message = rx.recv().unwrap();
+    message = check_rx.recv().unwrap();
     while message.text != SEPERATOR{
         //println!("System {} : Line {}", verbose)
 
@@ -155,7 +144,7 @@ pub fn write_check_from_channel(
             if fileoutput {
                 bar.inc(1);
         }
-        message = rx.recv().unwrap();
+        message = check_rx.recv().unwrap();
     }
 }
 
@@ -418,7 +407,7 @@ pub fn check_line(
     hashalgo: &'static Algorithm,
     manifest_struct: ManifestLine,
     public_key_bytes: &[u8],
-    tx: std::sync::mpsc::Sender<CheckMessage>,
+    check_tx: std::sync::mpsc::Sender<CheckMessage>,
 ) {
     let path2 = path.clone();
     let path3 = path.clone();
@@ -435,79 +424,32 @@ pub fn check_line(
         ),
         Ok(metadata) => metadata,
     };
-    let filelen = metadata.len();
-    if format!("{}", filelen) != manifest_struct.bytes {
-        let mut message = CheckMessage {
-            text: String::new(),
-            verbose: false,
-        };
-        message.text = format!(
-            "{}: File len check failed.\n",format! ("{}: {} :{}", path3, manifest_struct.bytes,format!("{}", filelen))
-        );
-        match tx.send(message) {
-            Ok(_x) => (),
+    let filelen = format!("{}",metadata.len());
+    send_pass_fail_check_message(
+        filelen == manifest_struct.bytes,
+        format!( "{}: File length check passed.\n",path2),
+        format!( "{}: File len check failed.\n",format! ("{}: {} :{}", path2, manifest_struct.bytes,filelen)),
+        & check_tx);
+
+        let datetime = match metadata.modified() {
             Err(why) => panic!(
-                "Couldn't send file length check failed message to to message thread. : {}",
+                "Couldn't load datetime from  {} data: {}",
+                path3,
                 why.description()
             ),
+            Ok(datetime) => datetime,
         };
-    } else {
-        let mut message = CheckMessage {
-            text: String::new(),
-            verbose: true,
-        };
-        message.text = format!(
-            "{}: File length check passed.\n",path2
-        );
-        match tx.send(message) {
-            Ok(_x) => (),
-            Err(why) => panic!(
-                "Couldn't send file length check passed message to to message thread. : {}",
-                why.description()
-            ),
-        };
-    }
-    let datetime = match metadata.modified() {
-        Err(why) => panic!(
-            "Couldn't load datetime from  {} data: {}",
-            path3,
-            why.description()
-        ),
-        Ok(datetime) => datetime,
-    };
-    let datetime: DateTime<Utc> = datetime.into();
-    let data: String;
-    if format!("{}", datetime.format("%d/%m/%Y %T")) != manifest_struct.time {
-        let mut message = CheckMessage {
-            text: String::new(),
-            verbose: false,
-        };
-        message.text = format!(
-            "{}: File date check failed.\n",format! ("{}: {} :{}", path3, manifest_struct.time,format!("{}", datetime.format("%d/%m/%Y %T")))
-        );
-        match tx.send(message) {
-            Ok(_x) => (),
-            Err(why) => panic!(
-                "Couldn't send date check failed message to to message thread. : {}",
-                why.description()
-            ),
-        };
-    } else {
-        let mut message = CheckMessage {
-            text: String::new(),
-            verbose: true,
-        };
-        message.text = format!(
-            "{}: Date check passed.\n",path2
-        );
-        match tx.send(message) {
-            Ok(_x) => (),
-            Err(why) => panic!(
-                "Couldn't send date check passed message to to message thread. : {}",
-                why.description()
-            ),
-        };
-    }
+        let datetime: DateTime<Utc> = datetime.into();
+        let datetime_string = format!("{}", datetime.format("%d/%m/%Y %T"));
+
+    send_pass_fail_check_message(
+        datetime_string == manifest_struct.time,
+        format!( "{}: Date check passed.\n",path2),
+        format!( "{}: File date check failed.\n",format! ("{}: {} :{}", path2, manifest_struct.time, datetime_string)),
+        & check_tx);
+
+
+
     if !(metadata.is_dir()) {
         line_type = "File".to_string();
         input = match File::open(path2) {
@@ -516,84 +458,40 @@ pub fn check_line(
         };
         reader = BufReader::new(input);
         digest = var_digest(reader, hashalgo);
-        if HEXUPPER.encode(&digest.as_ref()) != manifest_struct.hash {
-            let mut message = CheckMessage {
-                text: String::new(),
-                verbose: false,
-            };
-            message.text = format!(
-                "{}: Hash check failed.\n",format! ("{}: {} :{}", path3, manifest_struct.hash,HEXUPPER.encode(&digest.as_ref()) )
-            );
-            match tx.send(message) {
-                Ok(_x) => (),
-                Err(why) => panic!(
-                    "Couldn't send hash failed message to to message thread. : {}",
-                    why.description()
-                ),
-            };
-        } else {
-            let mut message = CheckMessage {
-                text: String::new(),
-                verbose: true,
-            };
-            message.text = format!(
-                "{}: File date check passed.\n",path3
-            );
-            match tx.send(message) {
-                Ok(_x) => (),
-                Err(why) => panic!(
-                    "Couldn't send date check passed message to to message thread. : {}",
-                    why.description()
-                ),
-            };
-        }
         digest_str = HEXUPPER.encode(&digest.as_ref());
+
     } else {
         line_type = "Dir".to_string();
-        digest_str = "0000000000000000000000000000000000000000000000000000000000000000".to_string();
+        digest_str = DIR_HASH.to_string();
     }
-    data = format!(
+    send_pass_fail_check_message(
+        digest_str == manifest_struct.hash ,
+        format!("{}: File type check passed.\n",path3),
+        format!("{}: File type check failed.\n",format! ("{}: {} :{}", path3, manifest_struct.file_type,line_type)),
+        & check_tx);
+
+    send_pass_fail_check_message(
+        line_type == manifest_struct.file_type,
+        format!("{}: Hash check passed.\n",path3),
+        format!("{}: Hash check failed.\n",format! ("{}: {} :{}", path3, manifest_struct.hash,digest_str )),
+        & check_tx);
+
+    let data = format!(
         "{}|{}|{}|{}|{}|{}",
-        line_type,
+        manifest_struct.file_type,
         path3,
-        filelen,
-        datetime.format("%d/%m/%Y %T"),
-        digest_str,
+        manifest_struct.bytes,
+        manifest_struct.time,
+        manifest_struct.hash,
         manifest_struct.nonce);
     let public_key =
         ring::signature::UnparsedPublicKey::new(&ring::signature::ED25519, public_key_bytes);
     match public_key.verify(data.as_bytes(), manifest_struct.sign.as_ref()) {
         Ok(_) => {
-            let mut message = CheckMessage {
-                text: String::new(),
-                verbose: true,
-            };
-            message.text = format!(
-                "{}: Signature check passed.\n",path3
-            );
-            match tx.send(message) {
-                Ok(_x) => (),
-                Err(why) => panic!(
-                    "Couldn't send signature passed message to to message thread. : {}",
-                    why.description()
-                ),
-            };
+            send_check_message(format!("{}: Signature check passed.\n",path3),true, & check_tx);
         }
         Err(_) => {
-            let mut message = CheckMessage {
-                text: String::new(),
-                verbose: false,
-            };
-            message.text = format!(
-                "{}: Signature check failed.\n",path3
-            );
-            match tx.send(message) {
-                Ok(_x) => (),
-                Err(why) => panic!(
-                    "Couldn't send signature failed message to to message thread. : {}",
-                    why.description()
-                ),
-            };
+            send_check_message(format!("{}: Signature check failed.\n",path3),false, & check_tx);
         }
     };
 }
@@ -603,7 +501,7 @@ pub fn create_line(
     hashalgo: &'static Algorithm,
     nonce_bytes: &[u8],
     private_key_bytes: &[u8],
-    tx: std::sync::mpsc::Sender<SignMessage>,
+    sign_tx: std::sync::mpsc::Sender<SignMessage>,
 ) {
     let line_type : String;
     let path2 = path.clone();
@@ -645,7 +543,7 @@ pub fn create_line(
 
     } else {
         line_type ="Dir".to_string();
-        digest_str = "0000000000000000000000000000000000000000000000000000000000000000".to_string();
+        digest_str = DIR_HASH.to_string();
     }
         data = format!(
             "{}|{}|{}|{}|{}|{}",
@@ -658,16 +556,7 @@ pub fn create_line(
         );
     signature = sign_data(&data, &private_key_bytes);
     data = format!("{}|{}\n", data, HEXUPPER.encode(&signature.as_ref()));
-    let mut message = SignMessage {
-        text: String::new(),
-        file_len: 0,
-    };
-    message.text = data;
-    message.file_len = filelen;
-    match tx.send(message) {
-        Ok(input) => input,
-        Err(why) => panic!("Couldn't send message {}", why.description()),
-    };
+    send_sign_message(data, filelen, &sign_tx);
 }
 
 pub fn create_keys(public_key_bytes: &mut [u8], private_key_bytes: &mut [u8]) {
@@ -768,126 +657,28 @@ pub fn write_keys(
 }
 
 pub fn write_headers(
-    tx: &std::sync::mpsc::Sender<SignMessage>,
+    sign_tx: &std::sync::mpsc::Sender<SignMessage>,
     inputhash: &str,
     command_line: &str,
     header_file: &str,
     now: &chrono::DateTime<Utc>,
     poolnumber: usize,
 ) {
-    let mut message = SignMessage {
-        text: String::new(),
-        file_len: 0,
-    };
-    message.text = format!("Manifest version | 0.6.0\n").to_string();
-    message.file_len = 0;
-    match tx.send(message) {
-        Ok(_x) => (),
-        Err(why) => panic!(
-            "Couldn't send manifest version to writing thread. : {}",
-            why.description()
-        ),
-    };
+    send_sign_message(format!("Manifest version | 0.6.0\n").to_string(), 0, &sign_tx);
+    send_sign_message(format!("Command Line |{}\n", &command_line).to_string(), 0, &sign_tx);
+    send_sign_message(format!("Hash size|{}\n", &inputhash).to_string(), 0, &sign_tx);
+    send_sign_message(format!("Signature algorthim |ED25519\n").to_string(), 0, &sign_tx);
 
-    let mut message = SignMessage {
-        text: String::new(),
-        file_len: 0,
-    };
-    message.text = format!("Command Line |{}\n", &command_line).to_string();
-    message.file_len = 0;
-    match tx.send(message) {
-        Ok(_x) => (),
-        Err(why) => panic!(
-            "Couldn't send command line to writing thread. : {}",
-            why.description()
-        ),
-    };
-
-    let mut message = SignMessage {
-        text: String::new(),
-        file_len: 0,
-    };
-    message.text = format!("Hash size|{}\n", &inputhash).to_string();
-    message.file_len = 0;
-    match tx.send(message) {
-        Ok(_x) => (),
-        Err(why) => panic!(
-            "Couldn't send hash type to writing thread. : {}",
-            why.description()
-        ),
-    };
-
-    let mut message = SignMessage {
-        text: String::new(),
-        file_len: 0,
-    };
-    message.text = format!("Signature algorthim |ED25519\n").to_string();
-    message.file_len = 0;
-    match tx.send(message) {
-        Ok(_x) => (),
-        Err(why) => panic!(
-            "Couldn't send signture type to writing thread. : {}",
-            why.description()
-        ),
-    };
-
-    let mut message = SignMessage {
-        text: String::new(),
-        file_len: 0,
-    };
-
+    let data: String;
     if header_file == "|||" {
-        message.text = "No header file requested to include\n".to_string();
+        data = "No header file requested to include\n".to_string();
     } else {
-        message.text = dump_header(header_file);
+        data  = dump_header(header_file);
     }
-    message.file_len = 0;
-    match tx.send(message) {
-        Ok(_x) => (),
-        Err(why) => panic!(
-            "Couldn't send header file to writing thread. : {}",
-            why.description()
-        ),
-    };
-
-    let mut message = SignMessage {
-        text: String::new(),
-        file_len: 0,
-    };
-    message.text = format!("Start time was |{}\n", now.to_string());
-    match tx.send(message) {
-        Ok(_x) => (),
-        Err(why) => panic!(
-            "Couldn't send start time to writing thread. : {}",
-            why.description()
-        ),
-    };
-
-    let mut message = SignMessage {
-        text: String::new(),
-        file_len: 0,
-    };
-    message.text = format!("Threads used for main hashing was |{}\n", poolnumber);
-    match tx.send(message) {
-        Ok(_x) => (),
-        Err(why) => panic!(
-            "Couldn't send number of threads message to writing thread. : {}",
-            why.description()
-        ),
-    };
-
-    let mut message = SignMessage {
-        text: String::new(),
-        file_len: 0,
-    };
-    message.text = format!("{}\n", SEPERATOR);
-    match tx.send(message) {
-        Ok(_x) => (),
-        Err(why) => panic!(
-            "Couldn't send seprator to writing thread. : {}",
-            why.description()
-        ),
-    };
+    send_sign_message(data, 0, &sign_tx);
+    send_sign_message(format!("Start time was |{}\n", now.to_string()), 0, &sign_tx);
+    send_sign_message(format!("Threads used for main hashing was |{}\n", poolnumber), 0, &sign_tx);
+    send_sign_message(format!("{}\n", SEPERATOR), 0, &sign_tx);
 }
 
 pub fn read_manifest_file(vec_of_lines: &mut Vec<String>, input_file: &str, fileoutput: bool) {
@@ -937,4 +728,41 @@ pub fn parse_next_manifest_line(
     *hash_line = tokens[4].to_string();
     *nonce_line = tokens[5].to_string();
     *sign_line = tokens[6].to_string();
+}
+
+pub fn send_sign_message(message_string: String, len: u64, sign_tx: &std::sync::mpsc::Sender<SignMessage> ) {
+    let message = SignMessage {
+        text: message_string.clone(),
+        file_len: len,
+    };
+    match sign_tx.send(message) {
+        Ok(_x) => (),
+        Err(why) => panic!(
+            "Couldn't send {} to writing thread. : {}",message_string,
+            why.description()
+        ),
+    };
+}
+
+
+pub fn send_check_message(message_string: String, verbose: bool, check_tx: &std::sync::mpsc::Sender<CheckMessage> ) {
+    let message = CheckMessage {
+        text: message_string.clone(),
+        verbose: verbose,
+    };
+    match check_tx.send(message) {
+        Ok(_x) => (),
+        Err(why) => panic!(
+            "Couldn't send {} to writing thread. : {}",message_string,
+            why.description()
+        ),
+    };
+}
+
+pub fn send_pass_fail_check_message(pass_bool: bool, pass_string: String, fail_string: String, check_tx: &std::sync::mpsc::Sender<CheckMessage> ) {
+    if pass_bool {
+        send_check_message(pass_string, true, check_tx)
+    } else {
+        send_check_message(fail_string, false, check_tx)
+    }
 }

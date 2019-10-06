@@ -131,7 +131,7 @@ fn main() {
 
     let mut pool = Pool::new(poolnumber.try_into().unwrap());
 
-    let (tx, rx): (Sender<SignMessage>, Receiver<SignMessage>) = mpsc::channel();
+    let (sign_tx, sign_rx): (Sender<SignMessage>, Receiver<SignMessage>) = mpsc::channel();
 
     let header_file = matches.value_of("header").unwrap_or("|||");
 
@@ -170,13 +170,14 @@ fn main() {
     let mut nonces: HashMap<[u8; NONCE_LENGTH_IN_BYTES / 8], i32> = HashMap::new();
 
     write_headers(
-        &tx,
+        &sign_tx,
         inputhash,
         &args.join(" "),
         header_file,
         &now,
         poolnumber,
     );
+
     let bar = ProgressBar::new(inputfiles.len().try_into().unwrap());
     if fileoutput {
         bar.set_prefix("Number of Files Hashed");
@@ -190,7 +191,7 @@ fn main() {
             num_files + SIGN_HEADER_MESSAGE_COUNT,
             hashalgo,
             &private_key_bytes,
-            rx,
+            sign_rx,
             start,
             manifest_file,
             &bar,
@@ -201,7 +202,7 @@ fn main() {
     pool.scoped(|scoped| {
         stdout().flush().unwrap();
         for file in inputfiles {
-            let thread_tx = tx.clone();
+            let thread_tx = sign_tx.clone();
             provide_unique_nonce(&mut nonce_bytes, &mut nonces, rng);
             scoped.execute(move || {
                 create_line(

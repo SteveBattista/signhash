@@ -1,5 +1,7 @@
 #![forbid(unsafe_code)]
 
+use signhash::send_pass_fail_check_message;
+use signhash::send_check_message;
 use chrono::DateTime;
 use chrono::Utc;
 use data_encoding::HEXUPPER;
@@ -7,7 +9,7 @@ use ring::digest::SHA256;
 use signhash::parse_hash_manifest_line;
 use signhash::read_public_key;
 use signhash::write_check_from_channel;
-use std::error::Error;
+//use std::error::Error;
 
 use signhash::check_line;
 use signhash::parse_next_manifest_line;
@@ -27,26 +29,22 @@ use std::env;
 use std::thread;
 
 use clap::{App, Arg};
-//use chrono::{DateTime, Utc};
+
 
 use ring::digest::{Algorithm, Context};
 
 use std::collections::HashMap;
-//use std::env;
+
 
 use std::sync::mpsc;
 use std::sync::mpsc::{Receiver, Sender};
-//use std::time::Instant;
 
-//use std::io::Write;
-//use std::io::stdout;
 
 use indicatif::ProgressBar;
 use indicatif::ProgressStyle;
 
 use walkdir::WalkDir;
 
-//const BITS_IN_HEX: usize = 16;
 
 fn main() {
     let now: DateTime<Utc> = Utc::now();
@@ -122,11 +120,11 @@ fn main() {
     }
     if poolnumber < 1 {
     //    poolnumber = num_cpus::get();
-        poolnumber =1;
+        poolnumber =1; // for debugging
     }
 
     let mut pool = Pool::new(poolnumber.try_into().unwrap());
-    let (tx, rx): (Sender<CheckMessage>, Receiver<CheckMessage>) = mpsc::channel();
+    let (check_tx, check_rx): (Sender<CheckMessage>, Receiver<CheckMessage>) = mpsc::channel();
 
     let input_directoy = matches.value_of("directory").unwrap_or(".");
 
@@ -198,78 +196,18 @@ fn main() {
     let writer_child = thread::spawn(move || {
         write_check_from_channel(
             verbose,
-            rx,
+            check_rx,
             output_file,
             &bar,
             fileoutput,
         );
     });
-
-    let mut message = CheckMessage {
-        text: String::new(),
-        verbose: true,
-    };
-    message.text = format!("Command Line |{}\n", args.join(" "));
-    match tx.send(message) {
-        Ok(_x) => (),
-        Err(why) => panic!(
-            "Couldn't send arguments to writing thread. : {}",
-            why.description()
-        ),
-    };
-
-    let mut message = CheckMessage {
-        text: String::new(),
-        verbose: true,
-    };
-    message.text = format!("Start time was |{}\n", now.to_string());
-    match tx.send(message) {
-        Ok(_x) => (),
-        Err(why) => panic!(
-            "Couldn't send arguments to writing thread. : {}",
-            why.description()
-        ),
-    };
-
-    let mut message = CheckMessage {
-        text: String::new(),
-        verbose: true,
-    };
-    message.text = format!("Threads used for main hashing was |{}\n", poolnumber);
-    match tx.send(message) {
-        Ok(_x) => (),
-        Err(why) => panic!(
-            "Couldn't send number of threads message to writing thread. : {}",
-            why.description()
-        ),
-    };
-
-    let mut message = CheckMessage {
-        text: String::new(),
-        verbose: true,
-    };
-
-    message.text = format!("Hash size|{}\n", &hashalgo.output_len).to_string();
-    match tx.send(message) {
-        Ok(_x) => (),
-        Err(why) => panic!(
-            "Couldn't send hash type to writing thread. : {}",
-            why.description()
-        ),
-    };
-
-    let mut message = CheckMessage {
-        text: String::new(),
-        verbose: true,
-    };
-    message.text = format!("Signature algorthim |ED25519\n").to_string();
-    match tx.send(message) {
-        Ok(_x) => (),
-        Err(why) => panic!(
-            "Couldn't send signture type to writing thread. : {}",
-            why.description()
-        ),
-    };
+   send_check_message(format!("Command Line |{}\n", args.join(" ")), true, &check_tx);
+   send_check_message(format!("Start time was |{}\n", now.to_string()), true, &check_tx);
+   send_check_message(format!("Threads used for main hashing was |{}\n", poolnumber), true, &check_tx);
+   let tokens: Vec<&str> = hash_line.split('|').collect();
+   send_check_message(format!("Hash used|{}", tokens[1]).to_string(), true, &check_tx);
+   send_check_message(format!("Signature algorthim |ED25519\n").to_string(), true, &check_tx);
 
     let mut type_of_line = String::new();
     let mut file_name_line = String::new();
@@ -311,7 +249,7 @@ fn main() {
             nonces,
             nonce_line.clone(),
             file_name_line.clone(),
-            tx.clone(),
+            check_tx.clone(),
         );
 
         let manifist_line = ManifestLine {
@@ -336,28 +274,17 @@ fn main() {
         for file in inputfiles {
             match manifest_map.remove(&file) {
                 Some(file_line) => {
-                    let thread_tx = tx.clone();
+                    let thread_tx = check_tx.clone();
                     scoped.execute(move || {
                         let _x =
                             check_line(file, hashalgo, file_line, &public_key_bytes, thread_tx);
                     });
                 }
                 None => {
-                    let mut message = CheckMessage {
-                        text: String::new(),
-                        verbose: false,
-                    };
-                    message.text = format!(
-                        "{} was in the directory search but not found in manifest\n",
-                        file
-                    );
-                    match tx.send(message) {
-                        Ok(_x) => (),
-                        Err(why) => panic!(
-                            "Couldn't send non found file to writing thread. : {}",
-                            why.description()
-                        ),
-                    };
+                    send_check_message(format!(
+                        "{} was in the directory search but not found in direcorty manifest\n",
+                        file,
+                    ).to_string(), false, &check_tx);
                 }
             };
         }
@@ -365,23 +292,10 @@ fn main() {
 
     if manifest_map.len() > 0 {
         for (file_line, _manifest_structure) in manifest_map.drain().take(1) {
-            let mut message = CheckMessage {
-                text: String::new(),
-                verbose: true,
-            };
-            message.text = format!(
-                "{} was in the manifest but not found in direcorty search\n",
-                file_line
-            );
-            match tx.send(message) {
-                Ok(_x) => (),
-                Err(why) => panic!(
-                    "Couldn't send non found file to writing thread. : {}",
-                    why.description()
-                ),
-            };
+        send_check_message(format!( "{} was in the manifest but not found in direcorty search\n",file_line ).to_string(), false, &check_tx);
         }
     }
+
     for _x in 0..6 {
         manifest_line = vec_of_lines.remove(0);
         manifest_line = manifest_line + "/n";
@@ -390,96 +304,44 @@ fn main() {
     }
     manifest_line = vec_of_lines.remove(0);
     let tokens: Vec<&str> = manifest_line.split('|').collect();
-    if tokens[1] != format!("{}", file_len) {
-        let mut message = CheckMessage {
-            text: String::new(),
-            verbose: true,
-        };
-        message.text = format!(
-            "File lengh of manifest is {}. It was reported in manifest as {}\n",
-            file_len, tokens[1]
-        );
-        match tx.send(message) {
-            Ok(_x) => (),
-            Err(why) => panic!(
-                "Couldn't send length of file to writing thread. : {}",
-                why.description()
-            ),
-        };
-    }
+    send_pass_fail_check_message(tokens[1] == format!("{}", file_len),
+     "File lengh of manifest passed".to_string(),
+     format!(
+         "File lengh of manifest is {}. It was reported in manifest as {}\n",
+         file_len, tokens[1]
+     ),
+      & check_tx);
+
+
     let digest = file_hash_context.finish();
     let digest_text = HEXUPPER.encode(&digest.as_ref());
     manifest_line = vec_of_lines.remove(0);
     let tokens: Vec<&str> = manifest_line.split('|').collect();
-    if tokens[1] != digest_text {
-        let mut message = CheckMessage {
-            text: String::new(),
-            verbose: true,
-        };
-        message.text = format!(
-            "Hash digest is {}. It was reported in manifest as {}\n",
-            file_len, tokens[1]
-        );
-        match tx.send(message) {
-            Ok(_x) => (),
-            Err(why) => panic!(
-                "Couldn't send hash of file to writing thread. : {}",
-                why.description()
-            ),
-        };
-    }
+    send_pass_fail_check_message(tokens[1] != digest_text,
+     "Manifest digest test passed".to_string(),
+     format!(
+         "Manifest digest is {}. It was reported in manifest as {}\n",
+         digest_text, tokens[1]
+     ),
+      &check_tx);
+
     manifest_line = vec_of_lines.remove(0);
     let tokens: Vec<&str> = manifest_line.split('|').collect();
     let public_key =
         ring::signature::UnparsedPublicKey::new(&ring::signature::ED25519, public_key_bytes);
     match public_key.verify(digest.as_ref(), tokens[1].as_ref()) {
         Ok(_x) => {
-            let mut message = CheckMessage {
-                text: String::new(),
-                verbose: true,
-            };
-            message.text = format!(
+            send_check_message(format!(
                 "Signature of manifest passed\n",
-            );
-            match tx.send(message) {
-                Ok(_x) => (),
-                Err(why) => panic!(
-                    "Couldn't passing of manifest signature to message thread. : {}",
-                    why.description()
-                ),
-            };
-         }
+            ).to_string(), true, &check_tx);
+        }
         Err(_) => {
-            let mut message = CheckMessage {
-                text: String::new(),
-                verbose: false,
-            };
-            message.text = format!(
+            send_check_message(format!(
                 "Signature of manifest failed\n",
-            );
-            match tx.send(message) {
-                Ok(_x) => (),
-                Err(why) => panic!(
-                    "Couldn't failure of manifest signature to message thread. : {}",
-                    why.description()
-                ),
-            };
+            ).to_string(), false, &check_tx);
         }
     };
-    let mut message = CheckMessage {
-        text: String::new(),
-        verbose: false,
-    };
-    message.text = format!(
-        "{}",SEPERATOR,
-    );
-    match tx.send(message) {
-        Ok(_x) => (),
-        Err(why) => panic!(
-            "Couldn't failure of seprator signature to message thread. : {}",
-            why.description()
-        ),
-    };
+    send_check_message( format!( "{}",SEPERATOR).to_string(), false, & check_tx);
 
     let _res = writer_child.join();
 }
