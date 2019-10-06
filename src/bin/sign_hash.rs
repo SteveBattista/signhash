@@ -7,10 +7,10 @@ use signhash::write_headers;
 use signhash::write_key;
 use signhash::write_manifest_from_channel;
 use signhash::SignMessage;
-use signhash::SIGN_HEADER_MESSAGE_COUNT;
 use signhash::NONCE_LENGTH_IN_BYTES;
 use signhash::PRIVATEKEY_LENGTH_IN_BYTES;
 use signhash::PUBLICKEY_LENGTH_IN_BYTES;
+use signhash::SIGN_HEADER_MESSAGE_COUNT;
 
 use scoped_threadpool::Pool;
 use std::convert::TryInto;

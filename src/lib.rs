@@ -42,7 +42,6 @@ pub struct SignMessage {
     pub file_len: u64,
 }
 
-
 pub struct CheckMessage {
     pub text: String,
     pub verbose: bool,
@@ -54,23 +53,32 @@ enum Whereoutput {
 }
 
 pub struct ManifestLine {
-    pub file_type : String,
-    pub bytes : String,
+    pub file_type: String,
+    pub bytes: String,
     pub time: String,
     pub hash: String,
     pub nonce: String,
     pub sign: String,
 }
 
-pub fn report_duplicatve_and_insert_nonce(nonces: &mut HashMap<String, String>, nonce :String,file_name_line: String, tx: std::sync::mpsc::Sender<CheckMessage>){
-    match nonces.insert(nonce.clone(),file_name_line){
+pub fn report_duplicatve_and_insert_nonce(
+    nonces: &mut HashMap<String, String>,
+    nonce: String,
+    file_name_line: String,
+    tx: std::sync::mpsc::Sender<CheckMessage>,
+) {
+    match nonces.insert(nonce.clone(), file_name_line) {
         None => (),
         Some(answer) => {
             let mut message = CheckMessage {
                 text: String::new(),
                 verbose: true,
             };
-            message.text = format!("{} and {} share the same nonce. Suspect replay attack.", nonce.clone(), answer);
+            message.text = format!(
+                "{} and {} share the same nonce. Suspect replay attack.\n",
+                nonce.clone(),
+                answer
+            );
             match tx.send(message) {
                 Ok(_x) => (),
                 Err(why) => panic!(
@@ -107,11 +115,13 @@ pub fn provide_unique_nonce(
     }
 }
 
-pub fn write_check_from_channel(num_lines: usize,
-rx: std::sync::mpsc::Receiver<CheckMessage>,
-output_file: String,
-bar: &ProgressBar,
-fileoutput: bool) {
+pub fn write_check_from_channel(
+    verbose: bool,
+    rx: std::sync::mpsc::Receiver<CheckMessage>,
+    output_file: String,
+    bar: &ProgressBar,
+    fileoutput: bool,
+) {
     let mut message: CheckMessage;
     let mut wherefile: Whereoutput;
     let filepointer: File;
@@ -128,35 +138,43 @@ fileoutput: bool) {
         };
         wherefile = Whereoutput::FilePointer(filepointer);
     }
-    let mut data : String;
-    for x in 0..num_lines {
-        // The `recv` method picks a message from the channel
-        // `recv` will block the current thread if there are no messages available
-        message = rx.recv().unwrap();
-        data = format!("{}", message.text);
+    let mut data: String;
+    message = rx.recv().unwrap();
+    while message.text != SEPERATOR{
+        //println!("System {} : Line {}", verbose)
 
-        write_line(&mut wherefile, data,"check");
-        if x > SIGN_HEADER_MESSAGE_COUNT {
+        if verbose {
+            data = format!("{}", message.text);
+            write_line(&mut wherefile, data, "check");
+        } else if message.verbose == false {
+
+            data = format!("{}", message.text);
+
+        write_line(&mut wherefile, data, "check");
+    }
             if fileoutput {
                 bar.inc(1);
-            }
         }
+        message = rx.recv().unwrap();
     }
-
 }
 
 fn write_line(wherefile: &mut Whereoutput, data: String, filename: &str) {
     match wherefile {
         Whereoutput::FilePointer(ref mut file) => match file.write_all(data.as_bytes()) {
             Ok(_) => (),
-            Err(why) => panic!("Couldn't write {} to {}: {}", data, filename, why.description()),
+            Err(why) => panic!(
+                "Couldn't write {} to {}: {}",
+                data,
+                filename,
+                why.description()
+            ),
         },
         Whereoutput::StringText(_string) => {
             print!("{}", data);
         }
     };
 }
-
 
 pub fn write_manifest_from_channel(
     num_lines: usize,
@@ -199,7 +217,7 @@ pub fn write_manifest_from_channel(
 
         context.update(&data[..].as_bytes());
         total_file_len = total_file_len + message.file_len;
-        write_line(&mut wherefile, data,"manifest");
+        write_line(&mut wherefile, data, "manifest");
         if x > SIGN_HEADER_MESSAGE_COUNT {
             if fileoutput {
                 bar.inc(1);
@@ -243,7 +261,9 @@ pub fn write_manifest_from_channel(
 
     data = format!(
         "Average byte count of files in bytes is |{}\n",
-        HumanBytes(((total_file_len as f64) / ((num_lines - SIGN_HEADER_MESSAGE_COUNT) as f64)) as u64)
+        HumanBytes(
+            ((total_file_len as f64) / ((num_lines - SIGN_HEADER_MESSAGE_COUNT) as f64)) as u64
+        )
     );
     byte_count = byte_count + data.len();
     context.update(data.as_bytes());
@@ -283,8 +303,9 @@ pub fn write_manifest_from_channel(
     }
 }
 
-pub fn parse_hash_manifest_line(firstline: &String, mut hashalgo: &Algorithm) {
-    let tokens: Vec<&str> = firstline.split('|').collect();
+pub fn parse_hash_manifest_line(line: &String, mut hashalgo: &Algorithm){
+    let tokens: Vec<&str> = line.split('|').collect();
+    println!("{}",tokens[1]);
     match tokens[1].as_ref() {
         "128" => {
             hashalgo = &SHA1_FOR_LEGACY_USE_ONLY;
@@ -392,6 +413,191 @@ pub fn var_digest<R: Read>(mut reader: R, hashalgo: &'static Algorithm) -> Diges
     context.finish()
 }
 
+pub fn check_line(
+    path: String,
+    hashalgo: &'static Algorithm,
+    manifest_struct: ManifestLine,
+    public_key_bytes: &[u8],
+    tx: std::sync::mpsc::Sender<CheckMessage>,
+) {
+    let path2 = path.clone();
+    let path3 = path.clone();
+    let line_type : String;
+    let input :  File ;
+    let reader : BufReader<File>;
+    let digest : Digest;
+    let digest_str : String;
+    let metadata = match fs::metadata(path) {
+        Err(why) => panic!(
+            "Couldn't load metadata from  {} data: {}",
+            path2,
+            why.description()
+        ),
+        Ok(metadata) => metadata,
+    };
+    let filelen = metadata.len();
+    if format!("{}", filelen) != manifest_struct.bytes {
+        let mut message = CheckMessage {
+            text: String::new(),
+            verbose: false,
+        };
+        message.text = format!(
+            "{}: File len check failed.\n",format! ("{}: {} :{}", path3, manifest_struct.bytes,format!("{}", filelen))
+        );
+        match tx.send(message) {
+            Ok(_x) => (),
+            Err(why) => panic!(
+                "Couldn't send file length check failed message to to message thread. : {}",
+                why.description()
+            ),
+        };
+    } else {
+        let mut message = CheckMessage {
+            text: String::new(),
+            verbose: true,
+        };
+        message.text = format!(
+            "{}: File length check passed.\n",path2
+        );
+        match tx.send(message) {
+            Ok(_x) => (),
+            Err(why) => panic!(
+                "Couldn't send file length check passed message to to message thread. : {}",
+                why.description()
+            ),
+        };
+    }
+    let datetime = match metadata.modified() {
+        Err(why) => panic!(
+            "Couldn't load datetime from  {} data: {}",
+            path3,
+            why.description()
+        ),
+        Ok(datetime) => datetime,
+    };
+    let datetime: DateTime<Utc> = datetime.into();
+    let data: String;
+    if format!("{}", datetime.format("%d/%m/%Y %T")) != manifest_struct.time {
+        let mut message = CheckMessage {
+            text: String::new(),
+            verbose: false,
+        };
+        message.text = format!(
+            "{}: File date check failed.\n",format! ("{}: {} :{}", path3, manifest_struct.time,format!("{}", datetime.format("%d/%m/%Y %T")))
+        );
+        match tx.send(message) {
+            Ok(_x) => (),
+            Err(why) => panic!(
+                "Couldn't send date check failed message to to message thread. : {}",
+                why.description()
+            ),
+        };
+    } else {
+        let mut message = CheckMessage {
+            text: String::new(),
+            verbose: true,
+        };
+        message.text = format!(
+            "{}: Date check passed.\n",path2
+        );
+        match tx.send(message) {
+            Ok(_x) => (),
+            Err(why) => panic!(
+                "Couldn't send date check passed message to to message thread. : {}",
+                why.description()
+            ),
+        };
+    }
+    if !(metadata.is_dir()) {
+        line_type = "File".to_string();
+        input = match File::open(path2) {
+            Ok(input) => input,
+            Err(why) => panic!("Couldn't file {}: {}", path3, why.description()),
+        };
+        reader = BufReader::new(input);
+        digest = var_digest(reader, hashalgo);
+        if HEXUPPER.encode(&digest.as_ref()) != manifest_struct.hash {
+            let mut message = CheckMessage {
+                text: String::new(),
+                verbose: false,
+            };
+            message.text = format!(
+                "{}: Hash check failed.\n",format! ("{}: {} :{}", path3, manifest_struct.hash,HEXUPPER.encode(&digest.as_ref()) )
+            );
+            match tx.send(message) {
+                Ok(_x) => (),
+                Err(why) => panic!(
+                    "Couldn't send hash failed message to to message thread. : {}",
+                    why.description()
+                ),
+            };
+        } else {
+            let mut message = CheckMessage {
+                text: String::new(),
+                verbose: true,
+            };
+            message.text = format!(
+                "{}: File date check passed.\n",path3
+            );
+            match tx.send(message) {
+                Ok(_x) => (),
+                Err(why) => panic!(
+                    "Couldn't send date check passed message to to message thread. : {}",
+                    why.description()
+                ),
+            };
+        }
+        digest_str = HEXUPPER.encode(&digest.as_ref());
+    } else {
+        line_type = "Dir".to_string();
+        digest_str = "0000000000000000000000000000000000000000000000000000000000000000".to_string();
+    }
+    data = format!(
+        "{}|{}|{}|{}|{}|{}",
+        line_type,
+        path3,
+        filelen,
+        datetime.format("%d/%m/%Y %T"),
+        digest_str,
+        manifest_struct.nonce);
+    let public_key =
+        ring::signature::UnparsedPublicKey::new(&ring::signature::ED25519, public_key_bytes);
+    match public_key.verify(data.as_bytes(), manifest_struct.sign.as_ref()) {
+        Ok(_) => {
+            let mut message = CheckMessage {
+                text: String::new(),
+                verbose: true,
+            };
+            message.text = format!(
+                "{}: Signature check passed.\n",path3
+            );
+            match tx.send(message) {
+                Ok(_x) => (),
+                Err(why) => panic!(
+                    "Couldn't send signature passed message to to message thread. : {}",
+                    why.description()
+                ),
+            };
+        }
+        Err(_) => {
+            let mut message = CheckMessage {
+                text: String::new(),
+                verbose: false,
+            };
+            message.text = format!(
+                "{}: Signature check failed.\n",path3
+            );
+            match tx.send(message) {
+                Ok(_x) => (),
+                Err(why) => panic!(
+                    "Couldn't send signature failed message to to message thread. : {}",
+                    why.description()
+                ),
+            };
+        }
+    };
+}
+
 pub fn create_line(
     path: String,
     hashalgo: &'static Algorithm,
@@ -399,6 +605,7 @@ pub fn create_line(
     private_key_bytes: &[u8],
     tx: std::sync::mpsc::Sender<SignMessage>,
 ) {
+    let line_type : String;
     let path2 = path.clone();
     let path3 = path.clone();
     let metadata = match fs::metadata(path) {
@@ -421,31 +628,34 @@ pub fn create_line(
     let datetime: DateTime<Utc> = datetime.into();
     let mut data: String;
     let signature: ring::signature::Signature;
+    let input :  File ;
+    let reader : BufReader<File>;
+    let digest : Digest;
+    let digest_str : String;
 
     if !(metadata.is_dir()) {
-        let input = match File::open(path2) {
+        line_type ="File".to_string();
+        input = match File::open(path2) {
             Ok(input) => input,
-            Err(why) => panic!("Couldn't file {}: {}", path3, why.description()),
+            Err(why) => panic!("Couldn't open file {}: {}", path3, why.description()),
         };
-        let reader = BufReader::new(input);
-        let digest = var_digest(reader, hashalgo);
-        data = format!(
-            "File|{}|{}|{}|{}|{}",
-            path3,
-            filelen,
-            datetime.format("%d/%m/%Y %T"),
-            HEXUPPER.encode(&digest.as_ref()),
-            HEXUPPER.encode(&nonce_bytes)
-        );
+        reader = BufReader::new(input);
+        digest = var_digest(reader, hashalgo);
+        digest_str = HEXUPPER.encode(&digest.as_ref());
+
     } else {
+        line_type ="Dir".to_string();
+        digest_str = "0000000000000000000000000000000000000000000000000000000000000000".to_string();
+    }
         data = format!(
-            "Dir|{}|{}|{}|{}",
+            "{}|{}|{}|{}|{}|{}",
+            line_type,
             path3,
             filelen,
             datetime.format("%d/%m/%Y %T"),
+            digest_str,
             HEXUPPER.encode(&nonce_bytes)
         );
-    }
     signature = sign_data(&data, &private_key_bytes);
     data = format!("{}|{}\n", data, HEXUPPER.encode(&signature.as_ref()));
     let mut message = SignMessage {
@@ -709,23 +919,22 @@ pub fn read_manifest_file(vec_of_lines: &mut Vec<String>, input_file: &str, file
     }
 }
 
-
-pub fn parse_next_manifest_line (manifest_line: String, mut type_of_line :String ,mut file_name_line: String , mut bytes_line :String, mut time_line: String ,mut hash_line: String ,mut nonce_line : String, sign_line : String) {
+pub fn parse_next_manifest_line(
+    manifest_line: &String,
+    type_of_line: & mut String,
+    file_name_line: &mut String,
+    bytes_line: & mut String,
+    time_line: &mut String,
+    hash_line: &mut String,
+    nonce_line: &mut String,
+    sign_line: &mut String,
+) {
     let tokens: Vec<&str> = manifest_line.split('|').collect();
-    let mut x = 0;
-    type_of_line = tokens[x].to_string();
-    x += 1;
-    file_name_line = tokens[x].to_string();
-    x += 1;
-    bytes_line = tokens[x].to_string();
-    x += 1;
-    time_line = tokens[x].to_string();
-    x += 1;
-    if type_of_line == "file".to_string() {
-        hash_line = tokens[x].to_string();
-        x += 1;
-    }
-    nonce_line = tokens[x].to_string();
-    x += 1;
-    time_line = tokens[x].to_string();
+    *type_of_line = tokens[0].to_string();
+    *file_name_line = tokens[1].to_string();
+    *bytes_line = tokens[2].to_string();
+    *time_line = tokens[3].to_string();
+    *hash_line = tokens[4].to_string();
+    *nonce_line = tokens[5].to_string();
+    *sign_line = tokens[6].to_string();
 }

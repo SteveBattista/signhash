@@ -1,31 +1,30 @@
 #![forbid(unsafe_code)]
 
-use chrono::Utc;
 use chrono::DateTime;
-use std::error::Error;
+use chrono::Utc;
+use data_encoding::HEXUPPER;
 use ring::digest::SHA256;
 use signhash::parse_hash_manifest_line;
 use signhash::read_public_key;
 use signhash::write_check_from_channel;
+use std::error::Error;
 
-
-use signhash::CheckMessage;
+use signhash::check_line;
 use signhash::parse_next_manifest_line;
-use signhash::report_duplicatve_and_insert_nonce;
-use signhash::ManifestLine;
-//use signhash::create_line;
 use signhash::read_manifest_file;
-use signhash::NONCE_LENGTH_IN_BYTES;
+use signhash::report_duplicatve_and_insert_nonce;
+use signhash::CheckMessage;
+use signhash::ManifestLine;
+
 use signhash::PUBLICKEY_LENGTH_IN_BYTES;
 use signhash::SEPERATOR;
-use signhash::CHECK_HEADER_MESSAGE_COUNT;
 
 use scoped_threadpool::Pool;
 use std::convert::TryInto;
 
-use num_cpus;
-use std::thread;
+//use num_cpus;
 use std::env;
+use std::thread;
 
 use clap::{App, Arg};
 //use chrono::{DateTime, Utc};
@@ -47,7 +46,7 @@ use indicatif::ProgressStyle;
 
 use walkdir::WalkDir;
 
-const BITS_IN_HEX: usize = 16;
+//const BITS_IN_HEX: usize = 16;
 
 fn main() {
     let now: DateTime<Utc> = Utc::now();
@@ -86,6 +85,11 @@ fn main() {
                              .value_name("DIRECTORY")
                              .help("Directory to start hashing. Default is current working directory.Those that can not be found will be ommited from the results. Directories will be ommitted. Links will be treated like normal files.")
                              .takes_value(true))
+                        .arg(Arg::with_name("v")
+                             .short("v")
+                            .long("verbose")
+                              .help("Use -v flag to also print out when things match.")
+                              )
                           .get_matches();
 
     let mut public_key_bytes: [u8; (PUBLICKEY_LENGTH_IN_BYTES / 8)] =
@@ -117,13 +121,18 @@ fn main() {
         }
     }
     if poolnumber < 1 {
-        poolnumber = num_cpus::get();
+    //    poolnumber = num_cpus::get();
+        poolnumber =1;
     }
 
     let mut pool = Pool::new(poolnumber.try_into().unwrap());
     let (tx, rx): (Sender<CheckMessage>, Receiver<CheckMessage>) = mpsc::channel();
 
     let input_directoy = matches.value_of("directory").unwrap_or(".");
+
+    let verbose: bool;
+    verbose = matches.is_present("v");
+     //println!("{}",verbose);
 
     let mut inputfiles: Vec<String> = Vec::new();
     let spinner = ProgressBar::new_spinner();
@@ -142,22 +151,15 @@ fn main() {
     if fileoutput {
         spinner.finish();
     }
-    let num_files = inputfiles.len();
-
-    let nonce_bytes: [u8; (NONCE_LENGTH_IN_BYTES / 8)] = [0; (NONCE_LENGTH_IN_BYTES / 8)];
-    let rng = rand::thread_rng();
-    let mut nonces: HashMap<[u8; NONCE_LENGTH_IN_BYTES / 8], i32> = HashMap::new();
-
-
 
     let mut version_line = vec_of_lines.remove(0);
     let mut command_line = vec_of_lines.remove(0);
     let mut hash_line = vec_of_lines.remove(0);
 
-    let hashalgo: &Algorithm = &SHA256;
+    let  hashalgo: &Algorithm = &SHA256;
+    println!("{},",hashalgo.output_len );
     parse_hash_manifest_line(&hash_line, hashalgo);
-
-    let mut hashlength_in_bytes: usize = hashalgo.output_len * BITS_IN_HEX;
+    println!("{}",hashalgo.output_len);
 
     let mut file_hash_context = Context::new(hashalgo);
 
@@ -176,7 +178,7 @@ fn main() {
     file_len = file_len + hash_line.len();
 
     let mut reading_header = true;
-    let mut next_line :String;
+    let mut next_line: String;
     while reading_header {
         next_line = vec_of_lines.remove(0);
         reading_header = next_line == SEPERATOR;
@@ -194,7 +196,13 @@ fn main() {
     }
 
     let writer_child = thread::spawn(move || {
-        write_check_from_channel(num_files + CHECK_HEADER_MESSAGE_COUNT, rx, output_file, &bar, fileoutput);
+        write_check_from_channel(
+            verbose,
+            rx,
+            output_file,
+            &bar,
+            fileoutput,
+        );
     });
 
     let mut message = CheckMessage {
@@ -263,84 +271,108 @@ fn main() {
         ),
     };
 
-
-    let type_of_line = String::new();
-    let file_name_line= String::new();
-    let bytes_line= String::new();
-    let time_line= String::new();
-    let nonce_line = String::new();
-    let hash_line = String::new();
-    let sign_line = String::new();
-    let mut manifest_line=vec_of_lines.remove(0);
+    let mut type_of_line = String::new();
+    let mut file_name_line = String::new();
+    let mut bytes_line = String::new();
+    let mut time_line = String::new();
+    let mut nonce_line = String::new();
+    let mut hash_line = String::new();
+    let mut sign_line = String::new();
+    let mut manifest_line = vec_of_lines.remove(0);
     let mut working_on_files = true;
-    if manifest_line == SEPERATOR{
-        working_on_files =false;
+    while manifest_line != SEPERATOR {
         manifest_line = manifest_line + "/n";
         file_hash_context.update(manifest_line.as_bytes());
         file_len = file_len + manifest_line.len();
+        manifest_line = vec_of_lines.remove(0);
     }
-    let nonces: &mut HashMap<String, String> = &mut HashMap::new();
-    let manifest_map : &mut HashMap<String,ManifestLine> = &mut HashMap::new();
-    while working_on_files{
-    parse_next_manifest_line(manifest_line.clone(),type_of_line.clone(),file_name_line.clone(),bytes_line.clone(),time_line.clone(),hash_line.clone(),nonce_line.clone(),sign_line.clone());
     manifest_line = manifest_line + "/n";
     file_hash_context.update(manifest_line.as_bytes());
     file_len = file_len + manifest_line.len();
-    report_duplicatve_and_insert_nonce(nonces,nonce_line.clone(),file_name_line.clone(),tx.clone());
-
-    let manifist_line = ManifestLine {
-        file_type: type_of_line.clone(),
-        bytes: bytes_line.clone(),
-        time: time_line.clone(),
-        hash: hash_line.clone(),
-        nonce: nonce_line.clone(),
-        sign: sign_line.clone(),
-    };
-    manifest_map.insert(file_name_line.clone(),manifist_line);
     manifest_line = vec_of_lines.remove(0);
-    if manifest_line == SEPERATOR{
-        working_on_files =false;
+
+    let nonces: &mut HashMap<String, String> = &mut HashMap::new();
+    let manifest_map: &mut HashMap<String, ManifestLine> = &mut HashMap::new();
+    while working_on_files {
+        parse_next_manifest_line(
+            &manifest_line,
+            & mut type_of_line,
+            & mut file_name_line,
+            & mut bytes_line,
+            & mut time_line,
+            & mut hash_line,
+            & mut nonce_line,
+            & mut sign_line,
+        );
         manifest_line = manifest_line + "/n";
         file_hash_context.update(manifest_line.as_bytes());
         file_len = file_len + manifest_line.len();
-    }
-}
+        report_duplicatve_and_insert_nonce(
+            nonces,
+            nonce_line.clone(),
+            file_name_line.clone(),
+            tx.clone(),
+        );
 
+        let manifist_line = ManifestLine {
+            file_type: type_of_line.clone(),
+            bytes: bytes_line.clone(),
+            time: time_line.clone(),
+            hash: hash_line.clone(),
+            nonce: nonce_line.clone(),
+            sign: sign_line.clone(),
+        };
+        manifest_map.insert(file_name_line.clone(), manifist_line);
+        manifest_line = vec_of_lines.remove(0);
+        if manifest_line == SEPERATOR {
+            working_on_files = false;
+            manifest_line = manifest_line + "/n";
+            file_hash_context.update(manifest_line.as_bytes());
+            file_len = file_len + manifest_line.len();
+        }
+    }
 
     pool.scoped(|scoped| {
         for file in inputfiles {
             match manifest_map.remove(&file) {
-             Some(_file_line) => {
-                 scoped.execute(move || {
-             //        let _x = compare_lines(&file, hashalgo, hashlength_in_bytes);
-                 });
-             },
-             None => {
-                 let mut message = CheckMessage {
-                     text: String::new(),
-                     verbose: false,
-                 };
-                 message.text = format!("{} was in the manifest but not found in direcorty search\n",file);
-                 match tx.send(message) {
-                     Ok(_x) => (),
-                     Err(why) => panic!(
-                         "Couldn't send non found file to writing thread. : {}",
-                         why.description()
-                     ),
-                 };
-     },
- };
-
+                Some(file_line) => {
+                    let thread_tx = tx.clone();
+                    scoped.execute(move || {
+                        let _x =
+                            check_line(file, hashalgo, file_line, &public_key_bytes, thread_tx);
+                    });
+                }
+                None => {
+                    let mut message = CheckMessage {
+                        text: String::new(),
+                        verbose: false,
+                    };
+                    message.text = format!(
+                        "{} was in the directory search but not found in manifest\n",
+                        file
+                    );
+                    match tx.send(message) {
+                        Ok(_x) => (),
+                        Err(why) => panic!(
+                            "Couldn't send non found file to writing thread. : {}",
+                            why.description()
+                        ),
+                    };
+                }
+            };
         }
     });
 
     if manifest_map.len() > 0 {
         for (file_line, _manifest_structure) in manifest_map.drain().take(1) {
-        let mut message = CheckMessage {
+            let mut message = CheckMessage {
                 text: String::new(),
                 verbose: true,
             };
-            message.text = format!("{} was in the manifest but not found in direcorty search\n",file_line);
+            message.text = format!(
+                "{} was in the manifest but not found in direcorty search\n",
+                file_line
+            );
             match tx.send(message) {
                 Ok(_x) => (),
                 Err(why) => panic!(
@@ -348,55 +380,106 @@ fn main() {
                     why.description()
                 ),
             };
-}
+        }
     }
-
-
-    // pass elasped Time
-    // check number of Files
-    // check total files size
-    // pass Speed
-    //check average
-    //pass nonce
-    // check size of file so far
-    //gen hash and check it
-    //check sig
-    //send an ending message
-
+    for _x in 0..6 {
+        manifest_line = vec_of_lines.remove(0);
+        manifest_line = manifest_line + "/n";
+        file_hash_context.update(manifest_line.as_bytes());
+        file_len = file_len + manifest_line.len();
+    }
+    manifest_line = vec_of_lines.remove(0);
+    let tokens: Vec<&str> = manifest_line.split('|').collect();
+    if tokens[1] != format!("{}", file_len) {
+        let mut message = CheckMessage {
+            text: String::new(),
+            verbose: true,
+        };
+        message.text = format!(
+            "File lengh of manifest is {}. It was reported in manifest as {}\n",
+            file_len, tokens[1]
+        );
+        match tx.send(message) {
+            Ok(_x) => (),
+            Err(why) => panic!(
+                "Couldn't send length of file to writing thread. : {}",
+                why.description()
+            ),
+        };
+    }
+    let digest = file_hash_context.finish();
+    let digest_text = HEXUPPER.encode(&digest.as_ref());
+    manifest_line = vec_of_lines.remove(0);
+    let tokens: Vec<&str> = manifest_line.split('|').collect();
+    if tokens[1] != digest_text {
+        let mut message = CheckMessage {
+            text: String::new(),
+            verbose: true,
+        };
+        message.text = format!(
+            "Hash digest is {}. It was reported in manifest as {}\n",
+            file_len, tokens[1]
+        );
+        match tx.send(message) {
+            Ok(_x) => (),
+            Err(why) => panic!(
+                "Couldn't send hash of file to writing thread. : {}",
+                why.description()
+            ),
+        };
+    }
+    manifest_line = vec_of_lines.remove(0);
+    let tokens: Vec<&str> = manifest_line.split('|').collect();
+    let public_key =
+        ring::signature::UnparsedPublicKey::new(&ring::signature::ED25519, public_key_bytes);
+    match public_key.verify(digest.as_ref(), tokens[1].as_ref()) {
+        Ok(_x) => {
+            let mut message = CheckMessage {
+                text: String::new(),
+                verbose: true,
+            };
+            message.text = format!(
+                "Signature of manifest passed\n",
+            );
+            match tx.send(message) {
+                Ok(_x) => (),
+                Err(why) => panic!(
+                    "Couldn't passing of manifest signature to message thread. : {}",
+                    why.description()
+                ),
+            };
+         }
+        Err(_) => {
+            let mut message = CheckMessage {
+                text: String::new(),
+                verbose: false,
+            };
+            message.text = format!(
+                "Signature of manifest failed\n",
+            );
+            match tx.send(message) {
+                Ok(_x) => (),
+                Err(why) => panic!(
+                    "Couldn't failure of manifest signature to message thread. : {}",
+                    why.description()
+                ),
+            };
+        }
+    };
+    let mut message = CheckMessage {
+        text: String::new(),
+        verbose: false,
+    };
+    message.text = format!(
+        "{}",SEPERATOR,
+    );
+    match tx.send(message) {
+        Ok(_x) => (),
+        Err(why) => panic!(
+            "Couldn't failure of seprator signature to message thread. : {}",
+            why.description()
+        ),
+    };
 
     let _res = writer_child.join();
 }
-
-/*
-fn read_sigfile(
-    hash_from_file: &mut [u8],
-    nonce: &mut [u8],
-    filelen: &mut u64,
-    path: &str,
-    hashlength_in_bytes: usize,
-    signed_hash: &mut [u8],
-) {
-    let mut file = File::open(path).unwrap();
-    let mut contents = String::new();
-    file.read_to_string(&mut contents).unwrap();
-    let deserialized_map: BTreeMap<String, String> = serde_yaml::from_str(&contents).unwrap();
-    let local_hash_vec = HEXUPPER
-        .decode(deserialized_map["HASH"].as_bytes())
-        .unwrap();
-    *filelen = deserialized_map["LENGTH"].parse::<u64>().unwrap();
-
-    for x in 0..(hashlength_in_bytes / 8) {
-        hash_from_file[x] = local_hash_vec[x];
-    }
-    let local_nonce_vec = HEXUPPER
-        .decode(deserialized_map["NONCE"].as_bytes())
-        .unwrap();
-    for x in 0..(128 / 8) {
-        nonce[x] = local_nonce_vec[x];
-    }
-    let local_sig_vec = HEXUPPER.decode(deserialized_map["SIG"].as_bytes()).unwrap();
-    for x in 0..(512 / 8) {
-        signed_hash[x] = local_sig_vec[x];
-    }
-}
-*/
