@@ -1,15 +1,14 @@
 #![forbid(unsafe_code)]
 
-use signhash::send_pass_fail_check_message;
-use signhash::send_check_message;
 use chrono::DateTime;
 use chrono::Utc;
 use data_encoding::HEXUPPER;
-use ring::digest::SHA256;
 use signhash::parse_hash_manifest_line;
 use signhash::read_public_key;
+use signhash::send_check_message;
+use signhash::send_pass_fail_check_message;
 use signhash::write_check_from_channel;
-//use std::error::Error;
+
 
 use signhash::check_line;
 use signhash::parse_next_manifest_line;
@@ -30,21 +29,17 @@ use std::thread;
 
 use clap::{App, Arg};
 
-
-use ring::digest::{Algorithm, Context};
+use ring::digest::{Context};
 
 use std::collections::HashMap;
 
-
 use std::sync::mpsc;
 use std::sync::mpsc::{Receiver, Sender};
-
 
 use indicatif::ProgressBar;
 use indicatif::ProgressStyle;
 
 use walkdir::WalkDir;
-
 
 fn main() {
     let now: DateTime<Utc> = Utc::now();
@@ -119,8 +114,8 @@ fn main() {
         }
     }
     if poolnumber < 1 {
-    //    poolnumber = num_cpus::get();
-        poolnumber =1; // for debugging
+        //    poolnumber = num_cpus::get();
+        poolnumber = 1; // for debugging
     }
 
     let mut pool = Pool::new(poolnumber.try_into().unwrap());
@@ -130,7 +125,6 @@ fn main() {
 
     let verbose: bool;
     verbose = matches.is_present("v");
-     //println!("{}",verbose);
 
     let mut inputfiles: Vec<String> = Vec::new();
     let spinner = ProgressBar::new_spinner();
@@ -154,10 +148,7 @@ fn main() {
     let mut command_line = vec_of_lines.remove(0);
     let mut hash_line = vec_of_lines.remove(0);
 
-    let  hashalgo: &Algorithm = &SHA256;
-    println!("{},",hashalgo.output_len );
-    parse_hash_manifest_line(&hash_line, hashalgo);
-    println!("{}",hashalgo.output_len);
+    let hashalgo = parse_hash_manifest_line(hash_line.clone());
 
     let mut file_hash_context = Context::new(hashalgo);
 
@@ -194,20 +185,34 @@ fn main() {
     }
 
     let writer_child = thread::spawn(move || {
-        write_check_from_channel(
-            verbose,
-            check_rx,
-            output_file,
-            &bar,
-            fileoutput,
-        );
+        write_check_from_channel(verbose, check_rx, output_file, &bar, fileoutput);
     });
-   send_check_message(format!("Command Line |{}\n", args.join(" ")), true, &check_tx);
-   send_check_message(format!("Start time was |{}\n", now.to_string()), true, &check_tx);
-   send_check_message(format!("Threads used for main hashing was |{}\n", poolnumber), true, &check_tx);
-   let tokens: Vec<&str> = hash_line.split('|').collect();
-   send_check_message(format!("Hash used|{}", tokens[1]).to_string(), true, &check_tx);
-   send_check_message(format!("Signature algorthim |ED25519\n").to_string(), true, &check_tx);
+    send_check_message(
+        format!("Command Line |{}\n", args.join(" ")),
+        true,
+        &check_tx,
+    );
+    send_check_message(
+        format!("Start time was |{}\n", now.to_string()),
+        true,
+        &check_tx,
+    );
+    send_check_message(
+        format!("Threads used for main hashing was |{}\n", poolnumber),
+        true,
+        &check_tx,
+    );
+    let tokens: Vec<&str> = hash_line.split('|').collect();
+    send_check_message(
+        format!("Hash used|{}", tokens[1]).to_string(),
+        true,
+        &check_tx,
+    );
+    send_check_message(
+        format!("Signature algorthim |ED25519\n").to_string(),
+        true,
+        &check_tx,
+    );
 
     let mut type_of_line = String::new();
     let mut file_name_line = String::new();
@@ -234,13 +239,13 @@ fn main() {
     while working_on_files {
         parse_next_manifest_line(
             &manifest_line,
-            & mut type_of_line,
-            & mut file_name_line,
-            & mut bytes_line,
-            & mut time_line,
-            & mut hash_line,
-            & mut nonce_line,
-            & mut sign_line,
+            &mut type_of_line,
+            &mut file_name_line,
+            &mut bytes_line,
+            &mut time_line,
+            &mut hash_line,
+            &mut nonce_line,
+            &mut sign_line,
         );
         manifest_line = manifest_line + "/n";
         file_hash_context.update(manifest_line.as_bytes());
@@ -281,10 +286,15 @@ fn main() {
                     });
                 }
                 None => {
-                    send_check_message(format!(
-                        "{} was in the directory search but not found in direcorty manifest\n",
-                        file,
-                    ).to_string(), false, &check_tx);
+                    send_check_message(
+                        format!(
+                            "{} was in the directory search but not found in direcorty manifest\n",
+                            file,
+                        )
+                        .to_string(),
+                        false,
+                        &check_tx,
+                    );
                 }
             };
         }
@@ -292,7 +302,15 @@ fn main() {
 
     if manifest_map.len() > 0 {
         for (file_line, _manifest_structure) in manifest_map.drain().take(1) {
-        send_check_message(format!( "{} was in the manifest but not found in direcorty search\n",file_line ).to_string(), false, &check_tx);
+            send_check_message(
+                format!(
+                    "{} was in the manifest but not found in direcorty search\n",
+                    file_line
+                )
+                .to_string(),
+                false,
+                &check_tx,
+            );
         }
     }
 
@@ -304,26 +322,29 @@ fn main() {
     }
     manifest_line = vec_of_lines.remove(0);
     let tokens: Vec<&str> = manifest_line.split('|').collect();
-    send_pass_fail_check_message(tokens[1] == format!("{}", file_len),
-     "File lengh of manifest passed".to_string(),
-     format!(
-         "File lengh of manifest is {}. It was reported in manifest as {}\n",
-         file_len, tokens[1]
-     ),
-      & check_tx);
-
+    send_pass_fail_check_message(
+        tokens[1] == format!("{}", file_len),
+        "File lengh of manifest passed".to_string(),
+        format!(
+            "File lengh of manifest is {}. It was reported in manifest as {}\n",
+            file_len, tokens[1]
+        ),
+        &check_tx,
+    );
 
     let digest = file_hash_context.finish();
     let digest_text = HEXUPPER.encode(&digest.as_ref());
     manifest_line = vec_of_lines.remove(0);
     let tokens: Vec<&str> = manifest_line.split('|').collect();
-    send_pass_fail_check_message(tokens[1] != digest_text,
-     "Manifest digest test passed".to_string(),
-     format!(
-         "Manifest digest is {}. It was reported in manifest as {}\n",
-         digest_text, tokens[1]
-     ),
-      &check_tx);
+    send_pass_fail_check_message(
+        tokens[1] == digest_text,
+        "Manifest digest test passed".to_string(),
+        format!(
+            "Manifest digest is {}. It was reported in manifest as {}\n",
+            digest_text, tokens[1]
+        ),
+        &check_tx,
+    );
 
     manifest_line = vec_of_lines.remove(0);
     let tokens: Vec<&str> = manifest_line.split('|').collect();
@@ -331,17 +352,21 @@ fn main() {
         ring::signature::UnparsedPublicKey::new(&ring::signature::ED25519, public_key_bytes);
     match public_key.verify(digest.as_ref(), tokens[1].as_ref()) {
         Ok(_x) => {
-            send_check_message(format!(
-                "Signature of manifest passed\n",
-            ).to_string(), true, &check_tx);
+            send_check_message(
+                format!("Signature of manifest passed\n",).to_string(),
+                true,
+                &check_tx,
+            );
         }
         Err(_) => {
-            send_check_message(format!(
-                "Signature of manifest failed\n",
-            ).to_string(), false, &check_tx);
+            send_check_message(
+                format!("Signature of manifest failed\n",).to_string(),
+                false,
+                &check_tx,
+            );
         }
     };
-    send_check_message( format!( "{}",SEPERATOR).to_string(), false, & check_tx);
+    send_check_message(format!("{}", SEPERATOR).to_string(), false, &check_tx);
 
     let _res = writer_child.join();
 }
