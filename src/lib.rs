@@ -147,10 +147,14 @@ pub fn write_check_from_channel(
             write_line(&mut wherefile, data, "check");
         }
         if fileoutput {
-            bar.inc(1);
+            if message.text.contains(": Signature check")
+            {
+                bar.inc(1);
+            }
         }
         message = check_rx.recv().unwrap();
     }
+    bar.finish();
 }
 
 fn write_line(wherefile: &mut Whereoutput, data: String, filename: &str) {

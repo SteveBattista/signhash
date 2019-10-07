@@ -114,8 +114,7 @@ fn main() {
         }
     }
     if poolnumber < 1 {
-        //    poolnumber = num_cpus::get();
-        poolnumber = 1; // for debugging
+        poolnumber = num_cpus::get();
     }
 
     let mut pool = Pool::new(poolnumber.try_into().unwrap());
@@ -187,6 +186,7 @@ fn main() {
     let writer_child = thread::spawn(move || {
         write_check_from_channel(verbose, check_rx, output_file, &bar, fileoutput);
     });
+
     send_check_message(
         format!("Command Line |{}\n", args.join(" ")),
         true,
