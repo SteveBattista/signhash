@@ -33,11 +33,20 @@ pub const SIGN_HEADER_MESSAGE_COUNT: usize = 8;
 pub const NONCE_LENGTH_IN_BYTES: usize = 128; // Chance of collistion is low 2^64. Progam checks for this.
 pub const PRIVATEKEY_LENGTH_IN_BYTES: usize = 680;
 pub const PUBLICKEY_LENGTH_IN_BYTES: usize = 256;
-pub const SIGNED_LENGH_IN_BYTES : usize = 512;
+pub const SIGNED_LENGH_IN_BYTES: usize = 512;
 
 const HASH_READ_BUFFER_IN_BYTES: usize = 4096; //Emperical test finds this faster than 8192
-pub const SEPERATOR : & str = "********************************************************************************"; //80 stars
+pub const SEPERATOR: &str =
+    "********************************************************************************"; //80 stars
 const DIR_HASH: &'static str = "0000000000000000000000000000000000000000000000000000000000000000";
+pub const PUBIC_KEY_STRING_ED25519: &'static str = "Public ED25519";
+pub const PRIVATE_KEY_STRING_ED25519: &'static str = "Private ED25519";
+pub const DEFAULT_MANIFEST_FILE_NAME: &'static str = "Manifest.txt";
+pub const DEFAULT_PUBIC_KEY_FILE_NAME: &'static str = "Signpub.txt";
+pub const END_OF_MESSAGES : & str = "87e00106e0c012cd1c0216292d070989125c3f215b73429fa8a3f247b8520f3110e53db9d4e139328ba8f00321117fbda14bb317ee498909a393fafce4bd631e7966f4be302d1818b12bf22e32c38fc4cc594c310c2de480df29b2ca3a4b2c470eb0610e309740ef831f18969c9fc97f7d7dfc8d98110b5f8064393605b1e20110dc90bd9d20e87a32e5fbd611bf071bf61d8fb1a1c0352ff82974b989ea91e9
+303eb1e75831a7bd4f3aebce5857bfcb7cf917b948caea4ea7e8530938818449cc8856c039599e757b437ab94f2818c8a91cf669abe6abbb629ed651301f4a86ea218d128451dabc5b06ccdd38e8a729c00458e7c9b777a33db51d2f61047444";
+//random 256 bit message :) I know someone is going do decomplue this and think that it is some built in key :)
+
 pub struct SignMessage {
     pub text: String,
     pub file_len: u64,
@@ -134,31 +143,27 @@ pub fn write_check_from_channel(
     }
     let mut data: String;
     message = check_rx.recv().unwrap();
-    while message.text != SEPERATOR {
-
-
+    while message.text != END_OF_MESSAGES {
         if verbose {
             data = format!("{}", message.text);
-            write_line(&mut wherefile, data, "check");
+            write_line(&mut wherefile, data);
         } else if message.verbose == false {
             data = format!("{}", message.text);
 
-            write_line(&mut wherefile, data, "check");
+            write_line(&mut wherefile, data);
         }
 
         message = check_rx.recv().unwrap();
     }
-
 }
 
-fn write_line(wherefile: &mut Whereoutput, data: String, filename: &str) {
+fn write_line(wherefile: &mut Whereoutput, data: String) {
     match wherefile {
         Whereoutput::FilePointer(ref mut file) => match file.write_all(data.as_bytes()) {
             Ok(_) => (),
             Err(why) => panic!(
-                "Couldn't write {} to {}: {}",
+                "Couldn't write {} to the manifest file: {}",
                 data,
-                filename,
                 why.description()
             ),
         },
@@ -208,7 +213,7 @@ pub fn write_manifest_from_channel(
 
         context.update(data.as_bytes());
         total_file_len = total_file_len + message.file_len;
-        write_line(&mut wherefile, data, "manifest");
+        write_line(&mut wherefile, data);
         if x > SIGN_HEADER_MESSAGE_COUNT {
             if fileoutput {
                 bar.inc(1);
@@ -219,13 +224,13 @@ pub fn write_manifest_from_channel(
     byte_count = byte_count + data.len();
     context.update(data.as_bytes());
 
-    write_line(&mut wherefile, data, "manifest");
+    write_line(&mut wherefile, data);
 
     let duration = start.elapsed();
     data = format!("Time elapsed was |{:?}\n", duration);
     byte_count = byte_count + data.len();
     context.update(data.as_bytes());
-    write_line(&mut wherefile, data, "manifest");
+    write_line(&mut wherefile, data);
 
     data = format!(
         "Total number of files hashed is |{:?}\n",
@@ -233,7 +238,7 @@ pub fn write_manifest_from_channel(
     );
     byte_count = byte_count + data.len();
     context.update(data.as_bytes());
-    write_line(&mut wherefile, data, "manifest");
+    write_line(&mut wherefile, data);
 
     data = format!(
         "Total byte count of files in bytes is |{}\n",
@@ -241,7 +246,7 @@ pub fn write_manifest_from_channel(
     );
     byte_count = byte_count + data.len();
     context.update(data.as_bytes());
-    write_line(&mut wherefile, data, "manifest");
+    write_line(&mut wherefile, data);
 
     data = format!(
         "Speed is |{}ps\n",
@@ -249,7 +254,7 @@ pub fn write_manifest_from_channel(
     );
     byte_count = byte_count + data.len();
     context.update(data.as_bytes());
-    write_line(&mut wherefile, data, "manifest");
+    write_line(&mut wherefile, data);
 
     data = format!(
         "Average byte count per file in bytes is |{}\n",
@@ -259,7 +264,7 @@ pub fn write_manifest_from_channel(
     );
     byte_count = byte_count + data.len();
     context.update(data.as_bytes());
-    write_line(&mut wherefile, data, "manifest");
+    write_line(&mut wherefile, data);
 
     let mut nonce_bytes: [u8; (NONCE_LENGTH_IN_BYTES / 8)] = [0; (NONCE_LENGTH_IN_BYTES / 8)];
     let mut rng = rand::thread_rng();
@@ -271,25 +276,25 @@ pub fn write_manifest_from_channel(
     data = format!("Nonce for file |{}\n", HEXUPPER.encode(&nonce_bytes));
     byte_count = byte_count + data.len();
     context.update(data.as_bytes());
-    write_line(&mut wherefile, data, "manifest");
+    write_line(&mut wherefile, data);
 
     data = format!("Sum of size of file so far is |{:?}\n", byte_count);
     context.update(data.as_bytes());
-    write_line(&mut wherefile, data, "manifest");
+    write_line(&mut wherefile, data);
 
     let digest = context.finish();
     data = format!(
         "Hash of file so far |{}\n",
         HEXUPPER.encode(&digest.as_ref())
     );
-    write_line(&mut wherefile, data, "manifest");
+    write_line(&mut wherefile, data);
 
     let signature = sign_data(&HEXUPPER.encode(&digest.as_ref()), private_key_bytes);
     data = format!(
         "Signature of hash |{}\n",
         HEXUPPER.encode(&signature.as_ref())
     );
-    write_line(&mut wherefile, data, "manifest");
+    write_line(&mut wherefile, data);
     if fileoutput {
         bar.finish();
     }
@@ -351,7 +356,7 @@ pub fn read_private_key(private_key_bytes: &mut [u8], private_key_file: &str) {
             why.description()
         ),
     };
-    let local_key = match HEXUPPER.decode(deserialized_map["Private"].as_bytes()) {
+    let local_key = match HEXUPPER.decode(deserialized_map[PRIVATE_KEY_STRING_ED25519].as_bytes()) {
         Ok(local_key) => local_key,
         Err(why) => panic!(
             "Couldn't decode hexencoded private key: {}",
@@ -430,7 +435,10 @@ pub fn check_line(
     send_pass_fail_check_message(
         filelen == manifest_struct.bytes,
         format!("{}: File length check passed.\n", path2),
-        format!("{}: {} :{}: File len check failed.\n", path2, manifest_struct.bytes, filelen),
+        format!(
+            "{}: {} :{}: File len check failed.\n",
+            path2, manifest_struct.bytes, filelen
+        ),
         &check_tx,
     );
 
@@ -448,7 +456,10 @@ pub fn check_line(
     send_pass_fail_check_message(
         datetime_string == manifest_struct.time,
         format!("{}: Date check passed.\n", path2),
-        format!("{}: {} :{}: File date check failed.\n", path2, manifest_struct.time, datetime_string),
+        format!(
+            "{}: {} :{}: File date check failed.\n",
+            path2, manifest_struct.time, datetime_string
+        ),
         &check_tx,
     );
 
@@ -468,14 +479,20 @@ pub fn check_line(
     send_pass_fail_check_message(
         line_type == manifest_struct.file_type,
         format!("{}| File type check passed.\n", path3),
-        format!("{}| File type check failed | {} | {} .\n",path3, manifest_struct.file_type, line_type),
+        format!(
+            "{}| File type check failed | {} | {} .\n",
+            path3, manifest_struct.file_type, line_type
+        ),
         &check_tx,
     );
 
     send_pass_fail_check_message(
         digest_str == manifest_struct.hash,
         format!("{}| Hash check passed.\n", path3),
-        format!("{}| Hash type check failed | {} | {}.\n",path3, manifest_struct.hash, digest_str),
+        format!(
+            "{}| Hash type check failed | {} | {}.\n",
+            path3, manifest_struct.hash, digest_str
+        ),
         &check_tx,
     );
 
@@ -492,33 +509,39 @@ pub fn check_line(
     let public_key =
         ring::signature::UnparsedPublicKey::new(&ring::signature::ED25519, public_key_bytes);
 
-        let local_key = match HEXUPPER.decode(manifest_struct.sign.as_bytes()) {
-            Ok(local_key) => (local_key),
-            Err(why) => panic!(
-                "Couldn't decode hex signature for {}: {}",
-                path3,
-                why.description()
-            ),
-        };
-        // figure this out don't dont want to crash
-        let mut signature_key_bytes: [u8; (SIGNED_LENGH_IN_BYTES / 8)] =
-            [0; (SIGNED_LENGH_IN_BYTES / 8)];
+    let local_key = match HEXUPPER.decode(manifest_struct.sign.as_bytes()) {
+        Ok(local_key) => (local_key),
+        Err(why) => panic!(
+            "Couldn't decode hex signature for {}: {}",
+            path3,
+            why.description()
+        ),
+    };
+    // figure this out don't dont want to crash
+    let mut signature_key_bytes: [u8; (SIGNED_LENGH_IN_BYTES / 8)] =
+        [0; (SIGNED_LENGH_IN_BYTES / 8)];
 
-        for x in 0..SIGNED_LENGH_IN_BYTES / 8 {
-            signature_key_bytes[x] = local_key[x];
-        }
+    for x in 0..SIGNED_LENGH_IN_BYTES / 8 {
+        signature_key_bytes[x] = local_key[x];
+    }
 
     match public_key.verify(data.as_bytes(), &signature_key_bytes[..]) {
         Ok(_) => {
             send_check_message(
-                format!("{}| Signature check passed. Can trust manifest line.\n", path3),
+                format!(
+                    "{}| Signature check passed. Can trust manifest line.\n",
+                    path3
+                ),
                 true,
                 &check_tx,
             );
         }
         Err(_) => {
             send_check_message(
-                format!("{}| Signature check failed. Can't trust manifest line.\n", path3),
+                format!(
+                    "{}| Signature check failed. Can't trust manifest line.\n",
+                    path3
+                ),
                 false,
                 &check_tx,
             );
@@ -661,7 +684,7 @@ pub fn read_public_key(public_key_file: &str, public_key_bytes: &mut [u8]) {
             why.description()
         ),
     };
-    let local_key = match HEXUPPER.decode(deserialized_map["Public"].as_bytes()) {
+    let local_key = match HEXUPPER.decode(deserialized_map[PUBIC_KEY_STRING_ED25519].as_bytes()) {
         Ok(local_key) => (local_key),
         Err(why) => panic!(
             "Couldn't decode hex from public key file requested at {}| {}",
@@ -680,8 +703,12 @@ pub fn write_keys(
     public_key_file: &str,
     private_key_file: &str,
 ) {
-    write_key(&public_key_bytes, public_key_file, "Public");
-    write_key(&private_key_bytes, private_key_file, "Private");
+    write_key(&public_key_bytes, public_key_file, PUBIC_KEY_STRING_ED25519);
+    write_key(
+        &private_key_bytes,
+        private_key_file,
+        PRIVATE_KEY_STRING_ED25519,
+    );
 }
 
 pub fn write_headers(
@@ -762,8 +789,12 @@ pub fn read_manifest_file(vec_of_lines: &mut Vec<String>, input_file: &str, file
     }
 }
 
-pub fn get_next_manifest_line(mut manifest_line : String , vec_of_lines: & mut Vec<String>,  context : & mut Context, file_len : & mut usize) -> String {
-
+pub fn get_next_manifest_line(
+    mut manifest_line: String,
+    vec_of_lines: &mut Vec<String>,
+    context: &mut Context,
+    file_len: &mut usize,
+) -> String {
     manifest_line = manifest_line + "\n";
     context.update(manifest_line.as_bytes());
     *file_len = *file_len + manifest_line.len();

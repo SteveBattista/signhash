@@ -7,8 +7,10 @@ use signhash::write_headers;
 use signhash::write_key;
 use signhash::write_manifest_from_channel;
 use signhash::SignMessage;
+use signhash::DEFAULT_PUBIC_KEY_FILE_NAME;
 use signhash::NONCE_LENGTH_IN_BYTES;
 use signhash::PRIVATEKEY_LENGTH_IN_BYTES;
+use signhash::PUBIC_KEY_STRING_ED25519;
 use signhash::PUBLICKEY_LENGTH_IN_BYTES;
 use signhash::SIGN_HEADER_MESSAGE_COUNT;
 
@@ -114,7 +116,9 @@ fn main() {
         fileoutput = false;
     }
 
-    let public_key_file = matches.value_of("public").unwrap_or("Signpub.key");
+    let public_key_file = matches
+        .value_of("public")
+        .unwrap_or(DEFAULT_PUBIC_KEY_FILE_NAME);
 
     let inputpool = matches.value_of("pool").unwrap_or("0");
     let poolresult = inputpool.parse();
@@ -146,7 +150,6 @@ fn main() {
         );
     }
     for entry in WalkDir::new(input_directoy) {
-
         inputfiles.push(entry.unwrap().path().display().to_string());
         if fileoutput {
             spinner.tick();
@@ -163,7 +166,7 @@ fn main() {
         [0; (PUBLICKEY_LENGTH_IN_BYTES / 8)];
 
     create_keys(&mut public_key_bytes, &mut private_key_bytes);
-    write_key(&public_key_bytes, public_key_file, "Public");
+    write_key(&public_key_bytes, public_key_file, PUBIC_KEY_STRING_ED25519);
 
     let mut nonce_bytes: [u8; (NONCE_LENGTH_IN_BYTES / 8)] = [0; (NONCE_LENGTH_IN_BYTES / 8)];
     let rng = rand::thread_rng();
