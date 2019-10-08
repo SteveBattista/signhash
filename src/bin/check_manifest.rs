@@ -1,5 +1,6 @@
 #![forbid(unsafe_code)]
 
+use std::convert::TryInto;
 use signhash::parse_next_manifest_line;
 use signhash::get_next_manifest_line;
 use signhash::parse_hash_manifest_line;
@@ -18,6 +19,9 @@ use ring::digest::Context;
 use std::error::Error;
 
 use data_encoding::HEXUPPER;
+
+use indicatif::ProgressBar;
+use indicatif::ProgressStyle;
 
 const NUMBRER_OF_LINES_UNTIL_FILE_LEN_MESSAGE: usize = 7;
 const NO_OUTPUTFILE: &'static str = "|||";
@@ -72,6 +76,12 @@ fn main() {
     let mut vec_of_lines: Vec<String> = Vec::new();
     read_manifest_file(&mut vec_of_lines, &input_file, fileoutput);
 
+let bar = ProgressBar::new((vec_of_lines.len()-2).try_into().unwrap());
+bar.set_prefix("Number of Files Checked:");
+bar.set_style(
+    ProgressStyle::default_bar()
+        .template("{prefix} {wide_bar} {pos}/{len} {elapsed_precise}"),
+);
 
 let mut version_line = vec_of_lines.remove(0);
 let mut command_line = vec_of_lines.remove(0);
@@ -86,14 +96,17 @@ let mut file_len: usize = 0;
 version_line = version_line + "\n";
 file_hash_context.update(version_line.as_bytes());
 file_len = file_len + version_line.len();
+bar.inc(1);
 
 command_line = command_line + "\n";
 file_hash_context.update(command_line.as_bytes());
 file_len = file_len + command_line.len();
+bar.inc(1);
 
 hash_line = hash_line + "\n";
 file_hash_context.update(hash_line.as_bytes());
 file_len = file_len + hash_line.len();
+bar.inc(1);
 
 let mut manifest_line = vec_of_lines.remove(0);
 
@@ -181,7 +194,7 @@ while manifest_line != SEPERATOR {
                 &mut file_len,
             );
 }
-
+bar.inc(1);
 
 for _x in 0..NUMBRER_OF_LINES_UNTIL_FILE_LEN_MESSAGE {
     manifest_line = get_next_manifest_line(
@@ -192,6 +205,7 @@ for _x in 0..NUMBRER_OF_LINES_UNTIL_FILE_LEN_MESSAGE {
     );
 }
 
+bar.finish();
 let mut manifest_line2 = manifest_line.clone();
 
 manifest_line2 = manifest_line2 + "\n";
