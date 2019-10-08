@@ -1,5 +1,7 @@
 #![forbid(unsafe_code)]
 
+use std::error::Error;
+use signhash::SIGNED_LENGH_IN_BYTES;
 use chrono::DateTime;
 use chrono::Utc;
 use data_encoding::HEXUPPER;
@@ -8,6 +10,7 @@ use signhash::read_public_key;
 use signhash::send_check_message;
 use signhash::send_pass_fail_check_message;
 use signhash::write_check_from_channel;
+use signhash::get_next_manifest_line;
 
 
 use signhash::check_line;
@@ -40,6 +43,8 @@ use indicatif::ProgressBar;
 use indicatif::ProgressStyle;
 
 use walkdir::WalkDir;
+
+pub const NUMBRER_OF_LINES_UNTIL_FILE_LEN_MESSAGE : usize = 7;
 
 fn main() {
     let now: DateTime<Utc> = Utc::now();
@@ -128,7 +133,7 @@ fn main() {
     let mut inputfiles: Vec<String> = Vec::new();
     let spinner = ProgressBar::new_spinner();
     if fileoutput {
-        spinner.set_prefix("Constucting file list time:");
+        spinner.set_prefix("Constucting file list took:");
         spinner.set_style(
             ProgressStyle::default_bar().template("{prefix} {elapsed_precise} {spinner}"),
         );
@@ -157,26 +162,30 @@ fn main() {
     file_hash_context.update(version_line.as_bytes());
     file_len = file_len + version_line.len();
 
+
     command_line = command_line + "\n";
     file_hash_context.update(command_line.as_bytes());
     file_len = file_len + command_line.len();
+
 
     hash_line = hash_line + "\n";
     file_hash_context.update(hash_line.as_bytes());
     file_len = file_len + hash_line.len();
 
-    let mut reading_header = true;
-    let mut next_line: String;
-    while reading_header {
-        next_line = vec_of_lines.remove(0);
-        reading_header = next_line == SEPERATOR;
-        next_line = next_line + "\n";
-        file_hash_context.update(next_line.as_bytes());
-        file_len = file_len + next_line.len();
-    }
+
+
+    let mut manifest_line = vec_of_lines.remove(0);
+
+    while manifest_line != SEPERATOR {
+        manifest_line = get_next_manifest_line(manifest_line, &mut vec_of_lines, & mut file_hash_context, &mut file_len);
+
+}
+
+
+
     let bar = ProgressBar::new(inputfiles.len().try_into().unwrap());
     if fileoutput {
-        bar.set_prefix("Number of Files Checked");
+        bar.set_prefix("Number of Files Checked:");
         bar.set_style(
             ProgressStyle::default_bar()
                 .template("{prefix} {wide_bar} {pos}/{len} {elapsed_precise}"),
@@ -184,7 +193,7 @@ fn main() {
     }
 
     let writer_child = thread::spawn(move || {
-        write_check_from_channel(verbose, check_rx, output_file, &bar, fileoutput);
+        write_check_from_channel(verbose, check_rx, output_file, fileoutput);
     });
 
     send_check_message(
@@ -202,6 +211,7 @@ fn main() {
         true,
         &check_tx,
     );
+
     let tokens: Vec<&str> = hash_line.split('|').collect();
     send_check_message(
         format!("Hash used|{}", tokens[1]).to_string(),
@@ -214,6 +224,10 @@ fn main() {
         &check_tx,
     );
 
+
+    let nonces: &mut HashMap<String, String> = &mut HashMap::new();
+    let manifest_map: &mut HashMap<String, ManifestLine> = &mut HashMap::new();
+
     let mut type_of_line = String::new();
     let mut file_name_line = String::new();
     let mut bytes_line = String::new();
@@ -221,22 +235,9 @@ fn main() {
     let mut nonce_line = String::new();
     let mut hash_line = String::new();
     let mut sign_line = String::new();
-    let mut manifest_line = vec_of_lines.remove(0);
-    let mut working_on_files = true;
-    while manifest_line != SEPERATOR {
-        manifest_line = manifest_line + "/n";
-        file_hash_context.update(manifest_line.as_bytes());
-        file_len = file_len + manifest_line.len();
-        manifest_line = vec_of_lines.remove(0);
-    }
-    manifest_line = manifest_line + "/n";
-    file_hash_context.update(manifest_line.as_bytes());
-    file_len = file_len + manifest_line.len();
-    manifest_line = vec_of_lines.remove(0);
+    manifest_line = get_next_manifest_line(manifest_line, &mut vec_of_lines, & mut file_hash_context, &mut file_len);
 
-    let nonces: &mut HashMap<String, String> = &mut HashMap::new();
-    let manifest_map: &mut HashMap<String, ManifestLine> = &mut HashMap::new();
-    while working_on_files {
+    while manifest_line != SEPERATOR  {
         parse_next_manifest_line(
             &manifest_line,
             &mut type_of_line,
@@ -247,9 +248,7 @@ fn main() {
             &mut nonce_line,
             &mut sign_line,
         );
-        manifest_line = manifest_line + "/n";
-        file_hash_context.update(manifest_line.as_bytes());
-        file_len = file_len + manifest_line.len();
+
         report_duplicatve_and_insert_nonce(
             nonces,
             nonce_line.clone(),
@@ -257,7 +256,7 @@ fn main() {
             check_tx.clone(),
         );
 
-        let manifist_line = ManifestLine {
+        let manifist_struct = ManifestLine {
             file_type: type_of_line.clone(),
             bytes: bytes_line.clone(),
             time: time_line.clone(),
@@ -265,14 +264,9 @@ fn main() {
             nonce: nonce_line.clone(),
             sign: sign_line.clone(),
         };
-        manifest_map.insert(file_name_line.clone(), manifist_line);
-        manifest_line = vec_of_lines.remove(0);
-        if manifest_line == SEPERATOR {
-            working_on_files = false;
-            manifest_line = manifest_line + "/n";
-            file_hash_context.update(manifest_line.as_bytes());
-            file_len = file_len + manifest_line.len();
-        }
+        manifest_map.insert(file_name_line.clone(), manifist_struct);
+
+        manifest_line = get_next_manifest_line(manifest_line, &mut vec_of_lines, & mut file_hash_context, &mut file_len);
     }
 
     pool.scoped(|scoped| {
@@ -284,6 +278,9 @@ fn main() {
                         let _x =
                             check_line(file, hashalgo, file_line, &public_key_bytes, thread_tx);
                     });
+                    if fileoutput {
+                            bar.inc(1);
+                    }
                 }
                 None => {
                     send_check_message(
@@ -299,7 +296,7 @@ fn main() {
             };
         }
     });
-
+    bar.finish();
     if manifest_map.len() > 0 {
         for (file_line, _manifest_structure) in manifest_map.drain().take(1) {
             send_check_message(
@@ -314,20 +311,24 @@ fn main() {
         }
     }
 
-    for _x in 0..6 {
-        manifest_line = vec_of_lines.remove(0);
-        manifest_line = manifest_line + "/n";
-        file_hash_context.update(manifest_line.as_bytes());
-        file_len = file_len + manifest_line.len();
+
+    for _x in 0..NUMBRER_OF_LINES_UNTIL_FILE_LEN_MESSAGE {
+        manifest_line = get_next_manifest_line(manifest_line, &mut vec_of_lines, & mut file_hash_context, &mut file_len);
     }
-    manifest_line = vec_of_lines.remove(0);
+
+    let mut manifest_line2 = manifest_line.clone();
+
+    manifest_line2 = manifest_line2 + "\n";
+    file_hash_context.update(manifest_line2.as_bytes());
+
+
     let tokens: Vec<&str> = manifest_line.split('|').collect();
     send_pass_fail_check_message(
         tokens[1] == format!("{}", file_len),
-        "File lengh of manifest passed".to_string(),
+        "File lengh of manifest matched\n".to_string(),
         format!(
-            "File lengh of manifest is {}. It was reported in manifest as {}\n",
-            file_len, tokens[1]
+            "File lengh was reported in manifest as {}. Observed length of manifest is {}. \n",
+            tokens[1], file_len
         ),
         &check_tx,
     );
@@ -338,19 +339,34 @@ fn main() {
     let tokens: Vec<&str> = manifest_line.split('|').collect();
     send_pass_fail_check_message(
         tokens[1] == digest_text,
-        "Manifest digest test passed".to_string(),
+        "Manifest digest test matched\n".to_string(),
         format!(
-            "Manifest digest is {}. It was reported in manifest as {}\n",
-            digest_text, tokens[1]
+            "Hash was reported as {} in manifest. Observed hash is {}.\n",
+             tokens[1], digest_text
         ),
         &check_tx,
     );
 
     manifest_line = vec_of_lines.remove(0);
     let tokens: Vec<&str> = manifest_line.split('|').collect();
+
+    let local_key = match HEXUPPER.decode(tokens[1].as_bytes()) {
+        Ok(local_key) => (local_key),
+        Err(why) => panic!(
+            "Couldn't decode hex signature for manifest file| {}",
+            why.description()
+        ),
+    };
+    // figure this out don't dont want to crash
+    let mut signature_key_bytes: [u8; (SIGNED_LENGH_IN_BYTES / 8)] =
+        [0; (SIGNED_LENGH_IN_BYTES / 8)];
+
+    for x in 0..SIGNED_LENGH_IN_BYTES / 8 {
+        signature_key_bytes[x] = local_key[x];
+    }
     let public_key =
         ring::signature::UnparsedPublicKey::new(&ring::signature::ED25519, public_key_bytes);
-    match public_key.verify(digest.as_ref(), tokens[1].as_ref()) {
+    match public_key.verify(digest_text.as_bytes(), &signature_key_bytes[..]) {
         Ok(_x) => {
             send_check_message(
                 format!("Signature of manifest passed\n",).to_string(),

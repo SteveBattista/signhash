@@ -36,7 +36,7 @@ pub const PUBLICKEY_LENGTH_IN_BYTES: usize = 256;
 pub const SIGNED_LENGH_IN_BYTES : usize = 512;
 
 const HASH_READ_BUFFER_IN_BYTES: usize = 4096; //Emperical test finds this faster than 8192
-pub const SEPERATOR : & 'static str = "********************************************************************************************************************";
+pub const SEPERATOR : & str = "********************************************************************************"; //80 stars
 const DIR_HASH: &'static str = "0000000000000000000000000000000000000000000000000000000000000000";
 pub struct SignMessage {
     pub text: String,
@@ -114,7 +114,6 @@ pub fn write_check_from_channel(
     verbose: bool,
     check_rx: std::sync::mpsc::Receiver<CheckMessage>,
     output_file: String,
-    bar: &ProgressBar,
     fileoutput: bool,
 ) {
     let mut message: CheckMessage;
@@ -136,7 +135,7 @@ pub fn write_check_from_channel(
     let mut data: String;
     message = check_rx.recv().unwrap();
     while message.text != SEPERATOR {
-        //println!("System {} : Line {}", verbose)
+
 
         if verbose {
             data = format!("{}", message.text);
@@ -146,15 +145,10 @@ pub fn write_check_from_channel(
 
             write_line(&mut wherefile, data, "check");
         }
-        if fileoutput {
-            if message.text.contains(": Signature check")
-            {
-                bar.inc(1);
-            }
-        }
+
         message = check_rx.recv().unwrap();
     }
-    bar.finish();
+
 }
 
 fn write_line(wherefile: &mut Whereoutput, data: String, filename: &str) {
@@ -186,7 +180,6 @@ pub fn write_manifest_from_channel(
 ) {
     let mut context = Context::new(hashalgo);
     let mut byte_count = 0;
-    //let mut strings = Vec::new();
     let mut data: String;
     let mut total_file_len: u64 = 0;
     let mut message: SignMessage;
@@ -213,7 +206,7 @@ pub fn write_manifest_from_channel(
         data = format!("{}", message.text);
         byte_count = byte_count + data.len();
 
-        context.update(&data[..].as_bytes());
+        context.update(data.as_bytes());
         total_file_len = total_file_len + message.file_len;
         write_line(&mut wherefile, data, "manifest");
         if x > SIGN_HEADER_MESSAGE_COUNT {
@@ -224,6 +217,7 @@ pub fn write_manifest_from_channel(
     }
     let mut data = format!("{}\n", SEPERATOR);
     byte_count = byte_count + data.len();
+    context.update(data.as_bytes());
 
     write_line(&mut wherefile, data, "manifest");
 
@@ -258,7 +252,7 @@ pub fn write_manifest_from_channel(
     write_line(&mut wherefile, data, "manifest");
 
     data = format!(
-        "Average byte count of files in bytes is |{}\n",
+        "Average byte count per file in bytes is |{}\n",
         HumanBytes(
             ((total_file_len as f64) / ((num_lines - SIGN_HEADER_MESSAGE_COUNT) as f64)) as u64
         )
@@ -473,15 +467,15 @@ pub fn check_line(
     }
     send_pass_fail_check_message(
         line_type == manifest_struct.file_type,
-        format!("{}: File type check passed.\n", path3),
-        format!("{}: {} :{} File type check failed.\n",path3, manifest_struct.file_type, line_type),
+        format!("{}| File type check passed.\n", path3),
+        format!("{}| File type check failed | {} | {} .\n",path3, manifest_struct.file_type, line_type),
         &check_tx,
     );
 
     send_pass_fail_check_message(
         digest_str == manifest_struct.hash,
-        format!("{}: Hash check passed.\n", path3),
-        format!("{}: {} :{}: Hash check failed.\n",path3, manifest_struct.hash, digest_str),
+        format!("{}| Hash check passed.\n", path3),
+        format!("{}| Hash type check failed | {} | {}.\n",path3, manifest_struct.hash, digest_str),
         &check_tx,
     );
 
@@ -494,14 +488,14 @@ pub fn check_line(
         manifest_struct.hash,
         manifest_struct.nonce
     );
-    //println!("{}|{}",data,manifest_struct.sign);
+
     let public_key =
         ring::signature::UnparsedPublicKey::new(&ring::signature::ED25519, public_key_bytes);
 
         let local_key = match HEXUPPER.decode(manifest_struct.sign.as_bytes()) {
             Ok(local_key) => (local_key),
             Err(why) => panic!(
-                "Couldn't decode hex from public key file requested at {}: {}",
+                "Couldn't decode hex signature for {}: {}",
                 path3,
                 why.description()
             ),
@@ -517,14 +511,14 @@ pub fn check_line(
     match public_key.verify(data.as_bytes(), &signature_key_bytes[..]) {
         Ok(_) => {
             send_check_message(
-                format!("{}: Signature check passed. Can trust manifest line.\n", path3),
+                format!("{}| Signature check passed. Can trust manifest line.\n", path3),
                 true,
                 &check_tx,
             );
         }
         Err(_) => {
             send_check_message(
-                format!("{}: Signature check failed. Can't trust manifest line.\n", path3),
+                format!("{}| Signature check failed. Can't trust manifest line.\n", path3),
                 false,
                 &check_tx,
             );
@@ -544,7 +538,7 @@ pub fn create_line(
     let path3 = path.clone();
     let metadata = match fs::metadata(path) {
         Err(why) => panic!(
-            "Couldn't load metadata from {} data: {}",
+            "Couldn't load metadata from| {} | {}",
             path2,
             why.description()
         ),
@@ -553,7 +547,7 @@ pub fn create_line(
     let filelen = metadata.len();
     let datetime = match metadata.modified() {
         Err(why) => panic!(
-            "Couldn't load datetime from {} data: {}",
+            "Couldn't load datetime from| {} | {}",
             path3,
             why.description()
         ),
@@ -569,7 +563,7 @@ pub fn create_line(
         line_type = "File".to_string();
         input = match File::open(path2) {
             Ok(input) => input,
-            Err(why) => panic!("Couldn't open file {}: {}", path3, why.description()),
+            Err(why) => panic!("Couldn't open file | {} | {}", path3, why.description()),
         };
         let reader = BufReader::new(input);
         let digest = var_digest(reader, hashalgo);
@@ -623,7 +617,7 @@ pub fn write_key(public_key_bytes: &[u8], pubic_key_file: &str, key_name: &str) 
     let mut file = match File::create(&pubic_key_file) {
         Ok(file) => file,
         Err(why) => panic!(
-            "couldn't create {} key at {}: {}",
+            "couldn't create {} key at {}| {}",
             key_name,
             pubic_key_file,
             why.description()
@@ -632,7 +626,7 @@ pub fn write_key(public_key_bytes: &[u8], pubic_key_file: &str, key_name: &str) 
     match file.write_all(s.as_bytes()) {
         Ok(_) => (),
         Err(why) => panic!(
-            "Couldn't write to {} key to {}: {}",
+            "Couldn't write to {} key to {}| {}",
             key_name,
             pubic_key_file,
             why.description()
@@ -644,7 +638,7 @@ pub fn read_public_key(public_key_file: &str, public_key_bytes: &mut [u8]) {
     let mut file = match File::open(public_key_file) {
         Ok(filepointer) => filepointer,
         Err(why) => panic!(
-            "Couldn't find public key file requested at {}: {}",
+            "Couldn't find public key file requested at {}| {}",
             public_key_file,
             why.description()
         ),
@@ -654,7 +648,7 @@ pub fn read_public_key(public_key_file: &str, public_key_bytes: &mut [u8]) {
     match file.read_to_string(&mut contents) {
         Ok(_x) => (),
         Err(why) => panic!(
-            "Couldn't read from public key file requested at {}: {}",
+            "Couldn't read from public key file requested at {}| {}",
             public_key_file,
             why.description()
         ),
@@ -662,7 +656,7 @@ pub fn read_public_key(public_key_file: &str, public_key_bytes: &mut [u8]) {
     let deserialized_map: BTreeMap<String, String> = match serde_yaml::from_str(&contents) {
         Ok(deserialized_map) => (deserialized_map),
         Err(why) => panic!(
-            "Couldn't pase public key from YAML file requested at {}: {}",
+            "Couldn't pase public key from YAML file requested at {}| {}",
             public_key_file,
             why.description()
         ),
@@ -670,7 +664,7 @@ pub fn read_public_key(public_key_file: &str, public_key_bytes: &mut [u8]) {
     let local_key = match HEXUPPER.decode(deserialized_map["Public"].as_bytes()) {
         Ok(local_key) => (local_key),
         Err(why) => panic!(
-            "Couldn't decode hex from public key file requested at {}: {}",
+            "Couldn't decode hex from public key file requested at {}| {}",
             public_key_file,
             why.description()
         ),
@@ -743,7 +737,7 @@ pub fn read_manifest_file(vec_of_lines: &mut Vec<String>, input_file: &str, file
     let f = match File::open(input_file) {
         Ok(f) => f,
         Err(why) => panic!(
-            "Couldn't open manifestfile for input at {}: {}",
+            "Couldn't open manifestfile for input at {}| {}",
             input_file,
             why.description()
         ),
@@ -751,7 +745,7 @@ pub fn read_manifest_file(vec_of_lines: &mut Vec<String>, input_file: &str, file
     let spinner = ProgressBar::new_spinner();
     let file = BufReader::new(&f);
     if fileoutput {
-        spinner.set_prefix("Reading Manifest:");
+        spinner.set_prefix("Reading manifest running for:");
         spinner.set_style(
             ProgressStyle::default_bar().template("{prefix} {elapsed_precise} {spinner}"),
         );
@@ -766,6 +760,14 @@ pub fn read_manifest_file(vec_of_lines: &mut Vec<String>, input_file: &str, file
     if fileoutput {
         spinner.finish();
     }
+}
+
+pub fn get_next_manifest_line(mut manifest_line : String , vec_of_lines: & mut Vec<String>,  context : & mut Context, file_len : & mut usize) -> String {
+
+    manifest_line = manifest_line + "\n";
+    context.update(manifest_line.as_bytes());
+    *file_len = *file_len + manifest_line.len();
+    return vec_of_lines.remove(0);
 }
 
 pub fn parse_next_manifest_line(
@@ -800,7 +802,7 @@ pub fn send_sign_message(
     match sign_tx.send(message) {
         Ok(_x) => (),
         Err(why) => panic!(
-            "Couldn't send {} to writing thread. : {}",
+            "Couldn't send {} to writing thread. | {}",
             message_string,
             why.description()
         ),
@@ -819,7 +821,7 @@ pub fn send_check_message(
     match check_tx.send(message) {
         Ok(_x) => (),
         Err(why) => panic!(
-            "Couldn't send {} to writing thread. : {}",
+            "Couldn't send {} to writing thread. | {}",
             message_string,
             why.description()
         ),

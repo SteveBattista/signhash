@@ -146,7 +146,7 @@ fn main() {
         );
     }
     for entry in WalkDir::new(input_directoy) {
-        //println!("{}", entry.unwrap().path().display());
+
         inputfiles.push(entry.unwrap().path().display().to_string());
         if fileoutput {
             spinner.tick();
