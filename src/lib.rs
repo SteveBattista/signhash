@@ -396,10 +396,7 @@ pub fn var_digest<R: Read>(mut reader: R, hashalgo: &'static Algorithm) -> Diges
     loop {
         let count = match reader.read(&mut buffer) {
             Ok(count) => count,
-            Err(why) => panic!(
-                "Couldn't load data from file to hash|{}",
-                why.description()
-            ),
+            Err(why) => panic!("Couldn't load data from file to hash|{}", why.description()),
         };
         if count == 0 {
             break;
@@ -511,17 +508,18 @@ pub fn check_line(
 
     let local_key = match HEXUPPER.decode(manifest_struct.sign.as_bytes()) {
         Ok(local_key) => (local_key),
-        Err(why) =>{
-        send_check_message(
-            format!(
-                "{}|Couldn't decode hex signature|{}\n",
-                path3,
-                why.description()),
-            false,
-            &check_tx,
-    );
-    vec![0;SIGNED_LENGH_IN_BYTES/8]
-}
+        Err(why) => {
+            send_check_message(
+                format!(
+                    "{}|Couldn't decode hex signature|{}\n",
+                    path3,
+                    why.description()
+                ),
+                false,
+                &check_tx,
+            );
+            vec![0; SIGNED_LENGH_IN_BYTES / 8]
+        }
     };
     // figure this out don't dont want to crash
     let mut signature_key_bytes: [u8; (SIGNED_LENGH_IN_BYTES / 8)] =
@@ -692,17 +690,15 @@ pub fn read_public_key(public_key_file: &str, public_key_bytes: &mut [u8]) {
     };
     let local_key = match HEXUPPER.decode(deserialized_map[PUBIC_KEY_STRING_ED25519].as_bytes()) {
         Ok(local_key) => (local_key),
-        Err(why) =>  panic!(
+        Err(why) => panic!(
             "Couldn't decode hex from public key file requested at|{}|{}",
             public_key_file,
             why.description()
-        )
-
+        ),
     };
     for x in 0..PUBLICKEY_LENGTH_IN_BYTES / 8 {
         public_key_bytes[x] = local_key[x];
     }
-
 }
 pub fn write_keys(
     public_key_bytes: &[u8],
@@ -726,11 +722,7 @@ pub fn write_headers(
     now: &chrono::DateTime<Utc>,
     poolnumber: usize,
 ) {
-    send_sign_message(
-        format!("Manifest version|0.6.0\n").to_string(),
-        0,
-        &sign_tx,
-    );
+    send_sign_message(format!("Manifest version|0.6.0\n").to_string(), 0, &sign_tx);
     send_sign_message(
         format!("Command Line|{}\n", &command_line).to_string(),
         0,
@@ -754,11 +746,7 @@ pub fn write_headers(
         data = dump_header(header_file);
     }
     send_sign_message(data, 0, &sign_tx);
-    send_sign_message(
-        format!("Start time was|{}\n", now.to_string()),
-        0,
-        &sign_tx,
-    );
+    send_sign_message(format!("Start time was|{}\n", now.to_string()), 0, &sign_tx);
     send_sign_message(
         format!("Threads used for main hashing was|{}\n", poolnumber),
         0,

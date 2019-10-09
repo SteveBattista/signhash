@@ -48,45 +48,44 @@ fn main() {
     let now: DateTime<Utc> = Utc::now();
     let args: Vec<String> = env::args().collect();
     let matches = App::new("check_hash")
-                          .version("0.1.0")
-                          .author("Stephen Battista <stephen.battista@gmail.com>")
-                          .about("Implements a signed hash for files")
-                          .arg(Arg::with_name("public")
-                                .short("u")
-                                .long("public")
-                                .value_name("FILE")
-                                .help("This option allows for the user to set the location of the public key. If not used, Signpub.key is default.")
-                                .takes_value(true))
-                        .arg(Arg::with_name("input")
-                            .short("i")
-                            .long("input")
-                            .value_name("FILE")
-                            .help("This option allows for the user to set the location of the manifest file.  If not used, Manifest.txt is default. ")
-                            .takes_value(true))
-                            .arg(Arg::with_name("output")
-                                .short("o")
-                                .long("output")
-                                .value_name("FILE")
-                                .help("This option allows for the user to set the location of the output file.  If not used, STDIO is default. ")
-                                .takes_value(true))
-                        .arg(Arg::with_name("pool")
-                            .short("p")
-                            .long("pool")
-                            .value_name("#")
-                            .help("Sets the size of the pool of maximum number of concurrent threads when hashing. Default is number of CPU cores. Negative numbers set pool to default. Warning: Large numbers (> 60) may cause the progam not to hash all files.")
-                            .takes_value(true))
-                        .arg(Arg::with_name("directory")
-                            .short("d")
-                            .long("directory")
-                             .value_name("DIRECTORY")
-                             .help("Directory to start hashing. Default is current working directory.Those that can not be found will be ommited from the results. Directories will be ommitted. Links will be treated like normal files.")
-                             .takes_value(true))
-                        .arg(Arg::with_name("v")
-                             .short("v")
-                            .long("verbose")
-                              .help("Use -v flag to also print out when things match.")
-                              )
-                          .get_matches();
+    .version("0.1.0")
+    .author("Stephen Battista <stephen.battista@gmail.com>")
+    .about("Implements a signed hash for files")
+    .arg(Arg::with_name("public")
+        .short("u")
+        .long("public")
+        .value_name("FILE")
+        .help("This option allows for the user to set the location of the public key. If not used, Signpub.key is default.")
+        .takes_value(true))
+    .arg(Arg::with_name("input")
+        .short("i")
+        .long("input")
+        .value_name("FILE")
+        .help("This option allows for the user to set the location of the manifest file.  If not used, Manifest.txt is default. ")
+        .takes_value(true))
+    .arg(Arg::with_name("output")
+        .short("o")
+        .long("output")
+        .value_name("FILE")
+        .help("This option allows for the user to set the location of the output file.  If not used, STDIO is default. ")
+        .takes_value(true))
+    .arg(Arg::with_name("pool")
+        .short("p")
+        .long("pool")
+        .value_name("#")
+        .help("Sets the size of the pool of maximum number of concurrent threads when hashing. Default is number of CPU cores. Negative numbers set pool to default. Warning: Large numbers (> 60) may cause the progam not to hash all files.")
+        .takes_value(true))
+    .arg(Arg::with_name("directory")
+        .short("d")
+        .long("directory")
+        .value_name("DIRECTORY")
+        .help("Directory to start hashing. Default is current working directory.Those that can not be found will be ommited from the results. Directories will be ommitted. Links will be treated like normal files.")
+        .takes_value(true))
+    .arg(Arg::with_name("v")
+         .short("v")
+        .long("verbose")
+        .help("Use -v flag to also print out when things match."))
+    .get_matches();
 
     let mut public_key_bytes: [u8; (PUBLICKEY_LENGTH_IN_BYTES / 8)] =
         [0; (PUBLICKEY_LENGTH_IN_BYTES / 8)];
@@ -369,12 +368,13 @@ fn main() {
             send_check_message(
                 format!(
                     "Couldn't decode hex signature for manifest file|{}.\n",
-                    why.description()),
+                    why.description()
+                ),
                 false,
                 &check_tx,
-        );
-        vec![0;SIGNED_LENGH_IN_BYTES/8]
-    }
+            );
+            vec![0; SIGNED_LENGH_IN_BYTES / 8]
+        }
     };
     // figure this out don't dont want to crash
     let mut signature_key_bytes: [u8; (SIGNED_LENGH_IN_BYTES / 8)] =
