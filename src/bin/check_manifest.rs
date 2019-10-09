@@ -189,7 +189,7 @@ while manifest_line != SEPERATOR {
         Err(why) => {
             data =
         format!(
-            "{} |Couldn't decode hex signature |{}\n",
+            "{}|Couldn't decode hex signature|{}\n",
             file_name_line,
             why.description());
             write_line(&mut wherefile, data.clone());
@@ -209,7 +209,7 @@ while manifest_line != SEPERATOR {
         Ok(_) => (),
         Err(_) => {
             data = format!(
-                    "{} |Signature check failed. Can't trust manifest line.\n",
+                    "{}|Signature check failed. Can't trust manifest line.\n",
                     file_name_line);
                     write_line(&mut wherefile, data);
         }
@@ -277,7 +277,7 @@ let local_key = match HEXUPPER.decode(tokens[1].as_bytes()) {
     Err(why) => {
         data =
         format!(
-        "Couldn't decode hex signature for manifest file |{}.\n",
+        "Couldn't decode hex signature for manifest file|{}.\n",
         why.description());
         write_line(&mut wherefile, data);
     vec![0;SIGNED_LENGH_IN_BYTES/8]

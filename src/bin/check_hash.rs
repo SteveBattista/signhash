@@ -198,17 +198,17 @@ fn main() {
     });
 
     send_check_message(
-        format!("Command Line |{}\n", args.join(" ")),
+        format!("Command Line|{}\n", args.join(" ")),
         true,
         &check_tx,
     );
     send_check_message(
-        format!("Start time was |{}\n", now.to_string()),
+        format!("Start time was|{}\n", now.to_string()),
         true,
         &check_tx,
     );
     send_check_message(
-        format!("Threads used for main hashing was |{}\n", poolnumber),
+        format!("Threads used for main hashing was|{}\n", poolnumber),
         true,
         &check_tx,
     );
@@ -220,7 +220,7 @@ fn main() {
         &check_tx,
     );
     send_check_message(
-        format!("Signature algorthim |ED25519\n").to_string(),
+        format!("Signature algorthim|ED25519\n").to_string(),
         true,
         &check_tx,
     );
@@ -295,7 +295,7 @@ fn main() {
                 None => {
                     send_check_message(
                         format!(
-                            "{} |was in the directory search but not found in direcorty manifest.\n",
+                            "{}|was in the directory search but not found in direcorty manifest.\n",
                             file,
                         )
                         .to_string(),
@@ -311,7 +311,7 @@ fn main() {
         for (file_line, _manifest_structure) in manifest_map.drain().take(1) {
             send_check_message(
                 format!(
-                    "{} |was in the manifest but not found in direcorty search.\n",
+                    "{}|was in the manifest but not found in direcorty search.\n",
                     file_line
                 )
                 .to_string(),
@@ -340,7 +340,7 @@ fn main() {
         tokens[1] == format!("{}", file_len),
         "File lengh of manifest is corect.\n".to_string(),
         format!(
-            "File lengh was reported in manifest as |{}. Observed length of manifest is |{}. \n",
+            "File lengh was reported in manifest as|{}. Observed length of manifest is|{}. \n",
             tokens[1], file_len
         ),
         &check_tx,
@@ -354,7 +354,7 @@ fn main() {
         tokens[1] == digest_text,
         "Manifest digest is correct.\n".to_string(),
         format!(
-            "Hash was reported as |{} |in manifest. Observed hash is |{}.\n",
+            "Hash was reported as|{}|in manifest. Observed hash is|{}.\n",
             tokens[1], digest_text
         ),
         &check_tx,

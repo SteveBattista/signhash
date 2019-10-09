@@ -78,9 +78,9 @@ fn main() {
                             .value_name("#")
                             .help("Sets the size of the pool of maximum number of concurrent threads when hashing. Default is number of CPU cores. Negative numbers set pool to default. Warning: Large numbers (> 60) may cause the progam not to hash all files.")
                             .takes_value(true))
-                            .arg(Arg::with_name("inlcude")
-         			            .short("i")
-                                .long("include")
+                        .arg(Arg::with_name("inlcude")
+         			        .short("i")
+                            .long("include")
                                 .value_name("FILE")
                                 .help("Name of file that you would like to include in the header.")
                                 .takes_value(true))
@@ -137,7 +137,8 @@ fn main() {
 
     let (sign_tx, sign_rx): (Sender<SignMessage>, Receiver<SignMessage>) = mpsc::channel();
 
-    let header_file = matches.value_of("header").unwrap_or("|||");
+    let header_file = matches.value_of("inlcude").unwrap_or("|||");
+    println!("{}",header_file);
 
     let input_directoy = matches.value_of("directory").unwrap_or(".");
 
