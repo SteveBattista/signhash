@@ -295,7 +295,7 @@ fn main() {
                 None => {
                     send_check_message(
                         format!(
-                            "{} was in the directory search but not found in direcorty manifest.\n",
+                            "{} |was in the directory search but not found in direcorty manifest.\n",
                             file,
                         )
                         .to_string(),
@@ -311,7 +311,7 @@ fn main() {
         for (file_line, _manifest_structure) in manifest_map.drain().take(1) {
             send_check_message(
                 format!(
-                    "{} was in the manifest but not found in direcorty search.\n",
+                    "{} |was in the manifest but not found in direcorty search.\n",
                     file_line
                 )
                 .to_string(),
@@ -340,7 +340,7 @@ fn main() {
         tokens[1] == format!("{}", file_len),
         "File lengh of manifest is corect.\n".to_string(),
         format!(
-            "File lengh was reported in manifest as {}. Observed length of manifest is {}. \n",
+            "File lengh was reported in manifest as |{}. Observed length of manifest is |{}. \n",
             tokens[1], file_len
         ),
         &check_tx,
@@ -354,7 +354,7 @@ fn main() {
         tokens[1] == digest_text,
         "Manifest digest is correct.\n".to_string(),
         format!(
-            "Hash was reported as {} in manifest. Observed hash is {}.\n",
+            "Hash was reported as |{} |in manifest. Observed hash is |{}.\n",
             tokens[1], digest_text
         ),
         &check_tx,
@@ -365,10 +365,16 @@ fn main() {
 
     let local_key = match HEXUPPER.decode(tokens[1].as_bytes()) {
         Ok(local_key) => (local_key),
-        Err(why) => panic!(
-            "Couldn't decode hex signature for manifest file| {}.",
-            why.description()
-        ),
+        Err(why) => {
+            send_check_message(
+                format!(
+                    "Couldn't decode hex signature for manifest file|{}.\n",
+                    why.description()),
+                false,
+                &check_tx,
+        );
+        vec![0;SIGNED_LENGH_IN_BYTES/8]
+    }
     };
     // figure this out don't dont want to crash
     let mut signature_key_bytes: [u8; (SIGNED_LENGH_IN_BYTES / 8)] =
