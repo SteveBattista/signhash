@@ -13,7 +13,7 @@
 <h2> Use the flag -h for command line flags <br><h2>
 
 <h1> Known issues <br></h1>
-<h2> While program will not follow infinite loops based on hard links (in Linux), if a broken hard link exists, the program will exit and not finish its work. <br></h2>
+<h2> Program will not follow infinite loops based on hard links (in Linux). Could add a flag to follow symlinks but this could result in a infinite loop.<br>
 <h2> Spelling. I need to clean up all of the text and spell check it.<br></h2>
 
 <h1>Possible roadmap<br></h1>
