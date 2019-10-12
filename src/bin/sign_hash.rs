@@ -138,7 +138,6 @@ fn main() {
     let (sign_tx, sign_rx): (Sender<SignMessage>, Receiver<SignMessage>) = mpsc::channel();
 
     let header_file = matches.value_of("inlcude").unwrap_or("|||");
-    println!("{}", header_file);
 
     let input_directoy = matches.value_of("directory").unwrap_or(".");
 
@@ -190,18 +189,21 @@ fn main() {
                 .template("{prefix} {wide_bar} {pos}/{len} {elapsed_precise}"),
         );
     }
-    let writer_child = thread::spawn(move || {
-        write_manifest_from_channel(
-            num_files + SIGN_HEADER_MESSAGE_COUNT,
-            hashalgo,
-            &private_key_bytes,
-            sign_rx,
-            start,
-            manifest_file,
-            &bar,
-            fileoutput,
-        );
-    });
+    let writer_child = thread::Builder::new()
+        .name("Writer".to_string())
+        .spawn(move || {
+            write_manifest_from_channel(
+                num_files + SIGN_HEADER_MESSAGE_COUNT,
+                hashalgo,
+                &private_key_bytes,
+                sign_rx,
+                start,
+                manifest_file,
+                &bar,
+                fileoutput,
+            );
+        })
+        .unwrap();
 
     pool.scoped(|scoped| {
         stdout().flush().unwrap();

@@ -38,14 +38,14 @@ pub const SIGNED_LENGH_IN_BYTES: usize = 512;
 const HASH_READ_BUFFER_IN_BYTES: usize = 4096; //Emperical test finds this faster than 8192
 pub const SEPERATOR: &str =
     "********************************************************************************"; //80 stars
-const DIR_HASH: &'static str = "0000000000000000000000000000000000000000000000000000000000000000";
+const NO_HASH: &'static str = "0000000000000000000000000000000000000000000000000000000000000000";
 pub const PUBIC_KEY_STRING_ED25519: &'static str = "Public ED25519";
 pub const PRIVATE_KEY_STRING_ED25519: &'static str = "Private ED25519";
 pub const DEFAULT_MANIFEST_FILE_NAME: &'static str = "Manifest.txt";
 pub const DEFAULT_PUBIC_KEY_FILE_NAME: &'static str = "Signpub.txt";
 pub const END_OF_MESSAGES : & str = "87e00106e0c012cd1c0216292d070989125c3f215b73429fa8a3f247b8520f3110e53db9d4e139328ba8f00321117fbda14bb317ee498909a393fafce4bd631e7966f4be302d1818b12bf22e32c38fc4cc594c310c2de480df29b2ca3a4b2c470eb0610e309740ef831f18969c9fc97f7d7dfc8d98110b5f8064393605b1e20110dc90bd9d20e87a32e5fbd611bf071bf61d8fb1a1c0352ff82974b989ea91e9
 303eb1e75831a7bd4f3aebce5857bfcb7cf917b948caea4ea7e8530938818449cc8856c039599e757b437ab94f2818c8a91cf669abe6abbb629ed651301f4a86ea218d128451dabc5b06ccdd38e8a729c00458e7c9b777a33db51d2f61047444";
-//random 256 bit message :) I know someone is going do decomplue this and think that it is some built in key :)
+//random 256 bit message :) I know someone is going do decomplie this and think that it is some built in key :)
 
 pub struct SignMessage {
     pub text: String,
@@ -413,96 +413,108 @@ pub fn check_line(
     public_key_bytes: &[u8],
     check_tx: std::sync::mpsc::Sender<CheckMessage>,
 ) {
+    let line_type: String;
     let path2 = path.clone();
     let path3 = path.clone();
-    let line_type: String;
+    let path4 = path.clone();
+    let data: String;
     let input: File;
-    let reader: BufReader<File>;
-    let digest: Digest;
     let digest_str: String;
-    let metadata = match fs::metadata(path) {
-        Err(why) => panic!(
-            "Couldn't load metadata from|{} data|{}",
-            path2,
-            why.description()
-        ),
-        Ok(metadata) => metadata,
+    match fs::metadata(path) {
+        Err(_why) => {
+            data = format!(
+                "{}|{}|{}|{}|{}|{}",
+                "Bad-symlink", path2, 0, "00/00/0000 00:00:00", NO_HASH, manifest_struct.nonce
+            );
+        }
+        Ok(metadata) => {
+            let metadata2 = fs::symlink_metadata(path2).unwrap();
+            let postfix : &str;
+            if metadata2.file_type().is_symlink(){
+                postfix = "-symlink"
+            } else {
+                postfix ="";
+            }
+            let filelen = format!("{}", metadata.len());
+            send_pass_fail_check_message(
+                filelen == manifest_struct.bytes,
+                format!("{}|File length check passed.\n", path3),
+                format!(
+                    "{}|{}|{}|File len check failed.\n",
+                    path3, manifest_struct.bytes, filelen
+                ),
+                &check_tx,
+            );
+
+            let datetime = match metadata.modified() {
+                Err(why) => panic!(
+                    "Couldn't load datetime from|{} data|{}",
+                    path3,
+                    why.description()
+                ),
+                Ok(datetime) => datetime,
+            };
+            let datetime: DateTime<Utc> = datetime.into();
+            let datetime_string = format!("{}", datetime.format("%d/%m/%Y %T"));
+
+            send_pass_fail_check_message(
+                datetime_string == manifest_struct.time,
+                format!("{}|Date check passed.\n", path3),
+                format!(
+                    "{}|{}|{}|File date check failed.\n",
+                    path3, manifest_struct.time, datetime_string
+                ),
+                &check_tx,
+            );
+
+            if metadata.is_dir() {
+                line_type =format!("Dir{}",postfix);
+                digest_str = NO_HASH.to_string();
+            } else {
+                if metadata.is_file() {
+                    line_type = format!("File{}",postfix);
+                } else {
+                    line_type = format!("Uknown{}",postfix);
+                }
+                input = match File::open(path3) {
+                    Ok(input) => input,
+                    Err(why) => panic!("Couldn't open file|{}|{}", path4, why.description()),
+                };
+                let reader = BufReader::new(input);
+                let digest = var_digest(reader, hashalgo);
+                digest_str = HEXUPPER.encode(&digest.as_ref());
+            }
+            send_pass_fail_check_message(
+                line_type == manifest_struct.file_type,
+                format!("{}|File type check passed.\n", path4),
+                format!(
+                    "{}|File type check failed|{}|{} .\n",
+                    path4, manifest_struct.file_type, line_type
+                ),
+                &check_tx,
+            );
+
+            send_pass_fail_check_message(
+                digest_str == manifest_struct.hash,
+                format!("{}|Hash check passed.\n", path4),
+                format!(
+                    "{}|Hash type check failed|{}|{}.\n",
+                    path4, manifest_struct.hash, digest_str
+                ),
+                &check_tx,
+            );
+
+            data = format!(
+                "{}|{}|{}|{}|{}|{}",
+                manifest_struct.file_type,
+                path4,
+                manifest_struct.bytes,
+                manifest_struct.time,
+                manifest_struct.hash,
+                manifest_struct.nonce
+            );
+        }
     };
-    let filelen = format!("{}", metadata.len());
-    send_pass_fail_check_message(
-        filelen == manifest_struct.bytes,
-        format!("{}|File length check passed.\n", path2),
-        format!(
-            "{}|{}|{}|File len check failed.\n",
-            path2, manifest_struct.bytes, filelen
-        ),
-        &check_tx,
-    );
-
-    let datetime = match metadata.modified() {
-        Err(why) => panic!(
-            "Couldn't load datetime from|{} data|{}",
-            path3,
-            why.description()
-        ),
-        Ok(datetime) => datetime,
-    };
-    let datetime: DateTime<Utc> = datetime.into();
-    let datetime_string = format!("{}", datetime.format("%d/%m/%Y %T"));
-
-    send_pass_fail_check_message(
-        datetime_string == manifest_struct.time,
-        format!("{}|Date check passed.\n", path2),
-        format!(
-            "{}|{}|{}|File date check failed.\n",
-            path2, manifest_struct.time, datetime_string
-        ),
-        &check_tx,
-    );
-
-    if !(metadata.is_dir()) {
-        line_type = "File".to_string();
-        input = match File::open(path2) {
-            Ok(input) => input,
-            Err(why) => panic!("Couldn't open file|{}|{}", path3, why.description()),
-        };
-        reader = BufReader::new(input);
-        digest = var_digest(reader, hashalgo);
-        digest_str = HEXUPPER.encode(&digest.as_ref());
-    } else {
-        line_type = "Dir".to_string();
-        digest_str = DIR_HASH.to_string();
-    }
-    send_pass_fail_check_message(
-        line_type == manifest_struct.file_type,
-        format!("{}|File type check passed.\n", path3),
-        format!(
-            "{}|File type check failed|{}|{} .\n",
-            path3, manifest_struct.file_type, line_type
-        ),
-        &check_tx,
-    );
-
-    send_pass_fail_check_message(
-        digest_str == manifest_struct.hash,
-        format!("{}|Hash check passed.\n", path3),
-        format!(
-            "{}|Hash type check failed|{}|{}.\n",
-            path3, manifest_struct.hash, digest_str
-        ),
-        &check_tx,
-    );
-
-    let data = format!(
-        "{}|{}|{}|{}|{}|{}",
-        manifest_struct.file_type,
-        path3,
-        manifest_struct.bytes,
-        manifest_struct.time,
-        manifest_struct.hash,
-        manifest_struct.nonce
-    );
-
     let public_key =
         ring::signature::UnparsedPublicKey::new(&ring::signature::ED25519, public_key_bytes);
 
@@ -512,7 +524,7 @@ pub fn check_line(
             send_check_message(
                 format!(
                     "{}|Couldn't decode hex signature|{}\n",
-                    path3,
+                    path4,
                     why.description()
                 ),
                 false,
@@ -534,7 +546,7 @@ pub fn check_line(
             send_check_message(
                 format!(
                     "{}|Signature check passed. Can trust manifest line.\n",
-                    path3
+                    path4
                 ),
                 true,
                 &check_tx,
@@ -544,7 +556,7 @@ pub fn check_line(
             send_check_message(
                 format!(
                     "{}|Signature check failed. Can't trust manifest line.\n",
-                    path3
+                    path4
                 ),
                 false,
                 &check_tx,
@@ -563,51 +575,72 @@ pub fn create_line(
     let line_type: String;
     let path2 = path.clone();
     let path3 = path.clone();
-    let metadata = match fs::metadata(path) {
-        Err(why) => panic!(
-            "Couldn't load metadata from|{}|{}",
-            path2,
-            why.description()
-        ),
-        Ok(metadata) => metadata,
-    };
-    let filelen = metadata.len();
-    let datetime = match metadata.modified() {
-        Err(why) => panic!(
-            "Couldn't load datetime from|{}|{}",
-            path3,
-            why.description()
-        ),
-        Ok(datetime) => datetime,
-    };
-    let datetime: DateTime<Utc> = datetime.into();
+    let path4 = path.clone();
     let mut data: String;
+    let mut filelen: u64 = 0;
     let signature: ring::signature::Signature;
-    let input: File;
-    let digest_str: String;
+    match fs::metadata(path) {
+        Err(_why) => {
+            data = format!(
+                "{}|{}|{}|{}|{}|{}",
+                "Bad-symlink",
+                path2,
+                filelen,
+                "00/00/0000 00:00:00",
+                NO_HASH,
+                HEXUPPER.encode(&nonce_bytes)
+            );
+        }
+        Ok(metadata) => {
+            filelen = metadata.len();
+            let datetime = match metadata.modified() {
+                Err(why) => panic!(
+                    "Couldn't load datetime from|{}|{}",
+                    path3,
+                    why.description()
+                ),
+                Ok(datetime) => datetime,
+            };
+            let metadata2 = fs::symlink_metadata(path2).unwrap();
+            let postfix : &str;
+            if metadata2.file_type().is_symlink(){
+                postfix = "-symlink"
+            } else {
+                postfix ="";
+            }
+            let datetime: DateTime<Utc> = datetime.into();
+            let input: File;
+            let digest_str: String;
+            if metadata.is_dir() {
+                line_type = format!("Dir{}",postfix);
+                digest_str = NO_HASH.to_string();
+            } else {
 
-    if !(metadata.is_dir()) {
-        line_type = "File".to_string();
-        input = match File::open(path2) {
-            Ok(input) => input,
-            Err(why) => panic!("Couldn't open file|{}|{}", path3, why.description()),
-        };
-        let reader = BufReader::new(input);
-        let digest = var_digest(reader, hashalgo);
-        digest_str = HEXUPPER.encode(&digest.as_ref());
-    } else {
-        line_type = "Dir".to_string();
-        digest_str = DIR_HASH.to_string();
-    }
-    data = format!(
-        "{}|{}|{}|{}|{}|{}",
-        line_type,
-        path3,
-        filelen,
-        datetime.format("%d/%m/%Y %T"),
-        digest_str,
-        HEXUPPER.encode(&nonce_bytes)
-    );
+                input = match File::open(path3) {
+                    Ok(input) => input,
+                    Err(why) => panic!("Couldn't open file|{}|{}", path4, why.description()),
+                };
+                let reader = BufReader::new(input);
+                let digest = var_digest(reader, hashalgo);
+                digest_str = HEXUPPER.encode(&digest.as_ref());
+                if metadata.is_file() {
+                    line_type = format!("File{}",postfix);
+                } else {
+                    line_type = format!("Unknown{}",postfix);
+                }
+            }
+
+            data = format!(
+                "{}|{}|{}|{}|{}|{}",
+                line_type,
+                path4,
+                filelen,
+                datetime.format("%d/%m/%Y %T"),
+                digest_str,
+                HEXUPPER.encode(&nonce_bytes)
+            );
+        }
+    };
     signature = sign_data(&data, &private_key_bytes);
     data = format!("{}|{}\n", data, HEXUPPER.encode(&signature.as_ref()));
 
@@ -722,7 +755,7 @@ pub fn write_headers(
     now: &chrono::DateTime<Utc>,
     poolnumber: usize,
 ) {
-    send_sign_message(format!("Manifest version|0.6.0\n").to_string(), 0, &sign_tx);
+    send_sign_message(format!("Manifest version|0.8.0\n").to_string(), 0, &sign_tx);
     send_sign_message(
         format!("Command Line|{}\n", &command_line).to_string(),
         0,

@@ -192,9 +192,12 @@ fn main() {
         );
     }
 
-    let writer_child = thread::spawn(move || {
-        write_check_from_channel(verbose, check_rx, output_file, fileoutput);
-    });
+    let writer_child = thread::Builder::new()
+        .name("Writer".to_string())
+        .spawn(move || {
+            write_check_from_channel(verbose, check_rx, output_file, fileoutput);
+        })
+        .unwrap();
 
     send_check_message(
         format!("Command Line|{}\n", args.join(" ")),
