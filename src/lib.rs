@@ -420,6 +420,7 @@ pub fn check_line(
     let data: String;
     let input: File;
     let digest_str: String;
+
     match fs::metadata(path) {
         Err(_why) => {
             data = format!(
@@ -614,8 +615,7 @@ pub fn create_line(
             if metadata.is_dir() {
                 line_type = format!("Dir{}",postfix);
                 digest_str = NO_HASH.to_string();
-            } else {
-
+            } else if metadata.is_file() {
                 input = match File::open(path3) {
                     Ok(input) => input,
                     Err(why) => panic!("Couldn't open file|{}|{}", path4, why.description()),
@@ -623,12 +623,11 @@ pub fn create_line(
                 let reader = BufReader::new(input);
                 let digest = var_digest(reader, hashalgo);
                 digest_str = HEXUPPER.encode(&digest.as_ref());
-                if metadata.is_file() {
                     line_type = format!("File{}",postfix);
                 } else {
-                    line_type = format!("Unknown{}",postfix);
+                    line_type = format!("Other{}",postfix);
+                    digest_str = NO_HASH.to_string();
                 }
-            }
 
             data = format!(
                 "{}|{}|{}|{}|{}|{}",
