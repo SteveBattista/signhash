@@ -13,10 +13,9 @@
 <h2> Use the flag -h for command line flags <br><h2>
 
 <h1> Known issues <br></h1>
-<h2> Program will not follow infinite loops based on hard links (in Linux). Could add a flag to follow symlinks but this could result in a infinite loop.<br>
+<h2> Program will not follow infinite loops based on hard links (in Linux). Could add a flag to follow symlinks but this could result in a infinite loop so it is not part of the system.<br>
 <b2> When working on a live linux system /dev/core was 128T. Need to see if I can hash a file that big!<br>
 
-<h2> Spelling. I need to clean up all of the text and spell check it.<br></h2>
 
-<h1>Possible roadmap<br></h1>
+<h1>Possible road map <br></h1>
 <h2>Right now there is only one signing algorithm that is in use. Thinking of adding a post quantum crypto algorithm option<br></h2>

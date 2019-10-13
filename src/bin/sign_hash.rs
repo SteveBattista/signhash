@@ -52,13 +52,13 @@ fn main() {
        .short("a")
        .long("hash")
        .value_name("128| 256 | 384 | 512")
-       .help("Chooses what hash algorthim to use SHA1 -> (128), SHA256->(256), SHA384->(384) or SHA512->(512). Default is SHA256. Please don't use SHA1 unless you are using it to line up with threat intelgence.")
+       .help("Chooses what hash algorithm to use SHA1 -> (128), SHA256->(256), SHA384->(384) or SHA512->(512). Default is SHA256. Please don't use SHA1 unless you are using it to line up with threat intelligence.")
        .takes_value(true))
     .arg(Arg::with_name("signing")
         .short("s")
         .long("signing")
         .value_name("ED25519")
-        .help("Chooses what signing algorthim to use ED25519. Default is ED25519. Will implement post quantum signature at some point.")
+        .help("Chooses what signing algorithm to use ED25519. Default is ED25519. Will implement post quantum signature at some point.")
         .takes_value(true))
     .arg(Arg::with_name("public")
         .short("u")
@@ -76,9 +76,9 @@ fn main() {
         .short("p")
         .long("pool")
         .value_name("#")
-        .help("Sets the size of the pool of maximum number of concurrent threads when hashing. Default is number of CPU cores. Negative numbers set pool to default. Warning: Large numbers (> 60) may cause the progam not to hash all files.")
+        .help("Sets the size of the pool of maximum number of concurrent threads when hashing. Default is number of CPU cores. Negative numbers set pool to default. Warning: Large numbers (> 60) may cause the program not to hash all files.")
         .takes_value(true))
-    .arg(Arg::with_name("inlcude")
+    .arg(Arg::with_name("include")
         .short("i")
         .long("include")
         .value_name("FILE")
@@ -88,7 +88,7 @@ fn main() {
         .short("d")
         .long("directory")
         .value_name("DIRECTORY")
-        .help("Directory to start hashing. Default is current working directory.Those that can not be found will be ommited from the results. Directories will be ommitted. Links will be treated like normal files.")
+        .help("Directory to start hashing. Default is current working directory. Program does not follow symblic links.")
         .takes_value(true))
     .get_matches();
 
@@ -137,7 +137,7 @@ fn main() {
 
     let (sign_tx, sign_rx): (Sender<SignMessage>, Receiver<SignMessage>) = mpsc::channel();
 
-    let header_file = matches.value_of("inlcude").unwrap_or("|||");
+    let header_file = matches.value_of("include").unwrap_or("|||");
 
     let input_directoy = matches.value_of("directory").unwrap_or(".");
 

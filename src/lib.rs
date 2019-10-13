@@ -30,13 +30,13 @@ use indicatif::ProgressStyle;
 
 pub const SIGN_HEADER_MESSAGE_COUNT: usize = 8;
 
-pub const NONCE_LENGTH_IN_BYTES: usize = 128; // Chance of collistion is low 2^64. Progam checks for this.
+pub const NONCE_LENGTH_IN_BYTES: usize = 128; // Chance of collision is low 2^64. Program checks for this.
 pub const PRIVATEKEY_LENGTH_IN_BYTES: usize = 680;
 pub const PUBLICKEY_LENGTH_IN_BYTES: usize = 256;
-pub const SIGNED_LENGH_IN_BYTES: usize = 512;
+pub const SIGNED_LENGTH_IN_BYTES: usize = 512;
 
-const HASH_READ_BUFFER_IN_BYTES: usize = 4096; //Emperical test finds this faster than 8192
-pub const SEPERATOR: &str =
+const HASH_READ_BUFFER_IN_BYTES: usize = 4096; //Empirical test finds this faster than 8192
+pub const SEPARATOR: &str =
     "********************************************************************************"; //80 stars
 const NO_HASH: &'static str = "0000000000000000000000000000000000000000000000000000000000000000";
 pub const PUBIC_KEY_STRING_ED25519: &'static str = "Public ED25519";
@@ -82,7 +82,7 @@ pub fn report_duplicatve_and_insert_nonce(
         Some(answer) => {
             send_check_message(
                 format!(
-                    "|{}|and|{}|share the same nonce. Suspect replay attack.\n",
+                    "Suspect replay attack as |{}|and|{}|share the same nonce.\n",
                     nonce.clone(),
                     answer
                 )
@@ -110,7 +110,7 @@ pub fn provide_unique_nonce(
         if nonces.contains_key(nonce_bytes) {
             duplicate = true;
             eprintln!(
-                "!!Duplicated nonce|{}|making a new one",
+                "!!Duplicated nonce|{}|making a new one.",
                 HEXUPPER.encode(nonce_bytes)
             );
         } else {
@@ -162,7 +162,7 @@ pub fn write_line(wherefile: &mut Whereoutput, data: String) {
         Whereoutput::FilePointer(ref mut file) => match file.write_all(data.as_bytes()) {
             Ok(_) => (),
             Err(why) => panic!(
-                "Couldn't write|{}|to the manifest file|{}",
+                "Couldn't write|{}|to the manifest file|{}.",
                 data,
                 why.description()
             ),
@@ -196,7 +196,7 @@ pub fn write_manifest_from_channel(
         filepointer = match File::create(&manifest_file) {
             Ok(filepointer) => filepointer,
             Err(why) => panic!(
-                "couldn't create manifestfile requested at|{}|{}",
+                "couldn't create manifest file requested at|{}|{}",
                 manifest_file,
                 why.description()
             ),
@@ -205,8 +205,6 @@ pub fn write_manifest_from_channel(
     }
 
     for x in 0..num_lines {
-        // The `recv` method picks a message from the channel
-        // `recv` will block the current thread if there are no messages available
         message = rx.recv().unwrap();
         data = format!("{}", message.text);
         byte_count = byte_count + data.len();
@@ -220,7 +218,7 @@ pub fn write_manifest_from_channel(
             }
         }
     }
-    let mut data = format!("{}\n", SEPERATOR);
+    let mut data = format!("{}\n", SEPARATOR);
     byte_count = byte_count + data.len();
     context.update(data.as_bytes());
 
@@ -359,7 +357,7 @@ pub fn read_private_key(private_key_bytes: &mut [u8], private_key_file: &str) {
     let local_key = match HEXUPPER.decode(deserialized_map[PRIVATE_KEY_STRING_ED25519].as_bytes()) {
         Ok(local_key) => local_key,
         Err(why) => panic!(
-            "Couldn't decode hexencoded private key|{}",
+            "Couldn't decode hex encoded private key|{}",
             why.description()
         ),
     };
@@ -489,7 +487,7 @@ pub fn check_line(
                 line_type == manifest_struct.file_type,
                 format!("{}|File type check passed.\n", path4),
                 format!(
-                    "{}|File type check failed|{}|{} .\n",
+                    "{}|File type check failed|{}|{}\n",
                     path4, manifest_struct.file_type, line_type
                 ),
                 &check_tx,
@@ -531,14 +529,14 @@ pub fn check_line(
                 false,
                 &check_tx,
             );
-            vec![0; SIGNED_LENGH_IN_BYTES / 8]
+            vec![0; SIGNED_LENGTH_IN_BYTES / 8]
         }
     };
     // figure this out don't dont want to crash
-    let mut signature_key_bytes: [u8; (SIGNED_LENGH_IN_BYTES / 8)] =
-        [0; (SIGNED_LENGH_IN_BYTES / 8)];
+    let mut signature_key_bytes: [u8; (SIGNED_LENGTH_IN_BYTES / 8)] =
+        [0; (SIGNED_LENGTH_IN_BYTES / 8)];
 
-    for x in 0..SIGNED_LENGH_IN_BYTES / 8 {
+    for x in 0..SIGNED_LENGTH_IN_BYTES / 8 {
         signature_key_bytes[x] = local_key[x];
     }
 
@@ -654,7 +652,7 @@ pub fn create_keys(public_key_bytes: &mut [u8], private_key_bytes: &mut [u8]) {
     };
 
     let key_pair = match ring::signature::Ed25519KeyPair::from_pkcs8(pkcs8_bytes.as_ref()) {
-        Err(_) => panic!("Couldn't create keypair from pks8 key."),
+        Err(_) => panic!("Couldn't create key pair from pks8 key."),
         Ok(pkcs8_bytes) => pkcs8_bytes,
     };
 
@@ -773,7 +771,7 @@ pub fn write_headers(
 
     let data: String;
     if header_file == "|||" {
-        data = "No header file requested to include\n".to_string();
+        data = "No header file requested for inclusion.\n".to_string();
     } else {
         data = dump_header(header_file);
     }
@@ -784,14 +782,14 @@ pub fn write_headers(
         0,
         &sign_tx,
     );
-    send_sign_message(format!("{}\n", SEPERATOR), 0, &sign_tx);
+    send_sign_message(format!("{}\n", SEPARATOR), 0, &sign_tx);
 }
 
 pub fn read_manifest_file(vec_of_lines: &mut Vec<String>, input_file: &str, fileoutput: bool) {
     let f = match File::open(input_file) {
         Ok(f) => f,
         Err(why) => panic!(
-            "Couldn't open manifestfile for input at|{}|{}",
+            "Couldn't open manifest file for input at|{}|{}",
             input_file,
             why.description()
         ),

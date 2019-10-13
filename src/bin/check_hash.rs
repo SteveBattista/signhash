@@ -15,8 +15,8 @@ use signhash::DEFAULT_MANIFEST_FILE_NAME;
 use signhash::DEFAULT_PUBIC_KEY_FILE_NAME;
 use signhash::END_OF_MESSAGES;
 use signhash::PUBLICKEY_LENGTH_IN_BYTES;
-use signhash::SEPERATOR;
-use signhash::SIGNED_LENGH_IN_BYTES;
+use signhash::SEPARATOR;
+use signhash::SIGNED_LENGTH_IN_BYTES;
 
 use scoped_threadpool::Pool;
 use std::collections::HashMap;
@@ -79,7 +79,7 @@ fn main() {
         .short("d")
         .long("directory")
         .value_name("DIRECTORY")
-        .help("Directory to start hashing. Default is current working directory.Those that can not be found will be ommited from the results. Directories will be ommitted. Links will be treated like normal files.")
+        .help("Directory to start hashing. Default is current working directory. Program does not follow symblic links.")
         .takes_value(true))
     .arg(Arg::with_name("v")
          .short("v")
@@ -174,7 +174,7 @@ fn main() {
 
     let mut manifest_line = vec_of_lines.remove(0);
 
-    while manifest_line != SEPERATOR {
+    while manifest_line != SEPARATOR {
         manifest_line = get_next_manifest_line(
             manifest_line,
             &mut vec_of_lines,
@@ -222,7 +222,7 @@ fn main() {
         &check_tx,
     );
     send_check_message(
-        format!("Signature algorthim|ED25519\n").to_string(),
+        format!("Signature algorithm|ED25519\n").to_string(),
         true,
         &check_tx,
     );
@@ -244,7 +244,7 @@ fn main() {
         &mut file_len,
     );
 
-    while manifest_line != SEPERATOR {
+    while manifest_line != SEPARATOR {
         parse_next_manifest_line(
             &manifest_line,
             &mut type_of_line,
@@ -297,7 +297,7 @@ fn main() {
                 None => {
                     send_check_message(
                         format!(
-                            "{}|was in the directory search but not found in direcorty manifest.\n",
+                            "{}|was in the directory search but not found in directory manifest.\n",
                             file,
                         )
                         .to_string(),
@@ -313,7 +313,7 @@ fn main() {
         for (file_line, _manifest_structure) in manifest_map.drain().take(1) {
             send_check_message(
                 format!(
-                    "{}|was in the manifest but not found in direcorty search.\n",
+                    "{}|was in the manifest but not found in directory search.\n",
                     file_line
                 )
                 .to_string(),
@@ -342,7 +342,7 @@ fn main() {
         tokens[1] == format!("{}", file_len),
         "File lengh of manifest is corect.\n".to_string(),
         format!(
-            "File lengh was reported in manifest as|{}. Observed length of manifest is|{}. \n",
+            "File length was reported in manifest as|{}. Observed length of manifest is|{}. \n",
             tokens[1], file_len
         ),
         &check_tx,
@@ -376,14 +376,14 @@ fn main() {
                 false,
                 &check_tx,
             );
-            vec![0; SIGNED_LENGH_IN_BYTES / 8]
+            vec![0; SIGNED_LENGTH_IN_BYTES / 8]
         }
     };
     // figure this out don't dont want to crash
-    let mut signature_key_bytes: [u8; (SIGNED_LENGH_IN_BYTES / 8)] =
-        [0; (SIGNED_LENGH_IN_BYTES / 8)];
+    let mut signature_key_bytes: [u8; (SIGNED_LENGTH_IN_BYTES / 8)] =
+        [0; (SIGNED_LENGTH_IN_BYTES / 8)];
 
-    for x in 0..SIGNED_LENGH_IN_BYTES / 8 {
+    for x in 0..SIGNED_LENGTH_IN_BYTES / 8 {
         signature_key_bytes[x] = local_key[x];
     }
     let public_key =
@@ -392,7 +392,7 @@ fn main() {
         Ok(_x) => {
             send_check_message(
                 format!("Signature of manifest is correct.\n",).to_string(),
-                false, // This garuntees a response so that someone can't trick the system by includng the END_OF_MESSAGES eariler in the file.
+                false, // This guarantees a response so that someone can't trick the system by includng the END_OF_MESSAGES earlier in the file.
                 &check_tx,
             );
         }

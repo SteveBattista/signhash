@@ -10,8 +10,8 @@ use signhash::Whereoutput;
 use signhash::DEFAULT_MANIFEST_FILE_NAME;
 use signhash::DEFAULT_PUBIC_KEY_FILE_NAME;
 use signhash::PUBLICKEY_LENGTH_IN_BYTES;
-use signhash::SEPERATOR;
-use signhash::SIGNED_LENGH_IN_BYTES;
+use signhash::SEPARATOR;
+use signhash::SIGNED_LENGTH_IN_BYTES;
 use std::convert::TryInto;
 use std::fs::File;
 
@@ -34,7 +34,7 @@ fn main() {
     let matches = App::new("check_manifest")
     .version("0.1.0")
     .author("Stephen Battista <stephen.battista@gmail.com>")
-    .about("Checks the integitry of manfest file by checking each signature, the file lengh, hash and signature of the the manifest")
+    .about("Checks the integrity of a manifest file by checking each signature, the file length, hash and signature of the the manifest")
     .arg(Arg::with_name("public")
         .short("u")
         .long("public")
@@ -120,7 +120,7 @@ fn main() {
 
     let mut manifest_line = vec_of_lines.remove(0);
 
-    while manifest_line != SEPERATOR {
+    while manifest_line != SEPARATOR {
         manifest_line = get_next_manifest_line(
             manifest_line,
             &mut vec_of_lines,
@@ -156,7 +156,7 @@ fn main() {
         &mut file_len,
     );
 
-    while manifest_line != SEPERATOR {
+    while manifest_line != SEPARATOR {
         parse_next_manifest_line(
             &manifest_line,
             &mut type_of_line,
@@ -185,14 +185,14 @@ fn main() {
                     why.description()
                 );
                 write_line(&mut wherefile, data.clone());
-                vec![0; SIGNED_LENGH_IN_BYTES / 8]
+                vec![0; SIGNED_LENGTH_IN_BYTES / 8]
             }
         };
-        // figure this out don't dont want to crash
-        let mut signature_key_bytes: [u8; (SIGNED_LENGH_IN_BYTES / 8)] =
-            [0; (SIGNED_LENGH_IN_BYTES / 8)];
 
-        for x in 0..SIGNED_LENGH_IN_BYTES / 8 {
+        let mut signature_key_bytes: [u8; (SIGNED_LENGTH_IN_BYTES / 8)] =
+            [0; (SIGNED_LENGTH_IN_BYTES / 8)];
+
+        for x in 0..SIGNED_LENGTH_IN_BYTES / 8 {
             signature_key_bytes[x] = local_key[x];
         }
 
@@ -237,11 +237,11 @@ fn main() {
     let tokens: Vec<&str> = manifest_line.split('|').collect();
     let data: String;
     if tokens[1] == format!("{}", file_len) {
-        data = format!("File lengh of manifest is corect.\n");
+        data = format!("File length of manifest is corect.\n");
         write_line(&mut wherefile, data);
     } else {
         data = format!(
-            "File lengh was reported in manifest as {}. Observed length of manifest is {}.\n",
+            "File length was reported in manifest as {}. Observed length of manifest is {}.\n",
             tokens[1], file_len
         );
         write_line(&mut wherefile, data);
@@ -274,14 +274,14 @@ fn main() {
                 why.description()
             );
             write_line(&mut wherefile, data);
-            vec![0; SIGNED_LENGH_IN_BYTES / 8]
+            vec![0; SIGNED_LENGTH_IN_BYTES / 8]
         }
     };
-    // figure this out don't dont want to crash
-    let mut signature_key_bytes: [u8; (SIGNED_LENGH_IN_BYTES / 8)] =
-        [0; (SIGNED_LENGH_IN_BYTES / 8)];
 
-    for x in 0..SIGNED_LENGH_IN_BYTES / 8 {
+    let mut signature_key_bytes: [u8; (SIGNED_LENGTH_IN_BYTES / 8)] =
+        [0; (SIGNED_LENGTH_IN_BYTES / 8)];
+
+    for x in 0..SIGNED_LENGTH_IN_BYTES / 8 {
         signature_key_bytes[x] = local_key[x];
     }
     let public_key =
