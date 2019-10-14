@@ -7,7 +7,7 @@ use rand::Rng;
 use chrono::{DateTime, Utc};
 
 use ring::digest::{Algorithm, Context, Digest};
-use ring::digest::{SHA1_FOR_LEGACY_USE_ONLY, SHA256, SHA384, SHA512};
+use ring::digest::{SHA1_FOR_LEGACY_USE_ONLY, SHA256, SHA384, SHA512, SHA512_256};
 use std::collections::BTreeMap;
 use std::collections::HashMap;
 
@@ -312,6 +312,9 @@ pub fn parse_hash_manifest_line(line: String) -> &'static Algorithm {
         }
         "512" => {
             return &SHA512;
+        }
+        "512_256" => {
+            return &SHA512_256;
         }
         _ => {
             panic!("Hash line does not give a proper hash size.");
@@ -759,7 +762,7 @@ pub fn write_headers(
         &sign_tx,
     );
     send_sign_message(
-        format!("Hash size|{}\n", &inputhash).to_string(),
+        format!("Hash SHA|{}\n", &inputhash).to_string(),
         0,
         &sign_tx,
     );

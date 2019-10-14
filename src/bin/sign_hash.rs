@@ -23,7 +23,7 @@ use std::thread;
 use chrono::{DateTime, Utc};
 use clap::{App, Arg};
 
-use ring::digest::{Algorithm, SHA1_FOR_LEGACY_USE_ONLY, SHA256, SHA384, SHA512};
+use ring::digest::{Algorithm, SHA1_FOR_LEGACY_USE_ONLY, SHA256, SHA384, SHA512, SHA512_256};
 
 use std::collections::HashMap;
 use std::env;
@@ -51,8 +51,8 @@ fn main() {
     .arg(Arg::with_name("hash")
        .short("a")
        .long("hash")
-       .value_name("128| 256 | 384 | 512")
-       .help("Chooses what hash algorithm to use SHA1 -> (128), SHA256->(256), SHA384->(384) or SHA512->(512). Default is SHA256. Please don't use SHA1 unless you are using it to line up with threat intelligence.")
+       .value_name("128| 256 | 384 | 512 | 512_256")
+       .help("Chooses what hash algorithm to use SHA1 -> (128), SHA256->(256), SHA384->(384), SHA512->(512) or SHA512_256->(512_256). Default is SHA256. SHA512 for files is faster than SHA256 by about 30%. Please don't use SHA1 unless you are using it to line up with threat intelligence.")
        .takes_value(true))
     .arg(Arg::with_name("signing")
         .short("s")
@@ -99,8 +99,9 @@ fn main() {
         "256" => hashalgo = &SHA256,
         "384" => hashalgo = &SHA384,
         "512" => hashalgo = &SHA512,
+        "512_256" => hashalgo = &SHA512_256,
         _ => {
-            panic!("Please choose 128, 256, 384 or 512 for type of SHA hash.");
+            panic!("Please choose 128, 256, 384, 512 or 512_256 for type of SHA hash.");
         }
     }
     let signing = matches.value_of("signing").unwrap_or("ED25519");
