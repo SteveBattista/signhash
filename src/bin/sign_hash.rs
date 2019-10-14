@@ -70,7 +70,7 @@ fn main() {
         .short("o")
         .long("output")
         .value_name("FILE")
-        .help("This option allows for the user to set the location of the manifest file.  If not used, STDIO is default. ")
+        .help("This option allows for the user to set the location of the manifest file.  If not used, STDIO is default.")
         .takes_value(true))
     .arg(Arg::with_name("pool")
         .short("p")
