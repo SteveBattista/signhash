@@ -12,9 +12,12 @@
 <h1> How to use <br></h1>
 <h2> Use the flag -h for command line flags <br></h2>
 
-<h2> ./sign_hash -o manifest234   ---- Take current working directory and all sub directories and create a signed hash manifest for them named manifest234</h2>
-<h2> ./check_manifest -i manifest234 -o checkfile234  ---- Take manifest234 and check to see if it has been tampered. Write results to file named checkfile234</h2>
-<h2> ./check_hash -i manifest234 -o checkfile234 --- Take current working directory and see if the hashes and files match the files listed in checkfile234. Take manifest234 and check to see if it has been tampered. Write results to file named checkfile234</h2>
+<h2> `./sign_hash -o manifest234`<br>
+Take current working directory and all sub directories and create a signed hash manifest for them named manifest234</h2>
+<h2> `./check_manifest -i manifest234 -o checkfile234` <br>
+Take manifest234 and check to see if it has been tampered. Write results to file named checkfile234</h2>
+<h2> `./check_hash -i manifest234 -o checkfile234`<br>
+Take current working directory and see if the hashes and files match the files listed in checkfile234. Take manifest234 and check to see if it has been tampered. Write results to file named checkfile234</h2>
 
 <h1> Known issues <br></h1>
 <h2> Program will not follow infinite loops based on hard links (in Linux). Could add a flag to follow symlinks but this could result in a infinite loop so it is not part of the system.<br>
