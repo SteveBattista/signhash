@@ -28,7 +28,7 @@ use indicatif::ProgressStyle;
 
 const NUMBER_OF_LINES_UNTIL_FILE_LEN_MESSAGE: usize = 7;
 const NUMBER_OF_LINES_AFTER_FILES: usize = 10;
-const NO_OUTPUTFILE: &'static str = "|||";
+const NO_OUTPUTFILE: &str = "|||";
 
 fn main() {
     let matches = App::new("check_manifest")
@@ -67,10 +67,7 @@ fn main() {
         .unwrap_or(NO_OUTPUTFILE)
         .to_string();
 
-    let mut fileoutput = true;
-    if output_file == NO_OUTPUTFILE {
-        fileoutput = false;
-    }
+    let fileoutput = output_file != NO_OUTPUTFILE;
 
     let mut wherefile: Whereoutput;
     let filepointer: File;
@@ -106,17 +103,17 @@ fn main() {
 
     let mut file_len: usize = 0;
 
-    version_line = version_line + "\n";
+    version_line += "\n";
     file_hash_context.update(version_line.as_bytes());
-    file_len = file_len + version_line.len();
+    file_len += version_line.len();
 
-    command_line = command_line + "\n";
+    command_line += "\n";
     file_hash_context.update(command_line.as_bytes());
-    file_len = file_len + command_line.len();
+    file_len += command_line.len();
 
-    hash_line = hash_line + "\n";
+    hash_line += "\n";
     file_hash_context.update(hash_line.as_bytes());
-    file_len = file_len + hash_line.len();
+    file_len += hash_line.len();
 
     let mut manifest_line = vec_of_lines.remove(0);
 
@@ -129,14 +126,14 @@ fn main() {
         );
     }
 
-    let bar = ProgressBar::new(
+    let progress_bar = ProgressBar::new(
         (vec_of_lines.len() - NUMBER_OF_LINES_AFTER_FILES)
             .try_into()
             .unwrap(),
     );
     if fileoutput {
-        bar.set_prefix("Number of lines checked:");
-        bar.set_style(
+        progress_bar.set_prefix("Number of lines checked:");
+        progress_bar.set_style(
             ProgressStyle::default_bar()
                 .template("{prefix} {wide_bar} {pos}/{len} {elapsed_precise}"),
         );
@@ -192,9 +189,7 @@ fn main() {
         let mut signature_key_bytes: [u8; (SIGNED_LENGTH_IN_BYTES / 8)] =
             [0; (SIGNED_LENGTH_IN_BYTES / 8)];
 
-        for x in 0..SIGNED_LENGTH_IN_BYTES / 8 {
-            signature_key_bytes[x] = local_key[x];
-        }
+            signature_key_bytes[..SIGNED_LENGTH_IN_BYTES / 8].clone_from_slice(&local_key[..SIGNED_LENGTH_IN_BYTES / 8]);
 
         match public_key.verify(data.as_bytes(), &signature_key_bytes[..]) {
             Ok(_) => (),
@@ -214,11 +209,11 @@ fn main() {
             &mut file_len,
         );
         if fileoutput {
-            bar.inc(1);
+            progress_bar.inc(1);
         }
     }
     if fileoutput {
-        bar.finish();
+        progress_bar.finish();
     }
     for _x in 0..NUMBER_OF_LINES_UNTIL_FILE_LEN_MESSAGE {
         manifest_line = get_next_manifest_line(
@@ -231,13 +226,13 @@ fn main() {
 
     let mut manifest_line2 = manifest_line.clone();
 
-    manifest_line2 = manifest_line2 + "\n";
+    manifest_line2 += "\n";
     file_hash_context.update(manifest_line2.as_bytes());
 
     let tokens: Vec<&str> = manifest_line.split('|').collect();
     let data: String;
     if tokens[1] == format!("{}", file_len) {
-        data = format!("File length of manifest is corect.\n");
+        data ="File length of manifest is corect.\n".to_string();
         write_line(&mut wherefile, data);
     } else {
         data = format!(
@@ -253,7 +248,7 @@ fn main() {
     let tokens: Vec<&str> = manifest_line.split('|').collect();
     let mut data: String;
     if tokens[1] == digest_text {
-        data = format!("Manifest digest is correct.\n");
+        data = "Manifest digest is correct.\n".to_string();
         write_line(&mut wherefile, data);
     } else {
         data = format!(
@@ -280,20 +275,17 @@ fn main() {
 
     let mut signature_key_bytes: [u8; (SIGNED_LENGTH_IN_BYTES / 8)] =
         [0; (SIGNED_LENGTH_IN_BYTES / 8)];
-
-    for x in 0..SIGNED_LENGTH_IN_BYTES / 8 {
-        signature_key_bytes[x] = local_key[x];
-    }
+    signature_key_bytes[..SIGNED_LENGTH_IN_BYTES /8].clone_from_slice(&local_key[..SIGNED_LENGTH_IN_BYTES / 8]);
     let public_key =
         ring::signature::UnparsedPublicKey::new(&ring::signature::ED25519, public_key_bytes);
     let data: String;
     match public_key.verify(digest_text.as_bytes(), &signature_key_bytes[..]) {
         Ok(_x) => {
-            data = format!("Signature of manifest is correct.\n");
+            data = "Signature of manifest is correct.\n".to_string();
             write_line(&mut wherefile, data);
         }
         Err(_) => {
-            data = format!("Signature of manifest did not match the hash in the manifest.\n");
+            data = "Signature of manifest did not match the hash in the manifest.\n".to_string();
             write_line(&mut wherefile, data);
         }
     };

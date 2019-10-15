@@ -1,5 +1,6 @@
 #![forbid(unsafe_code)]
 
+use std::hash::BuildHasher;
 use data_encoding::HEXUPPER;
 use rand::prelude::ThreadRng;
 use rand::Rng;
@@ -38,14 +39,11 @@ pub const SIGNED_LENGTH_IN_BYTES: usize = 512;
 const HASH_READ_BUFFER_IN_BYTES: usize = 4096; //Empirical test finds this faster than 8192
 pub const SEPARATOR: &str =
     "********************************************************************************"; //80 stars
-const NO_HASH: &'static str = "0000000000000000000000000000000000000000000000000000000000000000";
-pub const PUBIC_KEY_STRING_ED25519: &'static str = "Public ED25519";
-pub const PRIVATE_KEY_STRING_ED25519: &'static str = "Private ED25519";
-pub const DEFAULT_MANIFEST_FILE_NAME: &'static str = "Manifest.txt";
-pub const DEFAULT_PUBIC_KEY_FILE_NAME: &'static str = "Signpub.txt";
-//pub const END_OF_MESSAGES : & str = "87e00106e0c012cd1c0216292d070989125c3f215b73429fa8a3f247b8520f3110e53db9d4e139328ba8f00321117fbda14bb317ee498909a393fafce4bd631e7966f4be302d1818b12bf22e32c38fc4cc594c310c2de480df29b2ca3a4b2c470eb0610e309740ef831f18969c9fc97f7d7dfc8d98110b5f8064393605b1e20110dc90bd9d20e87a32e5fbd611bf071bf61d8fb1a1c0352ff82974b989ea91e9
-//03eb1e75831a7bd4f3aebce5857bfcb7cf917b948caea4ea7e8530938818449cc8856c039599e757b437ab94f2818c8a91cf669abe6abbb629ed651301f4a86ea218d128451dabc5b06ccdd38e8a729c00458e7c9b777a33db51d2f61047444";
-//random 256 bit message :) I know someone is going do decomplie this and think that it is some built in key :)
+const NO_HASH: &str = "0000000000000000000000000000000000000000000000000000000000000000";
+pub const PUBIC_KEY_STRING_ED25519: & str = "Public ED25519";
+pub const PRIVATE_KEY_STRING_ED25519: &str = "Private ED25519";
+pub const DEFAULT_MANIFEST_FILE_NAME: &str = "Manifest.txt";
+pub const DEFAULT_PUBIC_KEY_FILE_NAME: &str = "Signpub.txt";
 pub const PRINT_MESSAGE :u8 = 0;
 pub const TICK_MESSAGE :u8 = 1;
 pub const END_MESSAGE :u8 =2;
@@ -75,8 +73,8 @@ pub struct ManifestLine {
     pub sign: String,
 }
 
-pub fn report_duplicatve_and_insert_nonce(
-    nonces: &mut HashMap<String, String>,
+pub fn report_duplicatve_and_insert_nonce<S: BuildHasher>(
+    nonces: &mut HashMap<String, String, S>,
     nonce: String,
     file_name_line: String,
     check_tx: std::sync::mpsc::Sender<CheckMessage>,
@@ -99,9 +97,9 @@ pub fn report_duplicatve_and_insert_nonce(
     };
 }
 
-pub fn provide_unique_nonce(
+pub fn  provide_unique_nonce <S: BuildHasher> (
     nonce_bytes: &mut [u8; 16],
-    nonces: &mut HashMap<[u8; 16], i32>,
+    nonces: &mut HashMap<[u8; 16], i32, S>,
     mut rng: ThreadRng,
 ) {
     let mut duplicate = true;
@@ -129,7 +127,7 @@ pub fn write_check_from_channel(
     check_rx: std::sync::mpsc::Receiver<CheckMessage>,
     output_file: String,
     fileoutput: bool,
-    bar: ProgressBar,
+    progress_bar: ProgressBar,
 ) {
     let mut message: CheckMessage;
     let mut wherefile: Whereoutput;
@@ -151,20 +149,15 @@ pub fn write_check_from_channel(
     while message.check_type != END_MESSAGE {
         if message.check_type == TICK_MESSAGE{
             if fileoutput {
-                bar.inc(1);
+                progress_bar.inc(1);
             }
-        } else {
-            if verbose {
-                write_line(&mut wherefile, message.text);
-            } else if message.verbose == false {
-                write_line(&mut wherefile, message.text);
-            }
-
+        } else if verbose || !(message.verbose){
+            write_line(&mut wherefile, message.text);
         }
         message = check_rx.recv().unwrap();
     }
     if fileoutput {
-        bar.finish();
+        progress_bar.finish();
     }
 }
 
@@ -191,7 +184,7 @@ pub fn write_manifest_from_channel(
     rx: std::sync::mpsc::Receiver<SignMessage>,
     start: Instant,
     manifest_file: String,
-    bar: &ProgressBar,
+    progress_bar: &ProgressBar,
     fileoutput: bool,
 ) {
     let mut context = Context::new(hashalgo);
@@ -217,27 +210,25 @@ pub fn write_manifest_from_channel(
 
     for x in 0..num_lines {
         message = rx.recv().unwrap();
-        data = format!("{}", message.text);
-        byte_count = byte_count + data.len();
+        data = message.text.to_string();
+        byte_count += data.len();
 
         context.update(data.as_bytes());
         total_file_len = total_file_len + message.file_len;
         write_line(&mut wherefile, data);
-        if x > SIGN_HEADER_MESSAGE_COUNT {
-            if fileoutput {
-                bar.inc(1);
-            }
+        if x > SIGN_HEADER_MESSAGE_COUNT && fileoutput {
+                progress_bar.inc(1);
         }
     }
     let mut data = format!("{}\n", SEPARATOR);
-    byte_count = byte_count + data.len();
+    byte_count +=  data.len();
     context.update(data.as_bytes());
 
     write_line(&mut wherefile, data);
 
     let duration = start.elapsed();
     data = format!("Time elapsed was|{:?}\n", duration);
-    byte_count = byte_count + data.len();
+    byte_count += data.len();
     context.update(data.as_bytes());
     write_line(&mut wherefile, data);
 
@@ -245,7 +236,7 @@ pub fn write_manifest_from_channel(
         "Total number of files hashed is|{:?}\n",
         num_lines - SIGN_HEADER_MESSAGE_COUNT
     );
-    byte_count = byte_count + data.len();
+    byte_count += data.len();
     context.update(data.as_bytes());
     write_line(&mut wherefile, data);
 
@@ -253,7 +244,7 @@ pub fn write_manifest_from_channel(
         "Total byte count of files in bytes is|{}\n",
         HumanBytes(total_file_len)
     );
-    byte_count = byte_count + data.len();
+    byte_count += data.len();
     context.update(data.as_bytes());
     write_line(&mut wherefile, data);
 
@@ -261,7 +252,7 @@ pub fn write_manifest_from_channel(
         "Speed is|{}ps\n",
         HumanBytes((((total_file_len as f64) * 1000.0) / (duration.as_millis() as f64)) as u64)
     );
-    byte_count = byte_count + data.len();
+    byte_count += data.len();
     context.update(data.as_bytes());
     write_line(&mut wherefile, data);
 
@@ -271,7 +262,7 @@ pub fn write_manifest_from_channel(
             ((total_file_len as f64) / ((num_lines - SIGN_HEADER_MESSAGE_COUNT) as f64)) as u64
         )
     );
-    byte_count = byte_count + data.len();
+    byte_count += data.len();
     context.update(data.as_bytes());
     write_line(&mut wherefile, data);
 
@@ -283,7 +274,7 @@ pub fn write_manifest_from_channel(
         nonce_bytes[x] = number;
     }
     data = format!("Nonce for file|{}\n", HEXUPPER.encode(&nonce_bytes));
-    byte_count = byte_count + data.len();
+    byte_count += data.len();
     context.update(data.as_bytes());
     write_line(&mut wherefile, data);
 
@@ -305,27 +296,27 @@ pub fn write_manifest_from_channel(
     );
     write_line(&mut wherefile, data);
     if fileoutput {
-        bar.finish();
+        progress_bar.finish();
     }
 }
 
 pub fn parse_hash_manifest_line(line: String) -> &'static Algorithm {
     let tokens: Vec<&str> = line.split('|').collect();
-    match tokens[1].as_ref() {
+    match tokens[1] {
         "128" => {
-            return &SHA1_FOR_LEGACY_USE_ONLY;
+            &SHA1_FOR_LEGACY_USE_ONLY
         }
         "256" => {
-            return &SHA256;
+            &SHA256
         }
         "384" => {
-            return &SHA384;
+            &SHA384
         }
         "512" => {
-            return &SHA512;
+            &SHA512
         }
         "512_256" => {
-            return &SHA512_256;
+            &SHA512_256
         }
         _ => {
             panic!("Hash line does not give a proper hash size.");
@@ -334,12 +325,11 @@ pub fn parse_hash_manifest_line(line: String) -> &'static Algorithm {
 }
 
 fn sign_data(data: &str, private_key_bytes: &[u8]) -> ring::signature::Signature {
-    let key_pair = match ring::signature::Ed25519KeyPair::from_pkcs8(private_key_bytes.as_ref()) {
+    let key_pair = match ring::signature::Ed25519KeyPair::from_pkcs8(private_key_bytes) {
         Ok(key_pair) => key_pair,
         Err(_why) => panic!("Couldn't load key pair from PKCS8 data."),
     };
-    let sig = key_pair.sign(data.as_bytes());
-    return sig;
+    key_pair.sign(data.as_bytes())
 }
 
 pub fn read_private_key(private_key_bytes: &mut [u8], private_key_file: &str) {
@@ -398,7 +388,7 @@ pub fn dump_header(header_file: &str) -> String {
             why.description()
         ),
     };
-    return contents;
+    contents
 }
 
 pub fn var_digest<R: Read>(mut reader: R, hashalgo: &'static Algorithm) -> Digest {
@@ -670,12 +660,12 @@ pub fn create_line(
 pub fn create_keys(public_key_bytes: &mut [u8], private_key_bytes: &mut [u8]) {
     let rng = ring::rand::SystemRandom::new();
     let pkcs8_bytes = match ring::signature::Ed25519KeyPair::generate_pkcs8(&rng) {
-        Err(_) => panic!("Couldn't create pks8 key"),
+        Err(x) => panic!("Couldn't create pks8 key|{}",x),
         Ok(pkcs8_bytes) => pkcs8_bytes,
     };
 
     let key_pair = match ring::signature::Ed25519KeyPair::from_pkcs8(pkcs8_bytes.as_ref()) {
-        Err(_) => panic!("Couldn't create key pair from pks8 key."),
+        Err(x) => panic!("Couldn't create key pair from pks8 key|{}",x),
         Ok(pkcs8_bytes) => pkcs8_bytes,
     };
 
@@ -692,7 +682,7 @@ pub fn write_key(public_key_bytes: &[u8], pubic_key_file: &str, key_name: &str) 
     map.insert(key_name.to_string(), HEXUPPER.encode(&public_key_bytes));
     let s = match serde_yaml::to_string(&map) {
         Ok(s) => s,
-        Err(_) => panic!("Couldn't create YMAL string for|{}|key.", key_name),
+        Err(x) => panic!("Couldn't create YMAL string for|{}|key|{}", key_name,x),
     };
     let mut file = match File::create(&pubic_key_file) {
         Ok(file) => file,
@@ -775,7 +765,7 @@ pub fn write_headers(
     now: &chrono::DateTime<Utc>,
     poolnumber: usize,
 ) {
-    send_sign_message(format!("Manifest version|0.8.0\n").to_string(), 0, &sign_tx);
+    send_sign_message("Manifest version|0.8.0\n".to_string(), 0, &sign_tx);
     send_sign_message(
         format!("Command Line|{}\n", &command_line).to_string(),
         0,
@@ -787,17 +777,17 @@ pub fn write_headers(
         &sign_tx,
     );
     send_sign_message(
-        format!("Signature algorthim|ED25519\n").to_string(),
+        "Signature algorthim|ED25519\n".to_string(),
         0,
         &sign_tx,
     );
 
-    let data: String;
-    if header_file == "|||" {
-        data = "No header file requested for inclusion.\n".to_string();
+    let data = if header_file == "|||" {
+        "No header file requested for inclusion.\n".to_string()
     } else {
-        data = dump_header(header_file);
-    }
+        dump_header(header_file)
+    };
+
     send_sign_message(data, 0, &sign_tx);
     send_sign_message(format!("Start time was|{}\n", now.to_string()), 0, &sign_tx);
     send_sign_message(
@@ -843,14 +833,14 @@ pub fn get_next_manifest_line(
     context: &mut Context,
     file_len: &mut usize,
 ) -> String {
-    manifest_line = manifest_line + "\n";
+    manifest_line += "\n";
     context.update(manifest_line.as_bytes());
-    *file_len = *file_len + manifest_line.len();
-    return vec_of_lines.remove(0);
+    *file_len += manifest_line.len();
+    vec_of_lines.remove(0)
 }
 
 pub fn parse_next_manifest_line(
-    manifest_line: &String,
+    manifest_line: &str,
     type_of_line: &mut String,
     file_name_line: &mut String,
     bytes_line: &mut String,
@@ -897,7 +887,7 @@ pub fn send_check_message(
     let message = CheckMessage {
         check_type :message_type,
         text: message_string.clone(),
-        verbose: verbose,
+        verbose,
     };
     match check_tx.send(message) {
         Ok(_x) => (),

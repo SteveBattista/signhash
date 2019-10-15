@@ -182,10 +182,10 @@ fn main() {
         poolnumber,
     );
 
-    let bar = ProgressBar::new(inputfiles.len().try_into().unwrap());
+    let progress_bar = ProgressBar::new(inputfiles.len().try_into().unwrap());
     if fileoutput {
-        bar.set_prefix("Number of Files Hashed");
-        bar.set_style(
+        progress_bar.set_prefix("Number of Files Hashed");
+        progress_bar.set_style(
             ProgressStyle::default_bar()
                 .template("{prefix} {wide_bar} {pos}/{len} {elapsed_precise}"),
         );
@@ -200,7 +200,7 @@ fn main() {
                 sign_rx,
                 start,
                 manifest_file,
-                &bar,
+                &progress_bar,
                 fileoutput,
             );
         })

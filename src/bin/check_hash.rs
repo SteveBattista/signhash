@@ -185,10 +185,10 @@ fn main() {
         );
     }
 
-    let bar = ProgressBar::new(inputfiles.len().try_into().unwrap());
+    let progress_bar = ProgressBar::new(inputfiles.len().try_into().unwrap());
     if fileoutput {
-        bar.set_prefix("Number of Files Checked:");
-        bar.set_style(
+        progress_bar.set_prefix("Number of Files Checked:");
+        progress_bar.set_style(
             ProgressStyle::default_bar()
                 .template("{prefix} {wide_bar} {pos}/{len} {elapsed_precise}"),
         );
@@ -197,7 +197,7 @@ fn main() {
     let writer_child = thread::Builder::new()
         .name("Writer".to_string())
         .spawn(move || {
-            write_check_from_channel(verbose, check_rx, output_file, fileoutput, bar);
+            write_check_from_channel(verbose, check_rx, output_file, fileoutput, progress_bar);
         })
         .unwrap();
 
