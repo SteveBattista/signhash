@@ -29,12 +29,6 @@ Nonce length is 128 bytes. This means that after 2^64 number of files, there cou
 Don't know limits of hashing:<br>
 When working on a live linux system /proc/kcore can be very large (e.g. 128TB). Need to see if it can hash a file that big!<br>
 
-Magic string:<br>
-Do not include this string as the only string in your header. It will cause the check programs to stop early:<br>
-`87e00106e0c012cd1c0216292d070989125c3f215b73429fa8a3f247b8520f3110e53db9d4e139328ba8f00321117fbda14bb317ee498909a393fafce4bd631e7966f4be302d1818b12bf22e32c38fc4cc594c310c2de480df29b2ca3a4b2c470eb0610e309740ef831f18969c9fc97f7d7dfc8d98110b5f8064393605b1e20110dc90bd9d20e87a32e5fbd611bf071bf61d8fb1a1c0352ff82974b989ea91e9
-303eb1e75831a7bd4f3aebce5857bfcb7cf917b948caea4ea7e8530938818449cc8856c039599e757b437ab94f2818c8a91cf669abe6abbb629ed651301f4a86ea218d128451dabc5b06ccdd38e8a729c00458e7c9b777a33db51d2f61047444`<br>
-
-
 
 <h1>Possible Roadmap <br></h1>
 Right now there is only one signing algorithm that is in use. Thinking of adding a post quantum crypto algorithm option.<br>
