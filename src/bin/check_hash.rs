@@ -1,4 +1,5 @@
 #![forbid(unsafe_code)]
+
 use signhash::check_line;
 use signhash::get_next_manifest_line;
 use signhash::parse_hash_manifest_line;
@@ -13,10 +14,11 @@ use signhash::CheckMessage;
 use signhash::ManifestLine;
 use signhash::DEFAULT_MANIFEST_FILE_NAME;
 use signhash::DEFAULT_PUBIC_KEY_FILE_NAME;
-use signhash::END_OF_MESSAGES;
 use signhash::PUBLICKEY_LENGTH_IN_BYTES;
 use signhash::SEPARATOR;
 use signhash::SIGNED_LENGTH_IN_BYTES;
+use signhash::PRINT_MESSAGE;
+use signhash::END_MESSAGE;
 
 use scoped_threadpool::Pool;
 use std::collections::HashMap;
@@ -195,33 +197,34 @@ fn main() {
     let writer_child = thread::Builder::new()
         .name("Writer".to_string())
         .spawn(move || {
-            write_check_from_channel(verbose, check_rx, output_file, fileoutput);
+            write_check_from_channel(verbose, check_rx, output_file, fileoutput, bar);
         })
         .unwrap();
 
-    send_check_message(
+
+    send_check_message(PRINT_MESSAGE,
         format!("Command Line|{}\n", args.join(" ")),
         true,
         &check_tx,
     );
-    send_check_message(
+    send_check_message(PRINT_MESSAGE,
         format!("Start time was|{}\n", now.to_string()),
         true,
         &check_tx,
     );
-    send_check_message(
+    send_check_message(PRINT_MESSAGE,
         format!("Threads used for main hashing was|{}\n", poolnumber),
         true,
         &check_tx,
     );
 
     let tokens: Vec<&str> = hash_line.split('|').collect();
-    send_check_message(
+    send_check_message(PRINT_MESSAGE,
         format!("Hash used|{}", tokens[1]).to_string(),
         true,
         &check_tx,
     );
-    send_check_message(
+    send_check_message(PRINT_MESSAGE,
         format!("Signature algorithm|ED25519\n").to_string(),
         true,
         &check_tx,
@@ -287,15 +290,14 @@ fn main() {
                 Some(file_line) => {
                     let thread_tx = check_tx.clone();
                     scoped.execute(move || {
+
                         let _x =
                             check_line(file, hashalgo, file_line, &public_key_bytes, thread_tx);
                     });
-                    if fileoutput {
-                        bar.inc(1); //For some reason the bar stalls
-                    }
+
                 }
                 None => {
-                    send_check_message(
+                    send_check_message(PRINT_MESSAGE,
                         format!(
                             "{}|was in the directory search but not found in directory manifest.\n",
                             file,
@@ -308,10 +310,9 @@ fn main() {
             };
         }
     });
-    bar.finish();
     if manifest_map.len() > 0 {
         for (file_line, _manifest_structure) in manifest_map.drain().take(1) {
-            send_check_message(
+            send_check_message(PRINT_MESSAGE,
                 format!(
                     "{}|was in the manifest but not found in directory search.\n",
                     file_line
@@ -368,7 +369,7 @@ fn main() {
     let local_key = match HEXUPPER.decode(tokens[1].as_bytes()) {
         Ok(local_key) => (local_key),
         Err(why) => {
-            send_check_message(
+            send_check_message(PRINT_MESSAGE,
                 format!(
                     "Couldn't decode hex signature for manifest file|{}.\n",
                     why.description()
@@ -390,14 +391,14 @@ fn main() {
         ring::signature::UnparsedPublicKey::new(&ring::signature::ED25519, public_key_bytes);
     match public_key.verify(digest_text.as_bytes(), &signature_key_bytes[..]) {
         Ok(_x) => {
-            send_check_message(
+            send_check_message(PRINT_MESSAGE,
                 format!("Signature of manifest is correct.\n",).to_string(),
                 false, // This guarantees a response so that someone can't trick the system by includng the END_OF_MESSAGES earlier in the file.
                 &check_tx,
             );
         }
         Err(_) => {
-            send_check_message(
+            send_check_message(PRINT_MESSAGE,
                 format!("Signature of manifest did not match the hash in the manifest.\n",)
                     .to_string(),
                 false,
@@ -405,7 +406,7 @@ fn main() {
             );
         }
     };
-    send_check_message(format!("{}", END_OF_MESSAGES).to_string(), false, &check_tx);
+    send_check_message(END_MESSAGE,"End".to_string(), false, &check_tx);
 
     let _res = writer_child.join();
 }

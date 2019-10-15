@@ -43,9 +43,12 @@ pub const PUBIC_KEY_STRING_ED25519: &'static str = "Public ED25519";
 pub const PRIVATE_KEY_STRING_ED25519: &'static str = "Private ED25519";
 pub const DEFAULT_MANIFEST_FILE_NAME: &'static str = "Manifest.txt";
 pub const DEFAULT_PUBIC_KEY_FILE_NAME: &'static str = "Signpub.txt";
-pub const END_OF_MESSAGES : & str = "87e00106e0c012cd1c0216292d070989125c3f215b73429fa8a3f247b8520f3110e53db9d4e139328ba8f00321117fbda14bb317ee498909a393fafce4bd631e7966f4be302d1818b12bf22e32c38fc4cc594c310c2de480df29b2ca3a4b2c470eb0610e309740ef831f18969c9fc97f7d7dfc8d98110b5f8064393605b1e20110dc90bd9d20e87a32e5fbd611bf071bf61d8fb1a1c0352ff82974b989ea91e9
-303eb1e75831a7bd4f3aebce5857bfcb7cf917b948caea4ea7e8530938818449cc8856c039599e757b437ab94f2818c8a91cf669abe6abbb629ed651301f4a86ea218d128451dabc5b06ccdd38e8a729c00458e7c9b777a33db51d2f61047444";
+//pub const END_OF_MESSAGES : & str = "87e00106e0c012cd1c0216292d070989125c3f215b73429fa8a3f247b8520f3110e53db9d4e139328ba8f00321117fbda14bb317ee498909a393fafce4bd631e7966f4be302d1818b12bf22e32c38fc4cc594c310c2de480df29b2ca3a4b2c470eb0610e309740ef831f18969c9fc97f7d7dfc8d98110b5f8064393605b1e20110dc90bd9d20e87a32e5fbd611bf071bf61d8fb1a1c0352ff82974b989ea91e9
+//03eb1e75831a7bd4f3aebce5857bfcb7cf917b948caea4ea7e8530938818449cc8856c039599e757b437ab94f2818c8a91cf669abe6abbb629ed651301f4a86ea218d128451dabc5b06ccdd38e8a729c00458e7c9b777a33db51d2f61047444";
 //random 256 bit message :) I know someone is going do decomplie this and think that it is some built in key :)
+pub const PRINT_MESSAGE :u8 = 0;
+pub const TICK_MESSAGE :u8 = 1;
+pub const END_MESSAGE :u8 =2;
 
 pub struct SignMessage {
     pub text: String,
@@ -53,6 +56,7 @@ pub struct SignMessage {
 }
 
 pub struct CheckMessage {
+    pub check_type :u8,
     pub text: String,
     pub verbose: bool,
 }
@@ -81,6 +85,7 @@ pub fn report_duplicatve_and_insert_nonce(
         None => (),
         Some(answer) => {
             send_check_message(
+                PRINT_MESSAGE,
                 format!(
                     "Suspect replay attack as |{}|and|{}|share the same nonce.\n",
                     nonce.clone(),
@@ -124,6 +129,7 @@ pub fn write_check_from_channel(
     check_rx: std::sync::mpsc::Receiver<CheckMessage>,
     output_file: String,
     fileoutput: bool,
+    bar: ProgressBar,
 ) {
     let mut message: CheckMessage;
     let mut wherefile: Whereoutput;
@@ -141,19 +147,24 @@ pub fn write_check_from_channel(
         };
         wherefile = Whereoutput::FilePointer(filepointer);
     }
-    let mut data: String;
     message = check_rx.recv().unwrap();
-    while message.text != END_OF_MESSAGES {
-        if verbose {
-            data = format!("{}", message.text);
-            write_line(&mut wherefile, data);
-        } else if message.verbose == false {
-            data = format!("{}", message.text);
+    while message.check_type != END_MESSAGE {
+        if message.check_type == TICK_MESSAGE{
+            if fileoutput {
+                bar.inc(1);
+            }
+        } else {
+            if verbose {
+                write_line(&mut wherefile, message.text);
+            } else if message.verbose == false {
+                write_line(&mut wherefile, message.text);
+            }
 
-            write_line(&mut wherefile, data);
         }
-
         message = check_rx.recv().unwrap();
+    }
+    if fileoutput {
+        bar.finish();
     }
 }
 
@@ -524,6 +535,7 @@ pub fn check_line(
         Ok(local_key) => (local_key),
         Err(why) => {
             send_check_message(
+                PRINT_MESSAGE,
                 format!(
                     "{}|Couldn't decode hex signature|{}\n",
                     path4,
@@ -546,6 +558,7 @@ pub fn check_line(
     match public_key.verify(data.as_bytes(), &signature_key_bytes[..]) {
         Ok(_) => {
             send_check_message(
+                PRINT_MESSAGE,
                 format!(
                     "{}|Signature check passed. Can trust manifest line.\n",
                     path4
@@ -556,6 +569,7 @@ pub fn check_line(
         }
         Err(_) => {
             send_check_message(
+                PRINT_MESSAGE,
                 format!(
                     "{}|Signature check failed. Can't trust manifest line.\n",
                     path4
@@ -565,6 +579,12 @@ pub fn check_line(
             );
         }
     };
+    send_check_message(
+        TICK_MESSAGE,
+        "Tick".to_string(),
+        false,
+        &check_tx,
+    );
 }
 
 pub fn create_line(
@@ -869,18 +889,20 @@ pub fn send_sign_message(
 }
 
 pub fn send_check_message(
+    message_type :u8,
     message_string: String,
     verbose: bool,
     check_tx: &std::sync::mpsc::Sender<CheckMessage>,
 ) {
     let message = CheckMessage {
+        check_type :message_type,
         text: message_string.clone(),
         verbose: verbose,
     };
     match check_tx.send(message) {
         Ok(_x) => (),
         Err(why) => panic!(
-            "Couldn't send|{} to writing thread.|{}",
+            "Couldn't send|{} to writing thread.|{}\n",
             message_string,
             why.description()
         ),
@@ -894,8 +916,8 @@ pub fn send_pass_fail_check_message(
     check_tx: &std::sync::mpsc::Sender<CheckMessage>,
 ) {
     if pass_bool {
-        send_check_message(pass_string, true, check_tx)
+        send_check_message(PRINT_MESSAGE,pass_string, true, check_tx)
     } else {
-        send_check_message(fail_string, false, check_tx)
+        send_check_message(PRINT_MESSAGE,fail_string, false, check_tx)
     }
 }
