@@ -11,20 +11,30 @@ edition = "2018"
 # with underscores. (Rust `extern crate` declarations reference this name;
 # therefore the value must be a valid Rust identifier to be usable.)
 name = "signhash"
-
 # This field points at where the crate is located, relative to the `Cargo.toml`.
 path = "src/lib.rs"
 
+[profile.release]
+opt-level = 3
+debug = false
+rpath = false
+lto = false
+debug-assertions = false
+codegen-units = 16
+panic = 'unwind'
+incremental = false
+overflow-checks = true
+
 [dependencies]
-ring = "0.16.7"
-data-encoding = "2.1.2"
-scoped_threadpool = "0.1.9"
-clap = "2.33.0"
-arrayref = "0.3.5"
-serde = "1.0.99"
-serde_yaml = "0.8"
-rand = "0.7.0"
-num_cpus = "1.10.1"
-chrono = "0.4.9"
-indicatif = "0.12.0"
-walkdir = "2.2.9"
+ring = "0.16.*"
+data-encoding = "2.1.*"
+scoped_threadpool = "0.1.*"
+clap = "2.33.*"
+arrayref = "0.3.*"
+serde = "1.0.*"
+serde_yaml = "0.*"
+rand = "0.7.*"
+num_cpus = "1.10.*"
+chrono = "0.4.*"
+indicatif = "0.12.*"
+walkdir = "2.2.*"
