@@ -13,6 +13,8 @@ use signhash::PRIVATEKEY_LENGTH_IN_BYTES;
 use signhash::PUBIC_KEY_STRING_ED25519;
 use signhash::PUBLICKEY_LENGTH_IN_BYTES;
 use signhash::SIGN_HEADER_MESSAGE_COUNT;
+use signhash::NO_OUTPUTFILE;
+use signhash::BITS_IN_BYTES;
 
 use scoped_threadpool::Pool;
 use std::convert::TryInto;
@@ -94,7 +96,7 @@ fn main() {
 
     let hashalgo: &Algorithm;
     let inputhash = matches.value_of("hash").unwrap_or("256");
-    match inputhash.as_ref() {
+    match inputhash {
         "128" => hashalgo = &SHA1_FOR_LEGACY_USE_ONLY,
         "256" => hashalgo = &SHA256,
         "384" => hashalgo = &SHA384,
@@ -105,17 +107,15 @@ fn main() {
         }
     }
     let signing = matches.value_of("signing").unwrap_or("ED25519");
-    match signing.as_ref() {
+    match signing{
         "ED25519" => (),
         _ => {
             panic!("Please choose ED25519 for type of signature algorthrim.");
         }
     }
-    let manifest_file = matches.value_of("output").unwrap_or("|||").to_string();
-    let mut fileoutput = true;
-    if manifest_file == "|||" {
-        fileoutput = false;
-    }
+
+    let manifest_file = matches.value_of("output").unwrap_or(NO_OUTPUTFILE).to_string();
+    let fileoutput = manifest_file != NO_OUTPUTFILE;
 
     let public_key_file = matches
         .value_of("public")
@@ -161,17 +161,17 @@ fn main() {
     }
 
     let num_files = inputfiles.len();
-    let mut private_key_bytes: [u8; (PRIVATEKEY_LENGTH_IN_BYTES / 8)] =
-        [0; (PRIVATEKEY_LENGTH_IN_BYTES / 8)];
-    let mut public_key_bytes: [u8; (PUBLICKEY_LENGTH_IN_BYTES / 8)] =
-        [0; (PUBLICKEY_LENGTH_IN_BYTES / 8)];
+    let mut private_key_bytes: [u8; (PRIVATEKEY_LENGTH_IN_BYTES / BITS_IN_BYTES)] =
+        [0; (PRIVATEKEY_LENGTH_IN_BYTES / BITS_IN_BYTES)];
+    let mut public_key_bytes: [u8; (PUBLICKEY_LENGTH_IN_BYTES / BITS_IN_BYTES)] =
+        [0; (PUBLICKEY_LENGTH_IN_BYTES / BITS_IN_BYTES)];
 
     create_keys(&mut public_key_bytes, &mut private_key_bytes);
     write_key(&public_key_bytes, public_key_file, PUBIC_KEY_STRING_ED25519);
 
-    let mut nonce_bytes: [u8; (NONCE_LENGTH_IN_BYTES / 8)] = [0; (NONCE_LENGTH_IN_BYTES / 8)];
+    let mut nonce_bytes: [u8; (NONCE_LENGTH_IN_BYTES / BITS_IN_BYTES)] = [0; (NONCE_LENGTH_IN_BYTES / BITS_IN_BYTES)];
     let rng = rand::thread_rng();
-    let mut nonces: HashMap<[u8; NONCE_LENGTH_IN_BYTES / 8], i32> = HashMap::new();
+    let mut nonces: HashMap<[u8; NONCE_LENGTH_IN_BYTES / BITS_IN_BYTES], i32> = HashMap::new();
 
     write_headers(
         &sign_tx,

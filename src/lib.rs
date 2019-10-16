@@ -35,6 +35,7 @@ pub const NONCE_LENGTH_IN_BYTES: usize = 128; // Chance of collision is low 2^64
 pub const PRIVATEKEY_LENGTH_IN_BYTES: usize = 680;
 pub const PUBLICKEY_LENGTH_IN_BYTES: usize = 256;
 pub const SIGNED_LENGTH_IN_BYTES: usize = 512;
+pub const BITS_IN_BYTES: usize = 8;
 
 const HASH_READ_BUFFER_IN_BYTES: usize = 4096; //Empirical test finds this faster than 8192
 pub const SEPARATOR: &str =
@@ -44,6 +45,7 @@ pub const PUBIC_KEY_STRING_ED25519: & str = "Public ED25519";
 pub const PRIVATE_KEY_STRING_ED25519: &str = "Private ED25519";
 pub const DEFAULT_MANIFEST_FILE_NAME: &str = "Manifest.txt";
 pub const DEFAULT_PUBIC_KEY_FILE_NAME: &str = "Signpub.txt";
+pub const NO_OUTPUTFILE: &str = "|||";
 pub const PRINT_MESSAGE :u8 = 0;
 pub const TICK_MESSAGE :u8 = 1;
 pub const END_MESSAGE :u8 =2;
@@ -103,12 +105,10 @@ pub fn  provide_unique_nonce <S: BuildHasher> (
     mut rng: ThreadRng,
 ) {
     let mut duplicate = true;
-    let mut number: u8;
     while duplicate {
         duplicate = false;
-        for x in 0..(NONCE_LENGTH_IN_BYTES / 8) {
-            number = rng.gen();
-            nonce_bytes[x] = number;
+        for item in nonce_bytes.iter_mut().take(NONCE_LENGTH_IN_BYTES / BITS_IN_BYTES) {
+            *item = rng.gen();
         }
         if nonces.contains_key(nonce_bytes) {
             duplicate = true;
@@ -214,7 +214,7 @@ pub fn write_manifest_from_channel(
         byte_count += data.len();
 
         context.update(data.as_bytes());
-        total_file_len = total_file_len + message.file_len;
+        total_file_len += message.file_len;
         write_line(&mut wherefile, data);
         if x > SIGN_HEADER_MESSAGE_COUNT && fileoutput {
                 progress_bar.inc(1);
@@ -268,10 +268,9 @@ pub fn write_manifest_from_channel(
 
     let mut nonce_bytes: [u8; (NONCE_LENGTH_IN_BYTES / 8)] = [0; (NONCE_LENGTH_IN_BYTES / 8)];
     let mut rng = rand::thread_rng();
-    let mut number: u8;
-    for x in 0..(NONCE_LENGTH_IN_BYTES / 8) {
-        number = rng.gen();
-        nonce_bytes[x] = number;
+
+    for item in nonce_bytes.iter_mut().take(NONCE_LENGTH_IN_BYTES / BITS_IN_BYTES) {
+        *item = rng.gen();
     }
     data = format!("Nonce for file|{}\n", HEXUPPER.encode(&nonce_bytes));
     byte_count += data.len();
@@ -365,9 +364,7 @@ pub fn read_private_key(private_key_bytes: &mut [u8], private_key_file: &str) {
             why.description()
         ),
     };
-    for x in 0..(PRIVATEKEY_LENGTH_IN_BYTES / 8) {
-        private_key_bytes[x] = local_key[x];
-    }
+    private_key_bytes[..(PRIVATEKEY_LENGTH_IN_BYTES / BITS_IN_BYTES)].clone_from_slice(&local_key[..(PRIVATEKEY_LENGTH_IN_BYTES / BITS_IN_BYTES)]);
 }
 
 pub fn dump_header(header_file: &str) -> String {
@@ -393,7 +390,7 @@ pub fn dump_header(header_file: &str) -> String {
 
 pub fn var_digest<R: Read>(mut reader: R, hashalgo: &'static Algorithm) -> Digest {
     let mut context = Context::new(hashalgo);
-    let mut buffer = [0; (HASH_READ_BUFFER_IN_BYTES / 8)];
+    let mut buffer = [0; (HASH_READ_BUFFER_IN_BYTES / BITS_IN_BYTES)];
 
     loop {
         let count = match reader.read(&mut buffer) {
@@ -534,16 +531,14 @@ pub fn check_line(
                 false,
                 &check_tx,
             );
-            vec![0; SIGNED_LENGTH_IN_BYTES / 8]
+            vec![0; SIGNED_LENGTH_IN_BYTES / BITS_IN_BYTES]
         }
     };
     // figure this out don't dont want to crash
-    let mut signature_key_bytes: [u8; (SIGNED_LENGTH_IN_BYTES / 8)] =
-        [0; (SIGNED_LENGTH_IN_BYTES / 8)];
+    let mut signature_key_bytes: [u8; (SIGNED_LENGTH_IN_BYTES / BITS_IN_BYTES)] =
+        [0; (SIGNED_LENGTH_IN_BYTES / BITS_IN_BYTES)];
 
-    for x in 0..SIGNED_LENGTH_IN_BYTES / 8 {
-        signature_key_bytes[x] = local_key[x];
-    }
+    signature_key_bytes[..SIGNED_LENGTH_IN_BYTES / BITS_IN_BYTES].clone_from_slice(&local_key[..SIGNED_LENGTH_IN_BYTES / BITS_IN_BYTES]);
 
     match public_key.verify(data.as_bytes(), &signature_key_bytes[..]) {
         Ok(_) => {
@@ -669,12 +664,15 @@ pub fn create_keys(public_key_bytes: &mut [u8], private_key_bytes: &mut [u8]) {
         Ok(pkcs8_bytes) => pkcs8_bytes,
     };
 
-    for x in 0..(PUBLICKEY_LENGTH_IN_BYTES / 8) {
+        public_key_bytes[..PUBLICKEY_LENGTH_IN_BYTES / BITS_IN_BYTES].clone_from_slice(&key_pair.public_key().as_ref()[..PUBLICKEY_LENGTH_IN_BYTES / BITS_IN_BYTES]);
+        private_key_bytes[..PRIVATEKEY_LENGTH_IN_BYTES / BITS_IN_BYTES].clone_from_slice(&pkcs8_bytes.as_ref()[..PRIVATEKEY_LENGTH_IN_BYTES / BITS_IN_BYTES]);
+
+/*    for x in 0..(PUBLICKEY_LENGTH_IN_BYTES / 8) {
         public_key_bytes[x] = key_pair.public_key().as_ref()[x];
     }
     for x in 0..(PRIVATEKEY_LENGTH_IN_BYTES / 8) {
         private_key_bytes[x] = pkcs8_bytes.as_ref()[x];
-    }
+    }*/
 }
 
 pub fn write_key(public_key_bytes: &[u8], pubic_key_file: &str, key_name: &str) {
@@ -739,9 +737,7 @@ pub fn read_public_key(public_key_file: &str, public_key_bytes: &mut [u8]) {
             why.description()
         ),
     };
-    for x in 0..PUBLICKEY_LENGTH_IN_BYTES / 8 {
-        public_key_bytes[x] = local_key[x];
-    }
+    public_key_bytes[..PUBLICKEY_LENGTH_IN_BYTES / BITS_IN_BYTES].clone_from_slice(&local_key[..PUBLICKEY_LENGTH_IN_BYTES / BITS_IN_BYTES])
 }
 pub fn write_keys(
     public_key_bytes: &[u8],

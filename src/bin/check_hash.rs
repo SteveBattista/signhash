@@ -19,6 +19,7 @@ use signhash::SEPARATOR;
 use signhash::SIGNED_LENGTH_IN_BYTES;
 use signhash::PRINT_MESSAGE;
 use signhash::END_MESSAGE;
+use signhash::BITS_IN_BYTES;
 
 use scoped_threadpool::Pool;
 use std::collections::HashMap;
@@ -44,7 +45,7 @@ use chrono::DateTime;
 use chrono::Utc;
 
 const NUMBRER_OF_LINES_UNTIL_FILE_LEN_MESSAGE: usize = 7;
-const NO_OUTPUTFILE: &'static str = "|||";
+const NO_OUTPUTFILE: &str = "|||";
 
 fn main() {
     let now: DateTime<Utc> = Utc::now();
@@ -89,27 +90,21 @@ fn main() {
         .help("Use -v flag to also print out when things match."))
     .get_matches();
 
-    let mut public_key_bytes: [u8; (PUBLICKEY_LENGTH_IN_BYTES / 8)] =
-        [0; (PUBLICKEY_LENGTH_IN_BYTES / 8)];
+    let mut public_key_bytes: [u8; (PUBLICKEY_LENGTH_IN_BYTES / BITS_IN_BYTES)] =
+        [0; (PUBLICKEY_LENGTH_IN_BYTES / BITS_IN_BYTES)];
     let public_key_file = matches
         .value_of("public")
         .unwrap_or(DEFAULT_PUBIC_KEY_FILE_NAME);
     read_public_key(public_key_file, &mut public_key_bytes);
 
-    let output_file = matches
-        .value_of("output")
-        .unwrap_or(NO_OUTPUTFILE)
-        .to_string();
-
-    let mut fileoutput = true;
-    if output_file == NO_OUTPUTFILE {
-        fileoutput = false;
-    }
+    let output_file = matches.value_of("output").unwrap_or(NO_OUTPUTFILE).to_string();
+    let fileoutput = output_file != NO_OUTPUTFILE;
 
     let input_file = matches
         .value_of("input")
         .unwrap_or(DEFAULT_MANIFEST_FILE_NAME)
         .to_string();
+
     let mut vec_of_lines: Vec<String> = Vec::new();
     read_manifest_file(&mut vec_of_lines, &input_file, fileoutput);
 
@@ -162,17 +157,17 @@ fn main() {
 
     let mut file_len: usize = 0;
 
-    version_line = version_line + "\n";
+    version_line += "\n";
     file_hash_context.update(version_line.as_bytes());
-    file_len = file_len + version_line.len();
+    file_len += version_line.len();
 
-    command_line = command_line + "\n";
+    command_line += "\n";
     file_hash_context.update(command_line.as_bytes());
-    file_len = file_len + command_line.len();
+    file_len += command_line.len();
 
-    hash_line = hash_line + "\n";
+    hash_line += "\n";
     file_hash_context.update(hash_line.as_bytes());
-    file_len = file_len + hash_line.len();
+    file_len += hash_line.len();
 
     let mut manifest_line = vec_of_lines.remove(0);
 
@@ -225,7 +220,7 @@ fn main() {
         &check_tx,
     );
     send_check_message(PRINT_MESSAGE,
-        format!("Signature algorithm|ED25519\n").to_string(),
+        "Signature algorithm|ED25519\n".to_string(),
         true,
         &check_tx,
     );
@@ -290,8 +285,6 @@ fn main() {
                 Some(file_line) => {
                     let thread_tx = check_tx.clone();
                     scoped.execute(move || {
-
-                        let _x =
                             check_line(file, hashalgo, file_line, &public_key_bytes, thread_tx);
                     });
 
@@ -310,7 +303,7 @@ fn main() {
             };
         }
     });
-    if manifest_map.len() > 0 {
+    if manifest_map.is_empty() {
         for (file_line, _manifest_structure) in manifest_map.drain().take(1) {
             send_check_message(PRINT_MESSAGE,
                 format!(
@@ -335,7 +328,7 @@ fn main() {
 
     let mut manifest_line2 = manifest_line.clone();
 
-    manifest_line2 = manifest_line2 + "\n";
+    manifest_line2 += "\n";
     file_hash_context.update(manifest_line2.as_bytes());
 
     let tokens: Vec<&str> = manifest_line.split('|').collect();
@@ -377,30 +370,28 @@ fn main() {
                 false,
                 &check_tx,
             );
-            vec![0; SIGNED_LENGTH_IN_BYTES / 8]
+            vec![0; SIGNED_LENGTH_IN_BYTES /BITS_IN_BYTES]
         }
     };
     // figure this out don't dont want to crash
-    let mut signature_key_bytes: [u8; (SIGNED_LENGTH_IN_BYTES / 8)] =
-        [0; (SIGNED_LENGTH_IN_BYTES / 8)];
+    let mut signature_key_bytes: [u8; (SIGNED_LENGTH_IN_BYTES / BITS_IN_BYTES)] =
+        [0; (SIGNED_LENGTH_IN_BYTES / BITS_IN_BYTES)];
 
-    for x in 0..SIGNED_LENGTH_IN_BYTES / 8 {
-        signature_key_bytes[x] = local_key[x];
-    }
+    signature_key_bytes[..SIGNED_LENGTH_IN_BYTES / BITS_IN_BYTES].clone_from_slice(&local_key[..SIGNED_LENGTH_IN_BYTES / BITS_IN_BYTES]);
+
     let public_key =
         ring::signature::UnparsedPublicKey::new(&ring::signature::ED25519, public_key_bytes);
     match public_key.verify(digest_text.as_bytes(), &signature_key_bytes[..]) {
         Ok(_x) => {
             send_check_message(PRINT_MESSAGE,
-                format!("Signature of manifest is correct.\n",).to_string(),
+                "Signature of manifest is correct.\n".to_string(),
                 false, // This guarantees a response so that someone can't trick the system by includng the END_OF_MESSAGES earlier in the file.
                 &check_tx,
             );
         }
         Err(_) => {
             send_check_message(PRINT_MESSAGE,
-                format!("Signature of manifest did not match the hash in the manifest.\n",)
-                    .to_string(),
+                "Signature of manifest did not match the hash in the manifest.\n".to_string(),
                 false,
                 &check_tx,
             );

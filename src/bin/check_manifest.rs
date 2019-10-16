@@ -1,5 +1,6 @@
 #![forbid(unsafe_code)]
 
+use signhash::BITS_IN_BYTES;
 use signhash::get_next_manifest_line;
 use signhash::parse_hash_manifest_line;
 use signhash::parse_next_manifest_line;
@@ -12,6 +13,8 @@ use signhash::DEFAULT_PUBIC_KEY_FILE_NAME;
 use signhash::PUBLICKEY_LENGTH_IN_BYTES;
 use signhash::SEPARATOR;
 use signhash::SIGNED_LENGTH_IN_BYTES;
+use signhash::NO_OUTPUTFILE;
+
 use std::convert::TryInto;
 use std::fs::File;
 
@@ -28,7 +31,7 @@ use indicatif::ProgressStyle;
 
 const NUMBER_OF_LINES_UNTIL_FILE_LEN_MESSAGE: usize = 7;
 const NUMBER_OF_LINES_AFTER_FILES: usize = 10;
-const NO_OUTPUTFILE: &str = "|||";
+
 
 fn main() {
     let matches = App::new("check_manifest")
@@ -62,11 +65,7 @@ fn main() {
         .unwrap_or(DEFAULT_PUBIC_KEY_FILE_NAME);
     read_public_key(public_key_file, &mut public_key_bytes);
 
-    let output_file = matches
-        .value_of("output")
-        .unwrap_or(NO_OUTPUTFILE)
-        .to_string();
-
+    let output_file = matches.value_of("output").unwrap_or(NO_OUTPUTFILE).to_string();
     let fileoutput = output_file != NO_OUTPUTFILE;
 
     let mut wherefile: Whereoutput;
@@ -186,10 +185,10 @@ fn main() {
             }
         };
 
-        let mut signature_key_bytes: [u8; (SIGNED_LENGTH_IN_BYTES / 8)] =
-            [0; (SIGNED_LENGTH_IN_BYTES / 8)];
+        let mut signature_key_bytes: [u8; (SIGNED_LENGTH_IN_BYTES / BITS_IN_BYTES)] =
+            [0; (SIGNED_LENGTH_IN_BYTES / BITS_IN_BYTES)];
 
-            signature_key_bytes[..SIGNED_LENGTH_IN_BYTES / 8].clone_from_slice(&local_key[..SIGNED_LENGTH_IN_BYTES / 8]);
+            signature_key_bytes[..SIGNED_LENGTH_IN_BYTES / BITS_IN_BYTES].clone_from_slice(&local_key[..SIGNED_LENGTH_IN_BYTES / BITS_IN_BYTES]);
 
         match public_key.verify(data.as_bytes(), &signature_key_bytes[..]) {
             Ok(_) => (),
