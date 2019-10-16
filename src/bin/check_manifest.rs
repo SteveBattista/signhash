@@ -137,13 +137,7 @@ fn main() {
                 .template("{prefix} {wide_bar} {pos}/{len} {elapsed_precise}"),
         );
     }
-    let mut type_of_line = String::new();
-    let mut file_name_line = String::new();
-    let mut bytes_line = String::new();
-    let mut time_line = String::new();
-    let mut nonce_line = String::new();
-    let mut hash_line = String::new();
-    let mut sign_line = String::new();
+
 
     manifest_line = get_next_manifest_line(
         manifest_line,
@@ -151,6 +145,14 @@ fn main() {
         &mut file_hash_context,
         &mut file_len,
     );
+
+    let mut type_of_line = String::new();
+    let mut file_name_line = String::new();
+    let mut bytes_line = String::new();
+    let mut time_line = String::new();
+    let mut hash_line = String::new();
+    let mut nonce_line = String::new();
+    let mut sign_line = String::new();
 
     while manifest_line != SEPARATOR {
         parse_next_manifest_line(
@@ -188,7 +190,7 @@ fn main() {
         let mut signature_key_bytes: [u8; (SIGNED_LENGTH_IN_BYTES / BITS_IN_BYTES)] =
             [0; (SIGNED_LENGTH_IN_BYTES / BITS_IN_BYTES)];
 
-            signature_key_bytes[..SIGNED_LENGTH_IN_BYTES / BITS_IN_BYTES].clone_from_slice(&local_key[..SIGNED_LENGTH_IN_BYTES / BITS_IN_BYTES]);
+        signature_key_bytes[..SIGNED_LENGTH_IN_BYTES / BITS_IN_BYTES].clone_from_slice(&local_key[..SIGNED_LENGTH_IN_BYTES / BITS_IN_BYTES]);
 
         match public_key.verify(data.as_bytes(), &signature_key_bytes[..]) {
             Ok(_) => (),
@@ -223,10 +225,8 @@ fn main() {
         );
     }
 
-    let mut manifest_line2 = manifest_line.clone();
-
-    manifest_line2 += "\n";
-    file_hash_context.update(manifest_line2.as_bytes());
+    manifest_line += "\n";
+    file_hash_context.update(manifest_line.as_bytes());
 
     let tokens: Vec<&str> = manifest_line.split('|').collect();
     let data: String;
@@ -272,9 +272,9 @@ fn main() {
         }
     };
 
-    let mut signature_key_bytes: [u8; (SIGNED_LENGTH_IN_BYTES / 8)] =
-        [0; (SIGNED_LENGTH_IN_BYTES / 8)];
-    signature_key_bytes[..SIGNED_LENGTH_IN_BYTES /8].clone_from_slice(&local_key[..SIGNED_LENGTH_IN_BYTES / 8]);
+    let mut signature_key_bytes: [u8; (SIGNED_LENGTH_IN_BYTES / BITS_IN_BYTES)] =
+        [0; (SIGNED_LENGTH_IN_BYTES / BITS_IN_BYTES)];
+    signature_key_bytes[..SIGNED_LENGTH_IN_BYTES /BITS_IN_BYTES].clone_from_slice(&local_key[..SIGNED_LENGTH_IN_BYTES / BITS_IN_BYTES]);
     let public_key =
         ring::signature::UnparsedPublicKey::new(&ring::signature::ED25519, public_key_bytes);
     let data: String;

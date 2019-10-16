@@ -1,5 +1,6 @@
 #![forbid(unsafe_code)]
 
+
 use signhash::create_keys;
 use signhash::create_line;
 use signhash::provide_unique_nonce;
@@ -15,6 +16,7 @@ use signhash::PUBLICKEY_LENGTH_IN_BYTES;
 use signhash::SIGN_HEADER_MESSAGE_COUNT;
 use signhash::NO_OUTPUTFILE;
 use signhash::BITS_IN_BYTES;
+use signhash::PWD;
 
 use scoped_threadpool::Pool;
 use std::convert::TryInto;
@@ -140,7 +142,7 @@ fn main() {
 
     let header_file = matches.value_of("include").unwrap_or("|||");
 
-    let input_directoy = matches.value_of("directory").unwrap_or(".");
+    let input_directoy = matches.value_of("directory").unwrap_or(PWD);
 
     let mut inputfiles: Vec<String> = Vec::new();
     let spinner = ProgressBar::new_spinner();
@@ -160,7 +162,7 @@ fn main() {
         spinner.finish();
     }
 
-    let num_files = inputfiles.len();
+
     let mut private_key_bytes: [u8; (PRIVATEKEY_LENGTH_IN_BYTES / BITS_IN_BYTES)] =
         [0; (PRIVATEKEY_LENGTH_IN_BYTES / BITS_IN_BYTES)];
     let mut public_key_bytes: [u8; (PUBLICKEY_LENGTH_IN_BYTES / BITS_IN_BYTES)] =
@@ -170,7 +172,7 @@ fn main() {
     write_key(&public_key_bytes, public_key_file, PUBIC_KEY_STRING_ED25519);
 
     let mut nonce_bytes: [u8; (NONCE_LENGTH_IN_BYTES / BITS_IN_BYTES)] = [0; (NONCE_LENGTH_IN_BYTES / BITS_IN_BYTES)];
-    let rng = rand::thread_rng();
+
     let mut nonces: HashMap<[u8; NONCE_LENGTH_IN_BYTES / BITS_IN_BYTES], i32> = HashMap::new();
 
     write_headers(
@@ -190,6 +192,7 @@ fn main() {
                 .template("{prefix} {wide_bar} {pos}/{len} {elapsed_precise}"),
         );
     }
+    let num_files = inputfiles.len();
     let writer_child = thread::Builder::new()
         .name("Writer".to_string())
         .spawn(move || {
@@ -210,7 +213,7 @@ fn main() {
         stdout().flush().unwrap();
         for file in inputfiles {
             let thread_tx = sign_tx.clone();
-            provide_unique_nonce(&mut nonce_bytes, &mut nonces, rng);
+            provide_unique_nonce(&mut nonce_bytes, &mut nonces, rand::thread_rng());
             scoped.execute(move || {
                 create_line(
                     file.to_string(),

@@ -1,5 +1,6 @@
 #![forbid(unsafe_code)]
 
+
 use signhash::check_line;
 use signhash::get_next_manifest_line;
 use signhash::parse_hash_manifest_line;
@@ -20,6 +21,7 @@ use signhash::SIGNED_LENGTH_IN_BYTES;
 use signhash::PRINT_MESSAGE;
 use signhash::END_MESSAGE;
 use signhash::BITS_IN_BYTES;
+use signhash::PWD;
 
 use scoped_threadpool::Pool;
 use std::collections::HashMap;
@@ -124,10 +126,9 @@ fn main() {
     let mut pool = Pool::new(poolnumber.try_into().unwrap());
     let (check_tx, check_rx): (Sender<CheckMessage>, Receiver<CheckMessage>) = mpsc::channel();
 
-    let input_directoy = matches.value_of("directory").unwrap_or(".");
+    let input_directoy = matches.value_of("directory").unwrap_or(PWD);
 
-    let verbose: bool;
-    verbose = matches.is_present("v");
+    let verbose: bool = matches.is_present("v");
 
     let mut inputfiles: Vec<String> = Vec::new();
     let spinner = ProgressBar::new_spinner();
@@ -225,8 +226,8 @@ fn main() {
         &check_tx,
     );
 
-    let nonces: &mut HashMap<String, String> = &mut HashMap::new();
-    let manifest_map: &mut HashMap<String, ManifestLine> = &mut HashMap::new();
+
+
 
     let mut type_of_line = String::new();
     let mut file_name_line = String::new();
@@ -242,6 +243,8 @@ fn main() {
         &mut file_len,
     );
 
+    let nonces: &mut HashMap<String, String> = &mut HashMap::new();
+    let manifest_map: &mut HashMap<String, ManifestLine> = &mut HashMap::new();
     while manifest_line != SEPARATOR {
         parse_next_manifest_line(
             &manifest_line,
@@ -326,17 +329,15 @@ fn main() {
         );
     }
 
-    let mut manifest_line2 = manifest_line.clone();
-
-    manifest_line2 += "\n";
-    file_hash_context.update(manifest_line2.as_bytes());
+    manifest_line += "\n";
+    file_hash_context.update(manifest_line.as_bytes());
 
     let tokens: Vec<&str> = manifest_line.split('|').collect();
     send_pass_fail_check_message(
         tokens[1] == format!("{}", file_len),
         "File lengh of manifest is corect.\n".to_string(),
         format!(
-            "File length was reported in manifest as|{}. Observed length of manifest is|{}. \n",
+            "File length was reported in manifest as|{}Observed length of manifest is|{}. \n",
             tokens[1], file_len
         ),
         &check_tx,

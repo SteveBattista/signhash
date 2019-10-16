@@ -40,12 +40,14 @@ pub const BITS_IN_BYTES: usize = 8;
 const HASH_READ_BUFFER_IN_BYTES: usize = 4096; //Empirical test finds this faster than 8192
 pub const SEPARATOR: &str =
     "********************************************************************************"; //80 stars
-const NO_HASH: &str = "0000000000000000000000000000000000000000000000000000000000000000";
+const NO_HASH: &str = "0";
+const NO_TIME: &str = "00/00/0000 00:00:00";
 pub const PUBIC_KEY_STRING_ED25519: & str = "Public ED25519";
 pub const PRIVATE_KEY_STRING_ED25519: &str = "Private ED25519";
 pub const DEFAULT_MANIFEST_FILE_NAME: &str = "Manifest.txt";
 pub const DEFAULT_PUBIC_KEY_FILE_NAME: &str = "Signpub.txt";
 pub const NO_OUTPUTFILE: &str = "|||";
+pub const PWD : &str = ".";
 pub const PRINT_MESSAGE :u8 = 0;
 pub const TICK_MESSAGE :u8 = 1;
 pub const END_MESSAGE :u8 =2;
@@ -106,17 +108,16 @@ pub fn  provide_unique_nonce <S: BuildHasher> (
 ) {
     let mut duplicate = true;
     while duplicate {
-        duplicate = false;
         for item in nonce_bytes.iter_mut().take(NONCE_LENGTH_IN_BYTES / BITS_IN_BYTES) {
             *item = rng.gen();
         }
         if nonces.contains_key(nonce_bytes) {
-            duplicate = true;
             eprintln!(
                 "!!Duplicated nonce|{}|making a new one.",
                 HEXUPPER.encode(nonce_bytes)
             );
         } else {
+            duplicate = false;
             nonces.insert(*nonce_bytes, 0);
         }
     }
@@ -233,7 +234,7 @@ pub fn write_manifest_from_channel(
     write_line(&mut wherefile, data);
 
     data = format!(
-        "Total number of files hashed is|{:?}\n",
+        "Total number of files hashed is|{}\n",
         num_lines - SIGN_HEADER_MESSAGE_COUNT
     );
     byte_count += data.len();
@@ -266,7 +267,7 @@ pub fn write_manifest_from_channel(
     context.update(data.as_bytes());
     write_line(&mut wherefile, data);
 
-    let mut nonce_bytes: [u8; (NONCE_LENGTH_IN_BYTES / 8)] = [0; (NONCE_LENGTH_IN_BYTES / 8)];
+    let mut nonce_bytes: [u8; (NONCE_LENGTH_IN_BYTES / BITS_IN_BYTES)] = [0; (NONCE_LENGTH_IN_BYTES / BITS_IN_BYTES)];
     let mut rng = rand::thread_rng();
 
     for item in nonce_bytes.iter_mut().take(NONCE_LENGTH_IN_BYTES / BITS_IN_BYTES) {
@@ -424,7 +425,7 @@ pub fn check_line(
         Err(_why) => {
             data = format!(
                 "{}|{}|{}|{}|{}|{}",
-                "Bad-symlink", path2, 0, "00/00/0000 00:00:00", NO_HASH, manifest_struct.nonce
+                "Bad-symlink", path2, 0, NO_TIME, NO_HASH, manifest_struct.nonce
             );
         }
         Ok(metadata) => {
@@ -593,7 +594,7 @@ pub fn create_line(
                 "Bad-symlink",
                 path2,
                 filelen,
-                "00/00/0000 00:00:00",
+                NO_TIME,
                 NO_HASH,
                 HEXUPPER.encode(&nonce_bytes)
             );
