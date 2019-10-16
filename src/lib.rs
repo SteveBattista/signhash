@@ -103,8 +103,8 @@ pub fn report_duplicatve_and_insert_nonce<S: BuildHasher>(
 }
 
 pub fn  provide_unique_nonce <S: BuildHasher> (
-    nonce_bytes: &mut [u8; 16],
-    nonces: &mut HashMap<[u8; 16], i32, S>,
+    nonce_bytes: &mut [u8; NONCE_LENGTH_IN_BYTES / BITS_IN_BYTES],
+    nonces: &mut HashMap<[u8; NONCE_LENGTH_IN_BYTES / BITS_IN_BYTES], i32, S>,
     mut rng: ThreadRng,
 ) {
     let mut duplicate = true;
