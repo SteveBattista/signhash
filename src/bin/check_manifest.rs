@@ -1,6 +1,6 @@
 #![forbid(unsafe_code)]
 
-use signhash::BITS_IN_BYTES;
+
 use signhash::get_next_manifest_line;
 use signhash::parse_hash_manifest_line;
 use signhash::parse_next_manifest_line;
@@ -11,9 +11,11 @@ use signhash::Whereoutput;
 use signhash::DEFAULT_MANIFEST_FILE_NAME;
 use signhash::DEFAULT_PUBIC_KEY_FILE_NAME;
 use signhash::PUBLICKEY_LENGTH_IN_BYTES;
-use signhash::SEPARATOR;
+use signhash::SEPARATOR_LINE;
 use signhash::SIGNED_LENGTH_IN_BYTES;
 use signhash::NO_OUTPUTFILE;
+use signhash::TOKEN_SEPARATOR;
+use signhash::BITS_IN_BYTES;
 
 use std::convert::TryInto;
 use std::fs::File;
@@ -58,8 +60,8 @@ fn main() {
         .takes_value(true))
     .get_matches();
 
-    let mut public_key_bytes: [u8; (PUBLICKEY_LENGTH_IN_BYTES / 8)] =
-        [0; (PUBLICKEY_LENGTH_IN_BYTES / 8)];
+    let mut public_key_bytes: [u8; (PUBLICKEY_LENGTH_IN_BYTES / BITS_IN_BYTES)] =
+        [0; (PUBLICKEY_LENGTH_IN_BYTES / BITS_IN_BYTES)];
     let public_key_file = matches
         .value_of("public")
         .unwrap_or(DEFAULT_PUBIC_KEY_FILE_NAME);
@@ -116,7 +118,7 @@ fn main() {
 
     let mut manifest_line = vec_of_lines.remove(0);
 
-    while manifest_line != SEPARATOR {
+    while manifest_line != SEPARATOR_LINE {
         manifest_line = get_next_manifest_line(
             manifest_line,
             &mut vec_of_lines,
@@ -154,7 +156,7 @@ fn main() {
     let mut nonce_line = String::new();
     let mut sign_line = String::new();
 
-    while manifest_line != SEPARATOR {
+    while manifest_line != SEPARATOR_LINE {
         parse_next_manifest_line(
             &manifest_line,
             &mut type_of_line,
@@ -183,14 +185,14 @@ fn main() {
                     why.description()
                 );
                 write_line(&mut wherefile, data.clone());
-                vec![0; SIGNED_LENGTH_IN_BYTES / 8]
+                vec![0; SIGNED_LENGTH_IN_BYTES / BITS_IN_BYTES]
             }
         };
 
         let mut signature_key_bytes: [u8; (SIGNED_LENGTH_IN_BYTES / BITS_IN_BYTES)] =
             [0; (SIGNED_LENGTH_IN_BYTES / BITS_IN_BYTES)];
 
-        signature_key_bytes[..SIGNED_LENGTH_IN_BYTES / BITS_IN_BYTES].clone_from_slice(&local_key[..SIGNED_LENGTH_IN_BYTES / BITS_IN_BYTES]);
+        signature_key_bytes[..].clone_from_slice(&local_key[..]);
 
         match public_key.verify(data.as_bytes(), &signature_key_bytes[..]) {
             Ok(_) => (),
@@ -228,14 +230,14 @@ fn main() {
     manifest_line += "\n";
     file_hash_context.update(manifest_line.as_bytes());
 
-    let tokens: Vec<&str> = manifest_line.split('|').collect();
+    let tokens: Vec<&str> = manifest_line.split(TOKEN_SEPARATOR).collect();
     let data: String;
     if tokens[1] == format!("{}", file_len) {
         data ="File length of manifest is corect.\n".to_string();
         write_line(&mut wherefile, data);
     } else {
         data = format!(
-            "File length was reported in manifest as {}. Observed length of manifest is {}.\n",
+            "File length was reported in manifest as {}Observed length of manifest is {}.\n",
             tokens[1], file_len
         );
         write_line(&mut wherefile, data);
@@ -244,7 +246,7 @@ fn main() {
     let digest = file_hash_context.finish();
     let digest_text = HEXUPPER.encode(&digest.as_ref());
     manifest_line = vec_of_lines.remove(0);
-    let tokens: Vec<&str> = manifest_line.split('|').collect();
+    let tokens: Vec<&str> = manifest_line.split(TOKEN_SEPARATOR).collect();
     let mut data: String;
     if tokens[1] == digest_text {
         data = "Manifest digest is correct.\n".to_string();
@@ -258,7 +260,7 @@ fn main() {
     }
 
     manifest_line = vec_of_lines.remove(0);
-    let tokens: Vec<&str> = manifest_line.split('|').collect();
+    let tokens: Vec<&str> = manifest_line.split(TOKEN_SEPARATOR).collect();
 
     let local_key = match HEXUPPER.decode(tokens[1].as_bytes()) {
         Ok(local_key) => (local_key),
@@ -268,13 +270,13 @@ fn main() {
                 why.description()
             );
             write_line(&mut wherefile, data);
-            vec![0; SIGNED_LENGTH_IN_BYTES / 8]
+            vec![0; SIGNED_LENGTH_IN_BYTES /  BITS_IN_BYTES]
         }
     };
 
     let mut signature_key_bytes: [u8; (SIGNED_LENGTH_IN_BYTES / BITS_IN_BYTES)] =
         [0; (SIGNED_LENGTH_IN_BYTES / BITS_IN_BYTES)];
-    signature_key_bytes[..SIGNED_LENGTH_IN_BYTES /BITS_IN_BYTES].clone_from_slice(&local_key[..SIGNED_LENGTH_IN_BYTES / BITS_IN_BYTES]);
+    signature_key_bytes[..].clone_from_slice(&local_key[..]);
     let public_key =
         ring::signature::UnparsedPublicKey::new(&ring::signature::ED25519, public_key_bytes);
     let data: String;

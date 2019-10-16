@@ -1,6 +1,5 @@
 #![forbid(unsafe_code)]
 
-
 use signhash::check_line;
 use signhash::get_next_manifest_line;
 use signhash::parse_hash_manifest_line;
@@ -16,12 +15,13 @@ use signhash::ManifestLine;
 use signhash::DEFAULT_MANIFEST_FILE_NAME;
 use signhash::DEFAULT_PUBIC_KEY_FILE_NAME;
 use signhash::PUBLICKEY_LENGTH_IN_BYTES;
-use signhash::SEPARATOR;
+use signhash::SEPARATOR_LINE;
 use signhash::SIGNED_LENGTH_IN_BYTES;
 use signhash::PRINT_MESSAGE;
 use signhash::END_MESSAGE;
 use signhash::BITS_IN_BYTES;
 use signhash::PWD;
+use signhash::TOKEN_SEPARATOR;
 
 use scoped_threadpool::Pool;
 use std::collections::HashMap;
@@ -172,7 +172,7 @@ fn main() {
 
     let mut manifest_line = vec_of_lines.remove(0);
 
-    while manifest_line != SEPARATOR {
+    while manifest_line != SEPARATOR_LINE {
         manifest_line = get_next_manifest_line(
             manifest_line,
             &mut vec_of_lines,
@@ -214,7 +214,7 @@ fn main() {
         &check_tx,
     );
 
-    let tokens: Vec<&str> = hash_line.split('|').collect();
+    let tokens: Vec<&str> = hash_line.split(TOKEN_SEPARATOR).collect();
     send_check_message(PRINT_MESSAGE,
         format!("Hash used|{}", tokens[1]).to_string(),
         true,
@@ -245,7 +245,7 @@ fn main() {
 
     let nonces: &mut HashMap<String, String> = &mut HashMap::new();
     let manifest_map: &mut HashMap<String, ManifestLine> = &mut HashMap::new();
-    while manifest_line != SEPARATOR {
+    while manifest_line != SEPARATOR_LINE {
         parse_next_manifest_line(
             &manifest_line,
             &mut type_of_line,
@@ -332,7 +332,7 @@ fn main() {
     manifest_line += "\n";
     file_hash_context.update(manifest_line.as_bytes());
 
-    let tokens: Vec<&str> = manifest_line.split('|').collect();
+    let tokens: Vec<&str> = manifest_line.split(TOKEN_SEPARATOR).collect();
     send_pass_fail_check_message(
         tokens[1] == format!("{}", file_len),
         "File lengh of manifest is corect.\n".to_string(),
@@ -346,7 +346,7 @@ fn main() {
     let digest = file_hash_context.finish();
     let digest_text = HEXUPPER.encode(&digest.as_ref());
     manifest_line = vec_of_lines.remove(0);
-    let tokens: Vec<&str> = manifest_line.split('|').collect();
+    let tokens: Vec<&str> = manifest_line.split(TOKEN_SEPARATOR).collect();
     send_pass_fail_check_message(
         tokens[1] == digest_text,
         "Manifest digest is correct.\n".to_string(),
@@ -358,7 +358,7 @@ fn main() {
     );
 
     manifest_line = vec_of_lines.remove(0);
-    let tokens: Vec<&str> = manifest_line.split('|').collect();
+    let tokens: Vec<&str> = manifest_line.split(TOKEN_SEPARATOR).collect();
 
     let local_key = match HEXUPPER.decode(tokens[1].as_bytes()) {
         Ok(local_key) => (local_key),
@@ -378,7 +378,7 @@ fn main() {
     let mut signature_key_bytes: [u8; (SIGNED_LENGTH_IN_BYTES / BITS_IN_BYTES)] =
         [0; (SIGNED_LENGTH_IN_BYTES / BITS_IN_BYTES)];
 
-    signature_key_bytes[..SIGNED_LENGTH_IN_BYTES / BITS_IN_BYTES].clone_from_slice(&local_key[..SIGNED_LENGTH_IN_BYTES / BITS_IN_BYTES]);
+    signature_key_bytes[..].clone_from_slice(&local_key[..]);
 
     let public_key =
         ring::signature::UnparsedPublicKey::new(&ring::signature::ED25519, public_key_bytes);

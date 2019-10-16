@@ -38,9 +38,10 @@ pub const SIGNED_LENGTH_IN_BYTES: usize = 512;
 pub const BITS_IN_BYTES: usize = 8;
 
 const HASH_READ_BUFFER_IN_BYTES: usize = 4096; //Empirical test finds this faster than 8192
-pub const SEPARATOR: &str =
+pub const SEPARATOR_LINE: &str =
     "********************************************************************************"; //80 stars
 const NO_HASH: &str = "0";
+pub const TOKEN_SEPARATOR: char = '|';
 const NO_TIME: &str = "00/00/0000 00:00:00";
 pub const PUBIC_KEY_STRING_ED25519: & str = "Public ED25519";
 pub const PRIVATE_KEY_STRING_ED25519: &str = "Private ED25519";
@@ -221,7 +222,7 @@ pub fn write_manifest_from_channel(
                 progress_bar.inc(1);
         }
     }
-    let mut data = format!("{}\n", SEPARATOR);
+    let mut data = SEPARATOR_LINE.to_owned() + "\n";
     byte_count +=  data.len();
     context.update(data.as_bytes());
 
@@ -301,7 +302,7 @@ pub fn write_manifest_from_channel(
 }
 
 pub fn parse_hash_manifest_line(line: String) -> &'static Algorithm {
-    let tokens: Vec<&str> = line.split('|').collect();
+    let tokens: Vec<&str> = line.split(TOKEN_SEPARATOR).collect();
     match tokens[1] {
         "128" => {
             &SHA1_FOR_LEGACY_USE_ONLY
@@ -365,7 +366,7 @@ pub fn read_private_key(private_key_bytes: &mut [u8], private_key_file: &str) {
             why.description()
         ),
     };
-    private_key_bytes[..(PRIVATEKEY_LENGTH_IN_BYTES / BITS_IN_BYTES)].clone_from_slice(&local_key[..(PRIVATEKEY_LENGTH_IN_BYTES / BITS_IN_BYTES)]);
+    private_key_bytes[..].clone_from_slice(&local_key[..]);
 }
 
 pub fn dump_header(header_file: &str) -> String {
@@ -535,11 +536,10 @@ pub fn check_line(
             vec![0; SIGNED_LENGTH_IN_BYTES / BITS_IN_BYTES]
         }
     };
-    // figure this out don't dont want to crash
     let mut signature_key_bytes: [u8; (SIGNED_LENGTH_IN_BYTES / BITS_IN_BYTES)] =
         [0; (SIGNED_LENGTH_IN_BYTES / BITS_IN_BYTES)];
 
-    signature_key_bytes[..SIGNED_LENGTH_IN_BYTES / BITS_IN_BYTES].clone_from_slice(&local_key[..SIGNED_LENGTH_IN_BYTES / BITS_IN_BYTES]);
+    signature_key_bytes[..].clone_from_slice(&local_key[..]);
 
     match public_key.verify(data.as_bytes(), &signature_key_bytes[..]) {
         Ok(_) => {
@@ -665,15 +665,9 @@ pub fn create_keys(public_key_bytes: &mut [u8], private_key_bytes: &mut [u8]) {
         Ok(pkcs8_bytes) => pkcs8_bytes,
     };
 
-        public_key_bytes[..PUBLICKEY_LENGTH_IN_BYTES / BITS_IN_BYTES].clone_from_slice(&key_pair.public_key().as_ref()[..PUBLICKEY_LENGTH_IN_BYTES / BITS_IN_BYTES]);
-        private_key_bytes[..PRIVATEKEY_LENGTH_IN_BYTES / BITS_IN_BYTES].clone_from_slice(&pkcs8_bytes.as_ref()[..PRIVATEKEY_LENGTH_IN_BYTES / BITS_IN_BYTES]);
+        public_key_bytes[..].clone_from_slice(&key_pair.public_key().as_ref()[..]);
+        private_key_bytes[..].clone_from_slice(&pkcs8_bytes.as_ref()[..]);
 
-/*    for x in 0..(PUBLICKEY_LENGTH_IN_BYTES / 8) {
-        public_key_bytes[x] = key_pair.public_key().as_ref()[x];
-    }
-    for x in 0..(PRIVATEKEY_LENGTH_IN_BYTES / 8) {
-        private_key_bytes[x] = pkcs8_bytes.as_ref()[x];
-    }*/
 }
 
 pub fn write_key(public_key_bytes: &[u8], pubic_key_file: &str, key_name: &str) {
@@ -738,7 +732,7 @@ pub fn read_public_key(public_key_file: &str, public_key_bytes: &mut [u8]) {
             why.description()
         ),
     };
-    public_key_bytes[..PUBLICKEY_LENGTH_IN_BYTES / BITS_IN_BYTES].clone_from_slice(&local_key[..PUBLICKEY_LENGTH_IN_BYTES / BITS_IN_BYTES])
+    public_key_bytes[..].clone_from_slice(&local_key[..])
 }
 pub fn write_keys(
     public_key_bytes: &[u8],
@@ -764,12 +758,12 @@ pub fn write_headers(
 ) {
     send_sign_message("Manifest version|0.8.0\n".to_string(), 0, &sign_tx);
     send_sign_message(
-        format!("Command Line|{}\n", &command_line).to_string(),
+        format!("Command Line|{}\n", &command_line),
         0,
         &sign_tx,
     );
     send_sign_message(
-        format!("Hash SHA|{}\n", &inputhash).to_string(),
+        format!("Hash SHA|{}\n", &inputhash),
         0,
         &sign_tx,
     );
@@ -786,13 +780,13 @@ pub fn write_headers(
     };
 
     send_sign_message(data, 0, &sign_tx);
-    send_sign_message(format!("Start time was|{}\n", now.to_string()), 0, &sign_tx);
+    send_sign_message(format!("Start time was|{}\n", now), 0, &sign_tx);
     send_sign_message(
         format!("Threads used for main hashing was|{}\n", poolnumber),
         0,
         &sign_tx,
     );
-    send_sign_message(format!("{}\n", SEPARATOR), 0, &sign_tx);
+    send_sign_message(format!("{}\n", SEPARATOR_LINE), 0, &sign_tx);
 }
 
 pub fn read_manifest_file(vec_of_lines: &mut Vec<String>, input_file: &str, fileoutput: bool) {
@@ -816,8 +810,7 @@ pub fn read_manifest_file(vec_of_lines: &mut Vec<String>, input_file: &str, file
         if fileoutput {
             spinner.tick();
         }
-        let l = line.unwrap();
-        vec_of_lines.push(l);
+        vec_of_lines.push(line.unwrap());
     }
     if fileoutput {
         spinner.finish();
@@ -846,7 +839,7 @@ pub fn parse_next_manifest_line(
     nonce_line: &mut String,
     sign_line: &mut String,
 ) {
-    let tokens: Vec<&str> = manifest_line.split('|').collect();
+    let tokens: Vec<&str> = manifest_line.split(TOKEN_SEPARATOR).collect();
     *type_of_line = tokens[0].to_string();
     *file_name_line = tokens[1].to_string();
     *bytes_line = tokens[2].to_string();
