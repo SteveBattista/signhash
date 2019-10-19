@@ -768,7 +768,7 @@ pub fn write_headers(
         &sign_tx,
     );
     send_sign_message(
-        "Signature algorthim|ED25519\n".to_string(),
+        "Signature algorithm|ED25519\n".to_string(),
         0,
         &sign_tx,
     );
