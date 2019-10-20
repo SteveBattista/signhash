@@ -1,6 +1,5 @@
 #![forbid(unsafe_code)]
 
-
 use signhash::get_next_manifest_line;
 use signhash::parse_hash_manifest_line;
 use signhash::parse_next_manifest_line;
@@ -8,14 +7,14 @@ use signhash::read_manifest_file;
 use signhash::read_public_key;
 use signhash::write_line;
 use signhash::Whereoutput;
+use signhash::BITS_IN_BYTES;
 use signhash::DEFAULT_MANIFEST_FILE_NAME;
 use signhash::DEFAULT_PUBIC_KEY_FILE_NAME;
+use signhash::NO_OUTPUTFILE;
 use signhash::PUBLICKEY_LENGTH_IN_BYTES;
 use signhash::SEPARATOR_LINE;
 use signhash::SIGNED_LENGTH_IN_BYTES;
-use signhash::NO_OUTPUTFILE;
 use signhash::TOKEN_SEPARATOR;
-use signhash::BITS_IN_BYTES;
 
 use std::convert::TryInto;
 use std::fs::File;
@@ -33,7 +32,6 @@ use indicatif::ProgressStyle;
 
 const NUMBER_OF_LINES_UNTIL_FILE_LEN_MESSAGE: usize = 7;
 const NUMBER_OF_LINES_AFTER_FILES: usize = 10;
-
 
 fn main() {
     let matches = App::new("check_manifest")
@@ -67,7 +65,10 @@ fn main() {
         .unwrap_or(DEFAULT_PUBIC_KEY_FILE_NAME);
     read_public_key(public_key_file, &mut public_key_bytes);
 
-    let output_file = matches.value_of("output").unwrap_or(NO_OUTPUTFILE).to_string();
+    let output_file = matches
+        .value_of("output")
+        .unwrap_or(NO_OUTPUTFILE)
+        .to_string();
     let fileoutput = output_file != NO_OUTPUTFILE;
 
     let mut wherefile: Whereoutput;
@@ -140,7 +141,6 @@ fn main() {
         );
     }
 
-
     manifest_line = get_next_manifest_line(
         manifest_line,
         &mut vec_of_lines,
@@ -180,7 +180,7 @@ fn main() {
             Ok(local_key) => (local_key),
             Err(why) => {
                 data = format!(
-                    "{}|Couldn't decode hex signature|{}\n",
+                    "Failure|{}|Couldn't decode hex signature|{}\n",
                     file_name_line,
                     why.description()
                 );
@@ -198,7 +198,7 @@ fn main() {
             Ok(_) => (),
             Err(_) => {
                 data = format!(
-                    "{}|Signature check failed. Can't trust manifest line.\n",
+                    "Failure|{}|Signature check failed. Can't trust manifest line.\n",
                     file_name_line
                 );
                 write_line(&mut wherefile, data);
@@ -232,13 +232,16 @@ fn main() {
 
     let tokens: Vec<&str> = manifest_line.split(TOKEN_SEPARATOR).collect();
     let data: String;
-    if tokens[1] == format!("{}", file_len) {
-        data ="File length of manifest is corect.\n".to_string();
+    if &tokens[1][..tokens[1].len()-1] == format!("{}", file_len) {
+        data = format!(
+            "Correct| file length is|{}\n",
+            file_len
+        );
         write_line(&mut wherefile, data);
     } else {
         data = format!(
-            "File length was reported in manifest as {}Observed length of manifest is {}.\n",
-            tokens[1], file_len
+            "Failure|manifest length|{}|observed length|{}\n",
+            &tokens[1][..tokens[1].len()-1], file_len
         );
         write_line(&mut wherefile, data);
     }
@@ -249,11 +252,14 @@ fn main() {
     let tokens: Vec<&str> = manifest_line.split(TOKEN_SEPARATOR).collect();
     let mut data: String;
     if tokens[1] == digest_text {
-        data = "Manifest digest is correct.\n".to_string();
+        data = format!(
+            "Correct|file hash is|{}\n",
+            digest_text
+        );
         write_line(&mut wherefile, data);
     } else {
         data = format!(
-            "Hash was reported as {} in manifest. Observed hash is {}.\n",
+            "Failure|manifest hash|{}|observed hash|{}\n",
             tokens[1], digest_text
         );
         write_line(&mut wherefile, data);
@@ -266,11 +272,11 @@ fn main() {
         Ok(local_key) => (local_key),
         Err(why) => {
             data = format!(
-                "Couldn't decode hex signature for manifest file|{}.\n",
+                "Failure|Couldn't decode hex signature for manifest file|{}.\n",
                 why.description()
             );
             write_line(&mut wherefile, data);
-            vec![0; SIGNED_LENGTH_IN_BYTES /  BITS_IN_BYTES]
+            vec![0; SIGNED_LENGTH_IN_BYTES / BITS_IN_BYTES]
         }
     };
 
@@ -282,11 +288,11 @@ fn main() {
     let data: String;
     match public_key.verify(digest_text.as_bytes(), &signature_key_bytes[..]) {
         Ok(_x) => {
-            data = "Signature of manifest is correct.\n".to_string();
+            data = "Correct|signature of manifest is correct.\n".to_string();
             write_line(&mut wherefile, data);
         }
         Err(_) => {
-            data = "Signature of manifest did not match the hash in the manifest.\n".to_string();
+            data ="Failure|signature of manifest did not match the hash in the manifest.\n".to_string();
             write_line(&mut wherefile, data);
         }
     };

@@ -1,6 +1,5 @@
 #![forbid(unsafe_code)]
 
-
 use signhash::create_keys;
 use signhash::create_line;
 use signhash::provide_unique_nonce;
@@ -8,15 +7,15 @@ use signhash::write_headers;
 use signhash::write_key;
 use signhash::write_manifest_from_channel;
 use signhash::SignMessage;
+use signhash::BITS_IN_BYTES;
 use signhash::DEFAULT_PUBIC_KEY_FILE_NAME;
 use signhash::NONCE_LENGTH_IN_BYTES;
+use signhash::NO_OUTPUTFILE;
 use signhash::PRIVATEKEY_LENGTH_IN_BYTES;
 use signhash::PUBIC_KEY_STRING_ED25519;
 use signhash::PUBLICKEY_LENGTH_IN_BYTES;
-use signhash::SIGN_HEADER_MESSAGE_COUNT;
-use signhash::NO_OUTPUTFILE;
-use signhash::BITS_IN_BYTES;
 use signhash::PWD;
+use signhash::SIGN_HEADER_MESSAGE_COUNT;
 
 use scoped_threadpool::Pool;
 use std::convert::TryInto;
@@ -109,14 +108,17 @@ fn main() {
         }
     }
     let signing = matches.value_of("signing").unwrap_or("ED25519");
-    match signing{
+    match signing {
         "ED25519" => (),
         _ => {
             panic!("Please choose ED25519 for type of signature algorthrim.");
         }
     }
 
-    let manifest_file = matches.value_of("output").unwrap_or(NO_OUTPUTFILE).to_string();
+    let manifest_file = matches
+        .value_of("output")
+        .unwrap_or(NO_OUTPUTFILE)
+        .to_string();
     let fileoutput = manifest_file != NO_OUTPUTFILE;
 
     let public_key_file = matches
@@ -162,7 +164,6 @@ fn main() {
         spinner.finish();
     }
 
-
     let mut private_key_bytes: [u8; (PRIVATEKEY_LENGTH_IN_BYTES / BITS_IN_BYTES)] =
         [0; (PRIVATEKEY_LENGTH_IN_BYTES / BITS_IN_BYTES)];
     let mut public_key_bytes: [u8; (PUBLICKEY_LENGTH_IN_BYTES / BITS_IN_BYTES)] =
@@ -171,7 +172,8 @@ fn main() {
     create_keys(&mut public_key_bytes, &mut private_key_bytes);
     write_key(&public_key_bytes, public_key_file, PUBIC_KEY_STRING_ED25519);
 
-    let mut nonce_bytes: [u8; (NONCE_LENGTH_IN_BYTES / BITS_IN_BYTES)] = [0; (NONCE_LENGTH_IN_BYTES / BITS_IN_BYTES)];
+    let mut nonce_bytes: [u8; (NONCE_LENGTH_IN_BYTES / BITS_IN_BYTES)] =
+        [0; (NONCE_LENGTH_IN_BYTES / BITS_IN_BYTES)];
 
     let mut nonces: HashMap<[u8; NONCE_LENGTH_IN_BYTES / BITS_IN_BYTES], i32> = HashMap::new();
 

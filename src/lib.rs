@@ -1,9 +1,9 @@
 #![forbid(unsafe_code)]
 
-use std::hash::BuildHasher;
 use data_encoding::HEXUPPER;
 use rand::prelude::ThreadRng;
 use rand::Rng;
+use std::hash::BuildHasher;
 
 use chrono::{DateTime, Utc};
 
@@ -43,15 +43,15 @@ pub const SEPARATOR_LINE: &str =
 const NO_HASH: &str = "0";
 pub const TOKEN_SEPARATOR: char = '|';
 const NO_TIME: &str = "00/00/0000 00:00:00";
-pub const PUBIC_KEY_STRING_ED25519: & str = "Public ED25519";
+pub const PUBIC_KEY_STRING_ED25519: &str = "Public ED25519";
 pub const PRIVATE_KEY_STRING_ED25519: &str = "Private ED25519";
 pub const DEFAULT_MANIFEST_FILE_NAME: &str = "Manifest.txt";
 pub const DEFAULT_PUBIC_KEY_FILE_NAME: &str = "Signpub.txt";
 pub const NO_OUTPUTFILE: &str = "|||";
-pub const PWD : &str = ".";
-pub const PRINT_MESSAGE :u8 = 0;
-pub const TICK_MESSAGE :u8 = 1;
-pub const END_MESSAGE :u8 =2;
+pub const PWD: &str = ".";
+pub const PRINT_MESSAGE: u8 = 0;
+pub const TICK_MESSAGE: u8 = 1;
+pub const END_MESSAGE: u8 = 2;
 
 pub struct SignMessage {
     pub text: String,
@@ -59,7 +59,7 @@ pub struct SignMessage {
 }
 
 pub struct CheckMessage {
-    pub check_type :u8,
+    pub check_type: u8,
     pub text: String,
     pub verbose: bool,
 }
@@ -90,7 +90,7 @@ pub fn report_duplicatve_and_insert_nonce<S: BuildHasher>(
             send_check_message(
                 PRINT_MESSAGE,
                 format!(
-                    "Suspect replay attack as |{}|and|{}|share the same nonce.\n",
+                    "Failure|{}|and|{}|share the same nonce.\n",
                     nonce.clone(),
                     answer
                 )
@@ -102,14 +102,17 @@ pub fn report_duplicatve_and_insert_nonce<S: BuildHasher>(
     };
 }
 
-pub fn  provide_unique_nonce <S: BuildHasher> (
+pub fn provide_unique_nonce<S: BuildHasher>(
     nonce_bytes: &mut [u8; NONCE_LENGTH_IN_BYTES / BITS_IN_BYTES],
     nonces: &mut HashMap<[u8; NONCE_LENGTH_IN_BYTES / BITS_IN_BYTES], i32, S>,
     mut rng: ThreadRng,
 ) {
     let mut duplicate = true;
     while duplicate {
-        for item in nonce_bytes.iter_mut().take(NONCE_LENGTH_IN_BYTES / BITS_IN_BYTES) {
+        for item in nonce_bytes
+            .iter_mut()
+            .take(NONCE_LENGTH_IN_BYTES / BITS_IN_BYTES)
+        {
             *item = rng.gen();
         }
         if nonces.contains_key(nonce_bytes) {
@@ -149,11 +152,11 @@ pub fn write_check_from_channel(
     }
     message = check_rx.recv().unwrap();
     while message.check_type != END_MESSAGE {
-        if message.check_type == TICK_MESSAGE{
+        if message.check_type == TICK_MESSAGE {
             if fileoutput {
                 progress_bar.inc(1);
             }
-        } else if verbose || !(message.verbose){
+        } else if verbose || !(message.verbose) {
             write_line(&mut wherefile, message.text);
         }
         message = check_rx.recv().unwrap();
@@ -219,11 +222,11 @@ pub fn write_manifest_from_channel(
         total_file_len += message.file_len;
         write_line(&mut wherefile, data);
         if x > SIGN_HEADER_MESSAGE_COUNT && fileoutput {
-                progress_bar.inc(1);
+            progress_bar.inc(1);
         }
     }
     let mut data = SEPARATOR_LINE.to_owned() + "\n";
-    byte_count +=  data.len();
+    byte_count += data.len();
     context.update(data.as_bytes());
 
     write_line(&mut wherefile, data);
@@ -268,10 +271,14 @@ pub fn write_manifest_from_channel(
     context.update(data.as_bytes());
     write_line(&mut wherefile, data);
 
-    let mut nonce_bytes: [u8; (NONCE_LENGTH_IN_BYTES / BITS_IN_BYTES)] = [0; (NONCE_LENGTH_IN_BYTES / BITS_IN_BYTES)];
+    let mut nonce_bytes: [u8; (NONCE_LENGTH_IN_BYTES / BITS_IN_BYTES)] =
+        [0; (NONCE_LENGTH_IN_BYTES / BITS_IN_BYTES)];
     let mut rng = rand::thread_rng();
 
-    for item in nonce_bytes.iter_mut().take(NONCE_LENGTH_IN_BYTES / BITS_IN_BYTES) {
+    for item in nonce_bytes
+        .iter_mut()
+        .take(NONCE_LENGTH_IN_BYTES / BITS_IN_BYTES)
+    {
         *item = rng.gen();
     }
     data = format!("Nonce for file|{}\n", HEXUPPER.encode(&nonce_bytes));
@@ -304,21 +311,11 @@ pub fn write_manifest_from_channel(
 pub fn parse_hash_manifest_line(line: String) -> &'static Algorithm {
     let tokens: Vec<&str> = line.split(TOKEN_SEPARATOR).collect();
     match tokens[1] {
-        "128" => {
-            &SHA1_FOR_LEGACY_USE_ONLY
-        }
-        "256" => {
-            &SHA256
-        }
-        "384" => {
-            &SHA384
-        }
-        "512" => {
-            &SHA512
-        }
-        "512_256" => {
-            &SHA512_256
-        }
+        "128" => &SHA1_FOR_LEGACY_USE_ONLY,
+        "256" => &SHA256,
+        "384" => &SHA384,
+        "512" => &SHA512,
+        "512_256" => &SHA512_256,
         _ => {
             panic!("Hash line does not give a proper hash size.");
         }
@@ -421,102 +418,101 @@ pub fn check_line(
     let data: String;
     let input: File;
     let digest_str: String;
-
-    match fs::metadata(path) {
-        Err(_why) => {
-            data = format!(
-                "{}|{}|{}|{}|{}|{}",
-                "Bad-symlink", path2, 0, NO_TIME, NO_HASH, manifest_struct.nonce
-            );
-        }
-        Ok(metadata) => {
-            let metadata2 = fs::symlink_metadata(path2).unwrap();
-            let postfix : &str;
-            if metadata2.file_type().is_symlink(){
-                postfix = "-symlink"
-            } else {
-                postfix ="";
+        match fs::metadata(path) {
+            Err(_why) => {
+                data = format!(
+                    "{}|{}|{}|{}|{}|{}",
+                    "Bad-symlink", path2, 0, NO_TIME, NO_HASH, manifest_struct.nonce
+                );
             }
-            let filelen = format!("{}", metadata.len());
-            send_pass_fail_check_message(
-                filelen == manifest_struct.bytes,
-                format!("{}|File length check passed.\n", path3),
-                format!(
-                    "{}|{}|{}|File len check failed.\n",
-                    path3, manifest_struct.bytes, filelen
-                ),
-                &check_tx,
-            );
-
-            let datetime = match metadata.modified() {
-                Err(why) => panic!(
-                    "Couldn't load datetime from|{} data|{}",
-                    path3,
-                    why.description()
-                ),
-                Ok(datetime) => datetime,
-            };
-            let datetime: DateTime<Utc> = datetime.into();
-            let datetime_string = format!("{}", datetime.format("%d/%m/%Y %T"));
-
-            send_pass_fail_check_message(
-                datetime_string == manifest_struct.time,
-                format!("{}|Date check passed.\n", path3),
-                format!(
-                    "{}|{}|{}|File date check failed.\n",
-                    path3, manifest_struct.time, datetime_string
-                ),
-                &check_tx,
-            );
-
-            if metadata.is_dir() {
-                line_type =format!("Dir{}",postfix);
-                digest_str = NO_HASH.to_string();
-            } else {
-                if metadata.is_file() {
-                    line_type = format!("File{}",postfix);
+            Ok(metadata) => {
+                let metadata2 = fs::symlink_metadata(path2).unwrap();
+                let postfix: &str;
+                if metadata2.file_type().is_symlink() {
+                    postfix = "-symlink"
                 } else {
-                    line_type = format!("Uknown{}",postfix);
+                    postfix = "";
                 }
-                input = match File::open(path3) {
-                    Ok(input) => input,
-                    Err(why) => panic!("Couldn't open file|{}|{}", path4, why.description()),
+                let filelen = format!("{}", metadata.len());
+                send_pass_fail_check_message(
+                    filelen == manifest_struct.bytes,
+                    format!("Correct|{}|File length check passed.\n", path3),
+                    format!(
+                        "Failure|{}|{}|{}|File len check failed.\n",
+                        path3, manifest_struct.bytes, filelen
+                    ),
+                    &check_tx,
+                );
+
+                let datetime = match metadata.modified() {
+                    Err(why) => panic!(
+                        "Couldn't load datetime from|{} data|{}",
+                        path3,
+                        why.description()
+                    ),
+                    Ok(datetime) => datetime,
                 };
-                let reader = BufReader::new(input);
-                let digest = var_digest(reader, hashalgo);
-                digest_str = HEXUPPER.encode(&digest.as_ref());
+                let datetime: DateTime<Utc> = datetime.into();
+                let datetime_string = format!("{}", datetime.format("%d/%m/%Y %T"));
+
+                send_pass_fail_check_message(
+                    datetime_string == manifest_struct.time,
+                    format!("Correct|{}|Date check passed.\n", path3),
+                    format!(
+                        "Failure|{}|{}|{}|File date check failed.\n",
+                        path3, manifest_struct.time, datetime_string
+                    ),
+                    &check_tx,
+                );
+
+                if metadata.is_dir() {
+                    line_type = format!("Dir{}", postfix);
+                    digest_str = NO_HASH.to_string();
+                } else {
+                    if metadata.is_file() {
+                        line_type = format!("File{}", postfix);
+                    } else {
+                        line_type = format!("Uknown{}", postfix);
+                    }
+                    input = match File::open(path3) {
+                        Ok(input) => input,
+                        Err(why) => panic!("Couldn't open file|{}|{}", path4, why.description()),
+                    };
+                    let reader = BufReader::new(input);
+                    let digest = var_digest(reader, hashalgo);
+                    digest_str = HEXUPPER.encode(&digest.as_ref());
+                }
+                send_pass_fail_check_message(
+                    line_type == manifest_struct.file_type,
+                    format!("Correct|{}|File type check passed.\n", path4),
+                    format!(
+                        "Failure|{}|File type check failed|{}|{}\n",
+                        path4, manifest_struct.file_type, line_type
+                    ),
+                    &check_tx,
+                );
+
+                send_pass_fail_check_message(
+                    digest_str == manifest_struct.hash,
+                    format!("Correct|{}|Hash check passed.\n", path4),
+                    format!(
+                        "Failure|{}|Hash type check failed|{}|{}.\n",
+                        path4, manifest_struct.hash, digest_str
+                    ),
+                    &check_tx,
+                );
+
+                data = format!(
+                    "{}|{}|{}|{}|{}|{}",
+                    manifest_struct.file_type,
+                    path4,
+                    manifest_struct.bytes,
+                    manifest_struct.time,
+                    manifest_struct.hash,
+                    manifest_struct.nonce
+                );
             }
-            send_pass_fail_check_message(
-                line_type == manifest_struct.file_type,
-                format!("{}|File type check passed.\n", path4),
-                format!(
-                    "{}|File type check failed|{}|{}\n",
-                    path4, manifest_struct.file_type, line_type
-                ),
-                &check_tx,
-            );
-
-            send_pass_fail_check_message(
-                digest_str == manifest_struct.hash,
-                format!("{}|Hash check passed.\n", path4),
-                format!(
-                    "{}|Hash type check failed|{}|{}.\n",
-                    path4, manifest_struct.hash, digest_str
-                ),
-                &check_tx,
-            );
-
-            data = format!(
-                "{}|{}|{}|{}|{}|{}",
-                manifest_struct.file_type,
-                path4,
-                manifest_struct.bytes,
-                manifest_struct.time,
-                manifest_struct.hash,
-                manifest_struct.nonce
-            );
-        }
-    };
+        };
     let public_key =
         ring::signature::UnparsedPublicKey::new(&ring::signature::ED25519, public_key_bytes);
 
@@ -526,7 +522,7 @@ pub fn check_line(
             send_check_message(
                 PRINT_MESSAGE,
                 format!(
-                    "{}|Couldn't decode hex signature|{}\n",
+                    "Failure|{}|Couldn't decode hex signature|{}\n",
                     path4,
                     why.description()
                 ),
@@ -546,7 +542,7 @@ pub fn check_line(
             send_check_message(
                 PRINT_MESSAGE,
                 format!(
-                    "{}|Signature check passed. Can trust manifest line.\n",
+                    "Correct|{}|Signature check passed. Can trust manifest line.\n",
                     path4
                 ),
                 true,
@@ -557,7 +553,7 @@ pub fn check_line(
             send_check_message(
                 PRINT_MESSAGE,
                 format!(
-                    "{}|Signature check failed. Can't trust manifest line.\n",
+                    "Failure|{}|Signature check failed. Can't trust manifest line.\n",
                     path4
                 ),
                 false,
@@ -565,12 +561,7 @@ pub fn check_line(
             );
         }
     };
-    send_check_message(
-        TICK_MESSAGE,
-        "Tick".to_string(),
-        false,
-        &check_tx,
-    );
+    send_check_message(TICK_MESSAGE, "Tick".to_string(), false, &check_tx);
 }
 
 pub fn create_line(
@@ -610,17 +601,17 @@ pub fn create_line(
                 Ok(datetime) => datetime,
             };
             let metadata2 = fs::symlink_metadata(path2).unwrap();
-            let postfix : &str;
-            if metadata2.file_type().is_symlink(){
+            let postfix: &str;
+            if metadata2.file_type().is_symlink() {
                 postfix = "-symlink"
             } else {
-                postfix ="";
+                postfix = "";
             }
             let datetime: DateTime<Utc> = datetime.into();
             let input: File;
             let digest_str: String;
             if metadata.is_dir() {
-                line_type = format!("Dir{}",postfix);
+                line_type = format!("Dir{}", postfix);
                 digest_str = NO_HASH.to_string();
             } else if metadata.is_file() {
                 input = match File::open(path3) {
@@ -630,11 +621,11 @@ pub fn create_line(
                 let reader = BufReader::new(input);
                 let digest = var_digest(reader, hashalgo);
                 digest_str = HEXUPPER.encode(&digest.as_ref());
-                    line_type = format!("File{}",postfix);
-                } else {
-                    line_type = format!("Other{}",postfix);
-                    digest_str = NO_HASH.to_string();
-                }
+                line_type = format!("File{}", postfix);
+            } else {
+                line_type = format!("Other{}", postfix);
+                digest_str = NO_HASH.to_string();
+            }
 
             data = format!(
                 "{}|{}|{}|{}|{}|{}",
@@ -656,18 +647,17 @@ pub fn create_line(
 pub fn create_keys(public_key_bytes: &mut [u8], private_key_bytes: &mut [u8]) {
     let rng = ring::rand::SystemRandom::new();
     let pkcs8_bytes = match ring::signature::Ed25519KeyPair::generate_pkcs8(&rng) {
-        Err(x) => panic!("Couldn't create pks8 key|{}",x),
+        Err(x) => panic!("Couldn't create pks8 key|{}", x),
         Ok(pkcs8_bytes) => pkcs8_bytes,
     };
 
     let key_pair = match ring::signature::Ed25519KeyPair::from_pkcs8(pkcs8_bytes.as_ref()) {
-        Err(x) => panic!("Couldn't create key pair from pks8 key|{}",x),
+        Err(x) => panic!("Couldn't create key pair from pks8 key|{}", x),
         Ok(pkcs8_bytes) => pkcs8_bytes,
     };
 
-        public_key_bytes[..].clone_from_slice(&key_pair.public_key().as_ref()[..]);
-        private_key_bytes[..].clone_from_slice(&pkcs8_bytes.as_ref()[..]);
-
+    public_key_bytes[..].clone_from_slice(&key_pair.public_key().as_ref()[..]);
+    private_key_bytes[..].clone_from_slice(&pkcs8_bytes.as_ref()[..]);
 }
 
 pub fn write_key(public_key_bytes: &[u8], pubic_key_file: &str, key_name: &str) {
@@ -675,7 +665,7 @@ pub fn write_key(public_key_bytes: &[u8], pubic_key_file: &str, key_name: &str) 
     map.insert(key_name.to_string(), HEXUPPER.encode(&public_key_bytes));
     let s = match serde_yaml::to_string(&map) {
         Ok(s) => s,
-        Err(x) => panic!("Couldn't create YMAL string for|{}|key|{}", key_name,x),
+        Err(x) => panic!("Couldn't create YMAL string for|{}|key|{}", key_name, x),
     };
     let mut file = match File::create(&pubic_key_file) {
         Ok(file) => file,
@@ -757,21 +747,9 @@ pub fn write_headers(
     poolnumber: usize,
 ) {
     send_sign_message("Manifest version|0.8.0\n".to_string(), 0, &sign_tx);
-    send_sign_message(
-        format!("Command Line|{}\n", &command_line),
-        0,
-        &sign_tx,
-    );
-    send_sign_message(
-        format!("Hash SHA|{}\n", &inputhash),
-        0,
-        &sign_tx,
-    );
-    send_sign_message(
-        "Signature algorithm|ED25519\n".to_string(),
-        0,
-        &sign_tx,
-    );
+    send_sign_message(format!("Command Line|{}\n", &command_line), 0, &sign_tx);
+    send_sign_message(format!("Hash SHA|{}\n", &inputhash), 0, &sign_tx);
+    send_sign_message("Signature algorithm|ED25519\n".to_string(), 0, &sign_tx);
 
     let data = if header_file == "|||" {
         "No header file requested for inclusion.\n".to_string()
@@ -869,13 +847,13 @@ pub fn send_sign_message(
 }
 
 pub fn send_check_message(
-    message_type :u8,
+    message_type: u8,
     message_string: String,
     verbose: bool,
     check_tx: &std::sync::mpsc::Sender<CheckMessage>,
 ) {
     let message = CheckMessage {
-        check_type :message_type,
+        check_type: message_type,
         text: message_string.clone(),
         verbose,
     };
@@ -896,8 +874,8 @@ pub fn send_pass_fail_check_message(
     check_tx: &std::sync::mpsc::Sender<CheckMessage>,
 ) {
     if pass_bool {
-        send_check_message(PRINT_MESSAGE,pass_string, true, check_tx)
+        send_check_message(PRINT_MESSAGE, pass_string, true, check_tx)
     } else {
-        send_check_message(PRINT_MESSAGE,fail_string, false, check_tx)
+        send_check_message(PRINT_MESSAGE, fail_string, false, check_tx)
     }
 }

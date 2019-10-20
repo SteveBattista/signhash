@@ -12,15 +12,15 @@ use signhash::send_pass_fail_check_message;
 use signhash::write_check_from_channel;
 use signhash::CheckMessage;
 use signhash::ManifestLine;
+use signhash::BITS_IN_BYTES;
 use signhash::DEFAULT_MANIFEST_FILE_NAME;
 use signhash::DEFAULT_PUBIC_KEY_FILE_NAME;
+use signhash::END_MESSAGE;
+use signhash::PRINT_MESSAGE;
 use signhash::PUBLICKEY_LENGTH_IN_BYTES;
+use signhash::PWD;
 use signhash::SEPARATOR_LINE;
 use signhash::SIGNED_LENGTH_IN_BYTES;
-use signhash::PRINT_MESSAGE;
-use signhash::END_MESSAGE;
-use signhash::BITS_IN_BYTES;
-use signhash::PWD;
 use signhash::TOKEN_SEPARATOR;
 
 use scoped_threadpool::Pool;
@@ -86,7 +86,7 @@ fn main() {
         .value_name("DIRECTORY")
         .help("Directory to start hashing. Default is current working directory. Program does not follow symblic links.")
         .takes_value(true))
-    .arg(Arg::with_name("v")
+    .arg(Arg::with_name("verbose")
          .short("v")
         .long("verbose")
         .help("Use -v flag to also print out when things match."))
@@ -99,7 +99,10 @@ fn main() {
         .unwrap_or(DEFAULT_PUBIC_KEY_FILE_NAME);
     read_public_key(public_key_file, &mut public_key_bytes);
 
-    let output_file = matches.value_of("output").unwrap_or(NO_OUTPUTFILE).to_string();
+    let output_file = matches
+        .value_of("output")
+        .unwrap_or(NO_OUTPUTFILE)
+        .to_string();
     let fileoutput = output_file != NO_OUTPUTFILE;
 
     let input_file = matches
@@ -128,7 +131,7 @@ fn main() {
 
     let input_directoy = matches.value_of("directory").unwrap_or(PWD);
 
-    let verbose: bool = matches.is_present("v");
+    let verbose: bool = matches.is_present("verbose");
 
     let mut inputfiles: Vec<String> = Vec::new();
     let spinner = ProgressBar::new_spinner();
@@ -197,37 +200,38 @@ fn main() {
         })
         .unwrap();
 
-
-    send_check_message(PRINT_MESSAGE,
+    send_check_message(
+        PRINT_MESSAGE,
         format!("Command Line|{}\n", args.join(" ")),
         true,
         &check_tx,
     );
-    send_check_message(PRINT_MESSAGE,
+    send_check_message(
+        PRINT_MESSAGE,
         format!("Start time was|{}\n", now.to_string()),
         true,
         &check_tx,
     );
-    send_check_message(PRINT_MESSAGE,
+    send_check_message(
+        PRINT_MESSAGE,
         format!("Threads used for main hashing was|{}\n", poolnumber),
         true,
         &check_tx,
     );
 
     let tokens: Vec<&str> = hash_line.split(TOKEN_SEPARATOR).collect();
-    send_check_message(PRINT_MESSAGE,
+    send_check_message(
+        PRINT_MESSAGE,
         format!("Hash used|{}", tokens[1]).to_string(),
         true,
         &check_tx,
     );
-    send_check_message(PRINT_MESSAGE,
+    send_check_message(
+        PRINT_MESSAGE,
         "Signature algorithm|ED25519\n".to_string(),
         true,
         &check_tx,
     );
-
-
-
 
     let mut type_of_line = String::new();
     let mut file_name_line = String::new();
@@ -288,14 +292,20 @@ fn main() {
                 Some(file_line) => {
                     let thread_tx = check_tx.clone();
                     scoped.execute(move || {
-                            check_line(file, hashalgo, file_line, &public_key_bytes, thread_tx);
+                        check_line(
+                            file,
+                            hashalgo,
+                            file_line,
+                            &public_key_bytes,
+                            thread_tx,
+                        );
                     });
-
                 }
                 None => {
-                    send_check_message(PRINT_MESSAGE,
+                    send_check_message(
+                        PRINT_MESSAGE,
                         format!(
-                            "{}|was in the directory search but not found in directory manifest.\n",
+                            "Failure|{}|was in the directory search but not found in directory manifest.\n",
                             file,
                         )
                         .to_string(),
@@ -308,9 +318,10 @@ fn main() {
     });
     if manifest_map.is_empty() {
         for (file_line, _manifest_structure) in manifest_map.drain().take(1) {
-            send_check_message(PRINT_MESSAGE,
+            send_check_message(
+                PRINT_MESSAGE,
                 format!(
-                    "{}|was in the manifest but not found in directory search.\n",
+                    "Failure|{}|was in the manifest but not found in directory search.\n",
                     file_line
                 )
                 .to_string(),
@@ -334,11 +345,14 @@ fn main() {
 
     let tokens: Vec<&str> = manifest_line.split(TOKEN_SEPARATOR).collect();
     send_pass_fail_check_message(
-        tokens[1] == format!("{}", file_len),
-        "File lengh of manifest is corect.\n".to_string(),
+        &tokens[1][..tokens[1].len()-1] == format!("{}", file_len),
         format!(
-            "File length was reported in manifest as|{}Observed length of manifest is|{}. \n",
-            tokens[1], file_len
+            "Correct| file length is|{}\n",
+            file_len
+        ),
+        format!(
+            "Failure|manifest length|{}|observed length|{}\n",
+            &tokens[1][..tokens[1].len()-1], file_len
         ),
         &check_tx,
     );
@@ -349,9 +363,12 @@ fn main() {
     let tokens: Vec<&str> = manifest_line.split(TOKEN_SEPARATOR).collect();
     send_pass_fail_check_message(
         tokens[1] == digest_text,
-        "Manifest digest is correct.\n".to_string(),
         format!(
-            "Hash was reported as|{}|in manifest. Observed hash is|{}.\n",
+            "Correct|file hash is|{}\n",
+            digest_text
+        ),
+        format!(
+            "Failure|manifest hash|{}|observed hash|{}\n",
             tokens[1], digest_text
         ),
         &check_tx,
@@ -363,15 +380,16 @@ fn main() {
     let local_key = match HEXUPPER.decode(tokens[1].as_bytes()) {
         Ok(local_key) => (local_key),
         Err(why) => {
-            send_check_message(PRINT_MESSAGE,
+            send_check_message(
+                PRINT_MESSAGE,
                 format!(
-                    "Couldn't decode hex signature for manifest file|{}.\n",
+                    "Failure|couldn't decode hex signature for manifest file|{}.\n",
                     why.description()
                 ),
                 false,
                 &check_tx,
             );
-            vec![0; SIGNED_LENGTH_IN_BYTES /BITS_IN_BYTES]
+            vec![0; SIGNED_LENGTH_IN_BYTES / BITS_IN_BYTES]
         }
     };
     // figure this out don't dont want to crash
@@ -384,21 +402,23 @@ fn main() {
         ring::signature::UnparsedPublicKey::new(&ring::signature::ED25519, public_key_bytes);
     match public_key.verify(digest_text.as_bytes(), &signature_key_bytes[..]) {
         Ok(_x) => {
-            send_check_message(PRINT_MESSAGE,
-                "Signature of manifest is correct.\n".to_string(),
+            send_check_message(
+                PRINT_MESSAGE,
+                "Correct|signature of manifest is correct.\n".to_string(),
                 false, // This guarantees a response so that someone can't trick the system by includng the END_OF_MESSAGES earlier in the file.
                 &check_tx,
             );
         }
         Err(_) => {
-            send_check_message(PRINT_MESSAGE,
-                "Signature of manifest did not match the hash in the manifest.\n".to_string(),
+            send_check_message(
+                PRINT_MESSAGE,
+                "Failure|signature of manifest did not match the hash in the manifest.\n".to_string(),
                 false,
                 &check_tx,
             );
         }
     };
-    send_check_message(END_MESSAGE,"End".to_string(), false, &check_tx);
+    send_check_message(END_MESSAGE, "End".to_string(), false, &check_tx);
 
     let _res = writer_child.join();
 }
