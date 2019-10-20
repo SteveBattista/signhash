@@ -316,8 +316,10 @@ fn main() {
             };
         }
     });
-    if manifest_map.is_empty() {
+
+    if !(manifest_map.is_empty()) {
         for (file_line, _manifest_structure) in manifest_map.drain().take(1) {
+
             send_check_message(
                 PRINT_MESSAGE,
                 format!(
