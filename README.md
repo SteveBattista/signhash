@@ -14,7 +14,7 @@ One of the things that always bothered me is that people provide a list of hashe
 
 `./sign_hash -o manifest234`<br>
  Take current working directory and all sub directories and create a signed hash manifest for them named manifest234
-`./check_manifest -i manifest234 -o checkfile234` <br>
+`./check_hash -i manifest234 -o checkfile234 -m` <br>
  Take manifest234 and check to see if it has been tampered. Write results to file named checkfile234<br>
 `./check_hash -i manifest234 -o checkfile234`<br>
  Take current working directory and see if the hashes and files match the files listed in checkfile234. Take manifest234 and check to see if it has been tampered. Write results to file named checkfile234
