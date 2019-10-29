@@ -1,5 +1,6 @@
 #![forbid(unsafe_code)]
 
+use signhash::SIGN_HEADER_MESSAGE_COUNT;
 use signhash::check_line;
 use signhash::get_next_manifest_line;
 use signhash::parse_hash_manifest_line;
@@ -90,6 +91,10 @@ fn main() {
          .short("v")
         .long("verbose")
         .help("Use -v flag to also print out when things match."))
+        .arg(Arg::with_name("manifestonly")
+             .short("m")
+            .long("manifestonly")
+            .help("Use -m flag to check the validity of the manifest only. Will ignore -d option."))
     .get_matches();
 
     let mut public_key_bytes: [u8; (PUBLICKEY_LENGTH_IN_BYTES / BITS_IN_BYTES)] =
@@ -133,22 +138,27 @@ fn main() {
 
     let verbose: bool = matches.is_present("verbose");
 
+    let manifest_only = matches.is_present("manifestonly");
+
     let mut inputfiles: Vec<String> = Vec::new();
-    let spinner = ProgressBar::new_spinner();
-    if fileoutput {
-        spinner.set_prefix("Constucting file list took:");
-        spinner.set_style(
-            ProgressStyle::default_bar().template("{prefix} {elapsed_precise} {spinner}"),
-        );
-    }
-    for entry in WalkDir::new(input_directoy) {
-        inputfiles.push(entry.unwrap().path().display().to_string());
+
+    if !manifest_only {
+        let spinner = ProgressBar::new_spinner();
         if fileoutput {
-            spinner.tick();
+            spinner.set_prefix("Constucting file list took:");
+            spinner.set_style(
+                ProgressStyle::default_bar().template("{prefix} {elapsed_precise} {spinner}"),
+            );
         }
-    }
-    if fileoutput {
-        spinner.finish();
+        for entry in WalkDir::new(input_directoy) {
+            inputfiles.push(entry.unwrap().path().display().to_string());
+            if fileoutput {
+                spinner.tick();
+            }
+        }
+        if fileoutput {
+            spinner.finish();
+        }
     }
 
     let mut version_line = vec_of_lines.remove(0);
@@ -183,8 +193,7 @@ fn main() {
             &mut file_len,
         );
     }
-
-    let progress_bar = ProgressBar::new(inputfiles.len().try_into().unwrap());
+    let progress_bar = ProgressBar::new((vec_of_lines.len()-(SIGN_HEADER_MESSAGE_COUNT +2)).try_into().unwrap()); // the 2 is for the seprators
     if fileoutput {
         progress_bar.set_prefix("Number of Files Checked:");
         progress_bar.set_style(
@@ -287,6 +296,23 @@ fn main() {
     }
 
     pool.scoped(|scoped| {
+        if manifest_only {
+            while !(manifest_map.is_empty()) {
+                for (file_line, manifest_structure) in manifest_map.drain() {
+                    let thread_tx = check_tx.clone();
+                    scoped.execute(move || {
+                        check_line(
+                            file_line,
+                            hashalgo,
+                            manifest_structure,
+                            &public_key_bytes,
+                            thread_tx,
+                            true
+                        );
+                    });
+                }
+            }
+        } else {
         for file in inputfiles {
             match manifest_map.remove(&file) {
                 Some(file_line) => {
@@ -298,6 +324,7 @@ fn main() {
                             file_line,
                             &public_key_bytes,
                             thread_tx,
+                            false
                         );
                     });
                 }
@@ -315,11 +342,11 @@ fn main() {
                 }
             };
         }
-    });
+    }
+});
 
     if !(manifest_map.is_empty()) {
-        for (file_line, _manifest_structure) in manifest_map.drain().take(1) {
-
+        for (file_line, _manifest_structure) in manifest_map.drain(){
             send_check_message(
                 PRINT_MESSAGE,
                 format!(
@@ -347,14 +374,12 @@ fn main() {
 
     let tokens: Vec<&str> = manifest_line.split(TOKEN_SEPARATOR).collect();
     send_pass_fail_check_message(
-        &tokens[1][..tokens[1].len()-1] == format!("{}", file_len),
-        format!(
-            "Correct| file length is|{}\n",
-            file_len
-        ),
+        tokens[1][..tokens[1].len() - 1] == format!("{}", file_len),
+        format!("Correct| file length is|{}\n", file_len),
         format!(
             "Failure|manifest length|{}|observed length|{}\n",
-            &tokens[1][..tokens[1].len()-1], file_len
+            &tokens[1][..tokens[1].len() - 1],
+            file_len
         ),
         &check_tx,
     );
@@ -365,10 +390,7 @@ fn main() {
     let tokens: Vec<&str> = manifest_line.split(TOKEN_SEPARATOR).collect();
     send_pass_fail_check_message(
         tokens[1] == digest_text,
-        format!(
-            "Correct|file hash is|{}\n",
-            digest_text
-        ),
+        format!("Correct|file hash is|{}\n", digest_text),
         format!(
             "Failure|manifest hash|{}|observed hash|{}\n",
             tokens[1], digest_text
@@ -414,7 +436,8 @@ fn main() {
         Err(_) => {
             send_check_message(
                 PRINT_MESSAGE,
-                "Failure|signature of manifest did not match the hash in the manifest.\n".to_string(),
+                "Failure|signature of manifest did not match the hash in the manifest.\n"
+                    .to_string(),
                 false,
                 &check_tx,
             );

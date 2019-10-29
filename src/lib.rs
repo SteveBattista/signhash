@@ -410,6 +410,7 @@ pub fn check_line(
     manifest_struct: ManifestLine,
     public_key_bytes: &[u8],
     check_tx: std::sync::mpsc::Sender<CheckMessage>,
+    manifest_only: bool,
 ) {
     let line_type: String;
     let path2 = path.clone();
@@ -418,6 +419,17 @@ pub fn check_line(
     let data: String;
     let input: File;
     let digest_str: String;
+    if manifest_only {
+        data = format!(
+            "{}|{}|{}|{}|{}|{}",
+            manifest_struct.file_type,
+            path4,
+            manifest_struct.bytes,
+            manifest_struct.time,
+            manifest_struct.hash,
+            manifest_struct.nonce
+        );
+    } else {
         match fs::metadata(path) {
             Err(_why) => {
                 data = format!(
@@ -501,7 +513,6 @@ pub fn check_line(
                     ),
                     &check_tx,
                 );
-
                 data = format!(
                     "{}|{}|{}|{}|{}|{}",
                     manifest_struct.file_type,
@@ -513,6 +524,7 @@ pub fn check_line(
                 );
             }
         };
+    }
     let public_key =
         ring::signature::UnparsedPublicKey::new(&ring::signature::ED25519, public_key_bytes);
 
