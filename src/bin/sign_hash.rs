@@ -91,7 +91,7 @@ fn main() {
         .short("d")
         .long("directory")
         .value_name("DIRECTORY")
-        .help("Directory to start hashing. Default is current working directory. Program does not follow symblic links.")
+        .help("Directory to start hashing. Default is current working directory. Program does not follow symbolic links.")
         .takes_value(true))
     .get_matches();
 
