@@ -3,7 +3,7 @@ name = "signhash"
 version = "0.0.1"
 authors = ["Stephen Battista <stephen.battista@gmail.com>"]
 edition = "2018"
-
+ 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 [lib]
 # The name of a target is the name of the library that will be generated. This

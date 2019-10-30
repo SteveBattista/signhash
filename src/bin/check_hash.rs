@@ -193,7 +193,7 @@ fn main() {
             &mut file_len,
         );
     }
-    let progress_bar = ProgressBar::new((vec_of_lines.len()-(SIGN_HEADER_MESSAGE_COUNT +2)).try_into().unwrap()); // the 2 is for the seprators
+    let progress_bar = ProgressBar::new((vec_of_lines.len()-(SIGN_HEADER_MESSAGE_COUNT +2)).try_into().unwrap()); // the 2 is for the seperators
     if fileoutput {
         progress_bar.set_prefix("Number of Files Checked:");
         progress_bar.set_style(
