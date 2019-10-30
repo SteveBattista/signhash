@@ -12,12 +12,12 @@ One of the things that always bothered me is that people provide a list of hashe
 <h1> How To Use <br></h1>
  Use the flag -h for command line flags <br>
 
-`./sign_hash -o manifest234`<br>
- Take current working directory and all sub directories and create a signed hash manifest for them named manifest234
+`./sign_hash -d ./place -o manifest234 `<br>
+ Take sub-directory named place and all sub directories in it and create a signed hash manifest for them named manifest234
 `./check_hash -i manifest234 -o checkfile234 -m` <br>
  Take manifest234 and check to see if it has been tampered. Write results to file named checkfile234<br>
-`./check_hash -i manifest234 -o checkfile234`<br>
- Take current working directory and see if the hashes and files match the files listed in checkfile234. Take manifest234 and check to see if it has been tampered. Write results to file named checkfile234
+`./check_hash -d ./place -i manifest234 -o checkfile234`<br>
+ Take sub-directory named place and see if the hashes and files match the files listed in checkfile234. Take manifest234 and check to see if it has been tampered. Write results to file named checkfile234
 
 <h1> Known Issues/Behaviors/Limitations <br></h1>
  Not following symbolic links:<br>
