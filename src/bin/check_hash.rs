@@ -145,7 +145,7 @@ fn main() {
     if !manifest_only {
 
         if fileoutput {
-            spinner.set_prefix("Constucting file list took:");
+            spinner.set_prefix("Constucting file list:");
             spinner.set_style(
                 ProgressStyle::default_bar().template("{prefix} {elapsed_precise} {spinner}"),
             );
@@ -157,21 +157,31 @@ fn main() {
             }
         }
         if fileoutput {
-            spinner.tick();
+            spinner.finish();
         }
 
     }
+    let nonce_bar = ProgressBar::new((vec_of_lines.len()-(SIGN_HEADER_MESSAGE_COUNT +11)).try_into().unwrap()); // the 2 is for the seperators
     if fileoutput {
-        spinner.set_prefix("Parsing and checking for duplicate nonces:");
-        spinner.set_style(
-            ProgressStyle::default_bar().template("{prefix} {elapsed_precise} {spinner}"),
+        nonce_bar.set_prefix("Parsing and checking for duplicate nonces:");
+        nonce_bar.set_style(
+            ProgressStyle::default_bar().template("{prefix} {wide_bar} {pos}/{len} {elapsed_precise}"),
         );
     }
+    let progress_bar = ProgressBar::new((vec_of_lines.len()-(SIGN_HEADER_MESSAGE_COUNT + 11 )).try_into().unwrap()); // the 2 is for the seperators
 
     let mut version_line = vec_of_lines.remove(0);
+    if fileoutput{
+        nonce_bar.inc(1);
+    }
     let mut command_line = vec_of_lines.remove(0);
+    if fileoutput{
+        nonce_bar.inc(1);
+    }
     let mut hash_line = vec_of_lines.remove(0);
-
+    if fileoutput{
+        nonce_bar.inc(1);
+    }
     let hashalgo = parse_hash_manifest_line(hash_line.clone());
 
     let mut file_hash_context = Context::new(hashalgo);
@@ -200,7 +210,7 @@ fn main() {
             &mut file_len,
         );
         if fileoutput {
-            spinner.tick();
+         nonce_bar.inc(1);
         }
     }
 
@@ -251,10 +261,11 @@ fn main() {
         &mut file_hash_context,
         &mut file_len,
     );
-
+    if fileoutput{
+        nonce_bar.inc(1);
+    }
     let nonces: &mut HashMap<String, String> = &mut HashMap::new();
     let manifest_map: &mut HashMap<String, ManifestLine> = &mut HashMap::new();
-let progress_bar = ProgressBar::new((vec_of_lines.len()-(SIGN_HEADER_MESSAGE_COUNT +2)).try_into().unwrap()); // the 2 is for the seperators
     while manifest_line != SEPARATOR_LINE {
         parse_next_manifest_line(
             &manifest_line,
@@ -291,17 +302,16 @@ let progress_bar = ProgressBar::new((vec_of_lines.len()-(SIGN_HEADER_MESSAGE_COU
             &mut file_len,
         );
         if fileoutput {
-            spinner.tick();
+            nonce_bar.inc(1);
         }
     }
 
     if fileoutput {
-        spinner.finish();
+        nonce_bar.finish();
     }
 
-
     if fileoutput {
-        progress_bar.set_prefix("Number of Files Checked:");
+        progress_bar.set_prefix("Checking files");
         progress_bar.set_style(
             ProgressStyle::default_bar()
                 .template("{prefix} {wide_bar} {pos}/{len} {elapsed_precise}"),

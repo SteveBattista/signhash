@@ -791,7 +791,7 @@ pub fn read_manifest_file(vec_of_lines: &mut Vec<String>, input_file: &str, file
     let spinner = ProgressBar::new_spinner();
     let file = BufReader::new(&f);
     if fileoutput {
-        spinner.set_prefix("Parsing manifest took:");
+        spinner.set_prefix("Reading manifest:");
         spinner.set_style(
             ProgressStyle::default_bar().template("{prefix} {elapsed_precise} {spinner}"),
         );

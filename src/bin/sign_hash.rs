@@ -149,7 +149,7 @@ fn main() {
     let mut inputfiles: Vec<String> = Vec::new();
     let spinner = ProgressBar::new_spinner();
     if fileoutput {
-        spinner.set_prefix("Constucting file list took:");
+        spinner.set_prefix("Constucting file list:");
         spinner.set_style(
             ProgressStyle::default_bar().template("{prefix} {elapsed_precise} {spinner}"),
         );
@@ -188,7 +188,7 @@ fn main() {
 
     let progress_bar = ProgressBar::new(inputfiles.len().try_into().unwrap());
     if fileoutput {
-        progress_bar.set_prefix("Number of Files Hashed");
+        progress_bar.set_prefix("Hashing files");
         progress_bar.set_style(
             ProgressStyle::default_bar()
                 .template("{prefix} {wide_bar} {pos}/{len} {elapsed_precise}"),
