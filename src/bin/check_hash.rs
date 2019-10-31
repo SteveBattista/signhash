@@ -141,9 +141,9 @@ fn main() {
     let manifest_only = matches.is_present("manifestonly");
 
     let mut inputfiles: Vec<String> = Vec::new();
-
+    let spinner = ProgressBar::new_spinner();
     if !manifest_only {
-        let spinner = ProgressBar::new_spinner();
+
         if fileoutput {
             spinner.set_prefix("Constucting file list took:");
             spinner.set_style(
@@ -157,8 +157,15 @@ fn main() {
             }
         }
         if fileoutput {
-            spinner.finish();
+            spinner.tick();
         }
+
+    }
+    if fileoutput {
+        spinner.set_prefix("Parsing and checking for duplicate nonces:");
+        spinner.set_style(
+            ProgressStyle::default_bar().template("{prefix} {elapsed_precise} {spinner}"),
+        );
     }
 
     let mut version_line = vec_of_lines.remove(0);
@@ -192,22 +199,11 @@ fn main() {
             &mut file_hash_context,
             &mut file_len,
         );
-    }
-    let progress_bar = ProgressBar::new((vec_of_lines.len()-(SIGN_HEADER_MESSAGE_COUNT +2)).try_into().unwrap()); // the 2 is for the seperators
-    if fileoutput {
-        progress_bar.set_prefix("Number of Files Checked:");
-        progress_bar.set_style(
-            ProgressStyle::default_bar()
-                .template("{prefix} {wide_bar} {pos}/{len} {elapsed_precise}"),
-        );
+        if fileoutput {
+            spinner.tick();
+        }
     }
 
-    let writer_child = thread::Builder::new()
-        .name("Writer".to_string())
-        .spawn(move || {
-            write_check_from_channel(verbose, check_rx, output_file, fileoutput, progress_bar);
-        })
-        .unwrap();
 
     send_check_message(
         PRINT_MESSAGE,
@@ -258,6 +254,7 @@ fn main() {
 
     let nonces: &mut HashMap<String, String> = &mut HashMap::new();
     let manifest_map: &mut HashMap<String, ManifestLine> = &mut HashMap::new();
+let progress_bar = ProgressBar::new((vec_of_lines.len()-(SIGN_HEADER_MESSAGE_COUNT +2)).try_into().unwrap()); // the 2 is for the seperators
     while manifest_line != SEPARATOR_LINE {
         parse_next_manifest_line(
             &manifest_line,
@@ -274,7 +271,7 @@ fn main() {
             nonces,
             nonce_line.clone(),
             file_name_line.clone(),
-            check_tx.clone(),
+            &check_tx,
         );
 
         let manifist_struct = ManifestLine {
@@ -293,7 +290,30 @@ fn main() {
             &mut file_hash_context,
             &mut file_len,
         );
+        if fileoutput {
+            spinner.tick();
+        }
     }
+
+    if fileoutput {
+        spinner.finish();
+    }
+
+
+    if fileoutput {
+        progress_bar.set_prefix("Number of Files Checked:");
+        progress_bar.set_style(
+            ProgressStyle::default_bar()
+                .template("{prefix} {wide_bar} {pos}/{len} {elapsed_precise}"),
+        );
+    }
+
+    let writer_child = thread::Builder::new()
+        .name("Writer".to_string())
+        .spawn(move || {
+            write_check_from_channel(verbose, check_rx, output_file, fileoutput, progress_bar);
+        })
+        .unwrap();
 
     pool.scoped(|scoped| {
         if manifest_only {

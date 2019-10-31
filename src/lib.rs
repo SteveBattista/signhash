@@ -82,7 +82,7 @@ pub fn report_duplicatve_and_insert_nonce<S: BuildHasher>(
     nonces: &mut HashMap<String, String, S>,
     nonce: String,
     file_name_line: String,
-    check_tx: std::sync::mpsc::Sender<CheckMessage>,
+    check_tx: &std::sync::mpsc::Sender<CheckMessage>,
 ) {
     match nonces.insert(nonce.clone(), file_name_line) {
         None => (),
