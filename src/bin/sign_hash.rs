@@ -188,7 +188,7 @@ fn main() {
 
     let progress_bar = ProgressBar::new(inputfiles.len().try_into().unwrap());
     if fileoutput {
-        progress_bar.set_prefix("Hashing files");
+        progress_bar.set_prefix("Hashing files :");
         progress_bar.set_style(
             ProgressStyle::default_bar()
                 .template("{prefix} {wide_bar} {pos}/{len} {elapsed_precise}"),

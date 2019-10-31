@@ -311,7 +311,7 @@ fn main() {
     }
 
     if fileoutput {
-        progress_bar.set_prefix("Checking files");
+        progress_bar.set_prefix("Checking files :");
         progress_bar.set_style(
             ProgressStyle::default_bar()
                 .template("{prefix} {wide_bar} {pos}/{len} {elapsed_precise}"),
