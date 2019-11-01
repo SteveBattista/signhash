@@ -146,7 +146,7 @@ fn main() {
         if fileoutput {
             spinner.set_prefix("Constucting file list:");
             spinner.set_style(
-                ProgressStyle::default_bar().template("{prefix} {elapsed_precise} {spinner}"),
+                ProgressStyle::default_bar().template("{prefix} {elapsed_precise} {spinner:.yellow/cyan}"),
             );
         }
         for entry in WalkDir::new(input_directoy) {
@@ -164,7 +164,7 @@ fn main() {
     if fileoutput {
         nonce_bar.set_prefix("Parsing and checking for duplicate nonces:");
         nonce_bar.set_style(
-            ProgressStyle::default_bar().template("{prefix} {wide_bar} {pos}/{len} {elapsed_precise}"),
+            ProgressStyle::default_bar().template("{prefix} {wide_bar:.green/cyan} {pos}/{len} {elapsed_precise}"),
         );
     }
     let progress_bar = ProgressBar::new((vec_of_lines.len()-(SIGN_HEADER_MESSAGE_COUNT + 10 )).try_into().unwrap()); // the 2 is for the seperators
@@ -312,13 +312,18 @@ fn main() {
     if fileoutput {
         if manifest_only{
             progress_bar.set_prefix("Checking signatures :");
+            progress_bar.set_style(
+                ProgressStyle::default_bar()
+                    .template("{prefix} {wide_bar:.green/cyan} {pos}/{len} {elapsed_precise}"),
+            );
         } else{
             progress_bar.set_prefix("Checking files and signatures :");
+            progress_bar.set_style(
+                ProgressStyle::default_bar()
+                    .template("{prefix} {wide_bar:.yellow/cyan} {pos}/{len} {elapsed_precise}"),
+            );
         }
-        progress_bar.set_style(
-            ProgressStyle::default_bar()
-                .template("{prefix} {wide_bar} {pos}/{len} {elapsed_precise}"),
-        );
+
     }
 
     let writer_child = thread::Builder::new()

@@ -151,7 +151,7 @@ fn main() {
     if fileoutput {
         spinner.set_prefix("Constucting file list:");
         spinner.set_style(
-            ProgressStyle::default_bar().template("{prefix} {elapsed_precise} {spinner}"),
+            ProgressStyle::default_bar().template("{prefix} {elapsed_precise} {spinner:.yellow/cyan}"),
         );
     }
     for entry in WalkDir::new(input_directoy) {
@@ -191,7 +191,7 @@ fn main() {
         progress_bar.set_prefix("Hashing files :");
         progress_bar.set_style(
             ProgressStyle::default_bar()
-                .template("{prefix} {wide_bar} {pos}/{len} {elapsed_precise}"),
+                .template("{prefix} {wide_bar:.yellow/cyan} {pos}/{len} {elapsed_precise}"),
         );
     }
     let num_files = inputfiles.len();
