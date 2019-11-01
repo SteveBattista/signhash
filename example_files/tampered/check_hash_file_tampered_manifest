@@ -1,14 +1,17 @@
 Failure|../../example_files/tampered/test_files/new_file|was in the directory search but not found in directory manifest.
 Failure|../../example_files/tampered/test_files/|20/10/2019 13:01:11|20/10/2019 15:57:49|File date check failed.
-Failure|../../example_files/tampered/test_files/tampered_file_date|Signature check failed. Can't trust manifest line.
+Failure|../../example_files/tampered/test_files/|Signature check failed. Can't trust manifest line.
 Failure|../../example_files/tampered/test_files/good_file_2|3310|3309|File len check failed.
 Failure|../../example_files/tampered/test_files/good_file_2|20/10/2019 12:57:18|20/10/2019 13:03:07|File date check failed.
+Failure|../../example_files/tampered/test_files/tampered_file_size|Signature check failed. Can't trust manifest line.
 Failure|../../example_files/tampered/test_files/good_file_1|3311|3310|File len check failed.
-Failure|../../example_files/tampered/test_files/good_file_2|Hash type check failed|CE892F5D9462575D9C85AA2DC0AA5028D32404BDE43219E573657D780CDDAE4B|344357F899D493110368628E4DDE21445431D274101B4E5E230451B9FA836C68.
 Failure|../../example_files/tampered/test_files/good_file_1|20/10/2019 12:56:43|20/10/2019 13:02:10|File date check failed.
-Failure|../../example_files/tampered/test_files/good_file_2|Signature check failed. Can't trust manifest line.
+Failure|../../example_files/tampered/test_files/tampered_file_date|Signature check failed. Can't trust manifest line.
 Failure|../../example_files/tampered/test_files/good_file_3|3310|3321|File len check failed.
 Failure|../../example_files/tampered/test_files/good_file_3|20/10/2019 12:57:29|20/10/2019 13:03:17|File date check failed.
+Failure|../../example_files/tampered/test_files/tampered_file_hash|Signature check failed. Can't trust manifest line.
+Failure|../../example_files/tampered/test_files/good_file_2|Hash type check failed|CE892F5D9462575D9C85AA2DC0AA5028D32404BDE43219E573657D780CDDAE4B|344357F899D493110368628E4DDE21445431D274101B4E5E230451B9FA836C68.
+Failure|../../example_files/tampered/test_files/good_file_2|Signature check failed. Can't trust manifest line.
 Failure|../../example_files/tampered/test_files/good_file_1|Signature check failed. Can't trust manifest line.
 Failure|../../example_files/tampered/test_files/good_file_3|Hash type check failed|CE892F5D3462575D9C85AA2DC0AA5028D32404BDE43219E573657D780CDDAE4B|60A5C85AFABDCC557B22542E18C00CB98DBBB6576E65BB38D7B7C96CA50F7C05.
 Failure|../../example_files/tampered/test_files/good_file_3|Signature check failed. Can't trust manifest line.
