@@ -141,9 +141,8 @@ fn main() {
     let manifest_only = matches.is_present("manifestonly");
 
     let mut inputfiles: Vec<String> = Vec::new();
-    let spinner = ProgressBar::new_spinner();
     if !manifest_only {
-
+        let spinner = ProgressBar::new_spinner();
         if fileoutput {
             spinner.set_prefix("Constucting file list:");
             spinner.set_style(
@@ -161,14 +160,14 @@ fn main() {
         }
 
     }
-    let nonce_bar = ProgressBar::new((vec_of_lines.len()-(SIGN_HEADER_MESSAGE_COUNT +11)).try_into().unwrap()); // the 2 is for the seperators
+    let nonce_bar = ProgressBar::new((vec_of_lines.len()-(SIGN_HEADER_MESSAGE_COUNT +10)).try_into().unwrap()); // the 2 is for the seperators
     if fileoutput {
         nonce_bar.set_prefix("Parsing and checking for duplicate nonces:");
         nonce_bar.set_style(
             ProgressStyle::default_bar().template("{prefix} {wide_bar} {pos}/{len} {elapsed_precise}"),
         );
     }
-    let progress_bar = ProgressBar::new((vec_of_lines.len()-(SIGN_HEADER_MESSAGE_COUNT + 11 )).try_into().unwrap()); // the 2 is for the seperators
+    let progress_bar = ProgressBar::new((vec_of_lines.len()-(SIGN_HEADER_MESSAGE_COUNT + 10 )).try_into().unwrap()); // the 2 is for the seperators
 
     let mut version_line = vec_of_lines.remove(0);
     if fileoutput{
@@ -311,7 +310,11 @@ fn main() {
     }
 
     if fileoutput {
-        progress_bar.set_prefix("Checking files :");
+        if manifest_only{
+            progress_bar.set_prefix("Checking signatures :");
+        } else{
+            progress_bar.set_prefix("Checking files and signatures :");
+        }
         progress_bar.set_style(
             ProgressStyle::default_bar()
                 .template("{prefix} {wide_bar} {pos}/{len} {elapsed_precise}"),
