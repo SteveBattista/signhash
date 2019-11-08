@@ -793,7 +793,7 @@ pub fn read_manifest_file(vec_of_lines: &mut Vec<String>, input_file: &str, file
     if fileoutput {
         spinner.set_prefix("Reading manifest:");
         spinner.set_style(
-            ProgressStyle::default_bar().template("{prefix} {elapsed_precise} {spinner}"),
+            ProgressStyle::default_bar().template("{prefix} {elapsed_precise} {spinner:.yellow/cyan}"),
         );
     }
     for line in file.lines() {
