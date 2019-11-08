@@ -263,45 +263,48 @@ fn main() {
     if fileoutput{
         nonce_bar.inc(1);
     }
-    let nonces: &mut HashMap<String, String> = &mut HashMap::new();
     let manifest_map: &mut HashMap<String, ManifestLine> = &mut HashMap::new();
-    while manifest_line != SEPARATOR_LINE {
-        parse_next_manifest_line(
-            &manifest_line,
-            &mut type_of_line,
-            &mut file_name_line,
-            &mut bytes_line,
-            &mut time_line,
-            &mut hash_line,
-            &mut nonce_line,
-            &mut sign_line,
-        );
+    { //This is here to scope and free up nonce hash
+        let nonces: &mut HashMap<String, String> = &mut HashMap::new();
 
-        report_duplicatve_and_insert_nonce(
-            nonces,
-            nonce_line.clone(),
-            file_name_line.clone(),
-            &check_tx,
-        );
+        while manifest_line != SEPARATOR_LINE {
+            parse_next_manifest_line(
+                &manifest_line,
+                &mut type_of_line,
+                &mut file_name_line,
+                &mut bytes_line,
+                &mut time_line,
+                &mut hash_line,
+                &mut nonce_line,
+                &mut sign_line,
+            );
 
-        let manifist_struct = ManifestLine {
-            file_type: type_of_line.clone(),
-            bytes: bytes_line.clone(),
-            time: time_line.clone(),
-            hash: hash_line.clone(),
-            nonce: nonce_line.clone(),
-            sign: sign_line.clone(),
-        };
-        manifest_map.insert(file_name_line.clone(), manifist_struct);
+            report_duplicatve_and_insert_nonce(
+                nonces,
+                nonce_line.clone(),
+                file_name_line.clone(),
+                &check_tx,
+            );
 
-        manifest_line = get_next_manifest_line(
-            manifest_line,
-            &mut vec_of_lines,
-            &mut file_hash_context,
-            &mut file_len,
-        );
-        if fileoutput {
-            nonce_bar.inc(1);
+            let manifist_struct = ManifestLine {
+                file_type: type_of_line.clone(),
+                bytes: bytes_line.clone(),
+                time: time_line.clone(),
+                hash: hash_line.clone(),
+                nonce: nonce_line.clone(),
+                sign: sign_line.clone(),
+            };
+            manifest_map.insert(file_name_line.clone(), manifist_struct);
+
+            manifest_line = get_next_manifest_line(
+                manifest_line,
+                &mut vec_of_lines,
+                &mut file_hash_context,
+                &mut file_len,
+            );
+            if fileoutput {
+                nonce_bar.inc(1);
+            }
         }
     }
 
