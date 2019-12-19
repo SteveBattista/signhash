@@ -236,7 +236,7 @@ fn main() {
     let tokens: Vec<&str> = hash_line.split(TOKEN_SEPARATOR).collect();
     send_check_message(
         PRINT_MESSAGE,
-        format!("Hash used|{}", tokens[1]).to_string(),
+        format!("Hash used|{}", tokens[1]),
         true,
         &check_tx,
     );

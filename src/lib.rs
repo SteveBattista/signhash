@@ -91,10 +91,9 @@ pub fn report_duplicatve_and_insert_nonce<S: BuildHasher>(
                 PRINT_MESSAGE,
                 format!(
                     "Failure|{}|and|{}|share the same nonce.\n",
-                    nonce.clone(),
+                    nonce,
                     answer
-                )
-                .to_string(),
+                ),
                 false,
                 &check_tx,
             );
