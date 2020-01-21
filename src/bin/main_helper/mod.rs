@@ -390,7 +390,7 @@ pub fn dump_header(header_file: &str) -> String {
     contents
 }
 
-/*pub fn var_digest<R: Read>(mut reader: R, mut hasher: HasherOptions) -> Vec<u8> {
+pub fn var_digest<R: Read>(mut reader: R, mut hasher: HasherOptions) -> Vec<u8> {
 
     let mut buffer = [0; (HASH_READ_BUFFER_IN_BYTES / BITS_IN_BYTES)];
 
@@ -405,7 +405,7 @@ pub fn dump_header(header_file: &str) -> String {
         hasher = hasher.update(&buffer[..count]);
     }
     hasher.finish()
-} */
+}
 
 pub fn check_line(
     path: String,
@@ -420,7 +420,7 @@ pub fn check_line(
     let path3 = path.clone();
     let path4 = path.clone();
     let data: String;
-    let input: File;
+    //let input: File;
     let digest_str: String;
     if manifest_only {
         data = format!(
@@ -489,10 +489,12 @@ pub fn check_line(
                     } else {
                         line_type = format!("Uknown{}", postfix);
                     }
-                    input = match File::open(path3) {
+                     match File::open(path3) {
                         Ok(input) => input,
                         Err(why) => panic!("Couldn't open file|{}|{}", path4, why.description()),
                     };
+                    //let reader = BufReader::new(input);
+                    //let digest = var_digest(reader, hasher.clone());
                     let digest = hash_file(&hasher,OsStr::new(&path4));
                     digest_str = HEXUPPER.encode(&digest.as_ref());
                 }
@@ -510,7 +512,7 @@ pub fn check_line(
                     digest_str == manifest_struct.hash,
                     format!("Correct|{}|Hash check passed.\n", path4),
                     format!(
-                        "Failure|{}|Hash type check failed|{}|{}.\n",
+                        "Failure|{}|Hash check failed|{}|{}.\n",
                         path4, manifest_struct.hash, digest_str
                     ),
                     &check_tx,
@@ -622,13 +624,12 @@ pub fn create_line(
                 postfix = "";
             }
             let datetime: DateTime<Utc> = datetime.into();
-            let input: File;
             let digest_str: String;
             if metadata.is_dir() {
                 line_type = format!("Dir{}", postfix);
                 digest_str = NO_HASH.to_string();
             } else if metadata.is_file() {
-                input = match File::open(path3) {
+                match File::open(path3) {
                     Ok(input) => input,
                     Err(why) => panic!("Couldn't open file|{}|{}", path4, why.description()),
                 };

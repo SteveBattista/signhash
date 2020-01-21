@@ -15,19 +15,19 @@ use anyhow::Result;
 
 #[derive(Clone)]
 pub enum HasherEnum {
-    Blake3Hasher (Hasher),
-    SHADigest ( Context),
+    Blake3Hasher (Box<Hasher>),
+    SHADigest ( Box<Context>),
 }
 
 impl HasherEnum {
     pub fn new( hash_type : &str)-> Self{
         match hash_type {
-            "blake3" => HasherEnum::Blake3Hasher(blake3::Hasher::new()),
-            "128" => HasherEnum::SHADigest(Context::new(&SHA1_FOR_LEGACY_USE_ONLY)),
-            "256" => HasherEnum::SHADigest(Context::new(&SHA256)),
-            "384" => HasherEnum::SHADigest(Context::new(&SHA384)),
-            "512" => HasherEnum::SHADigest(Context::new(&SHA512)),
-            "512_256" => HasherEnum::SHADigest(Context::new(&SHA512_256)),
+            "blake3" => HasherEnum::Blake3Hasher(Box::new(blake3::Hasher::new())),
+            "128" => HasherEnum::SHADigest(Box::new(Context::new(&SHA1_FOR_LEGACY_USE_ONLY))),
+            "256" => HasherEnum::SHADigest(Box::new(Context::new(&SHA256))),
+            "384" => HasherEnum::SHADigest(Box::new(Context::new(&SHA384))),
+            "512" => HasherEnum::SHADigest(Box::new(Context::new(&SHA512))),
+            "512_256" => HasherEnum::SHADigest(Box::new(Context::new(&SHA512_256))),
             _ => panic!("Incorrect hash string input.")
         }
     }
@@ -56,37 +56,37 @@ impl HasherOptions{
         match hash_type {
             "blake3" => {
                 hasherinstance = HasherOptions {
-                    hasher: HasherEnum::Blake3Hasher(blake3::Hasher::new()),
+                    hasher: HasherEnum::Blake3Hasher(Box::new(blake3::Hasher::new())),
                     id : AlgorithmID::BLAKE3,
                 }
             }
             "128" => {
                 hasherinstance = HasherOptions {
-                    hasher : HasherEnum::SHADigest(Context::new(&SHA1_FOR_LEGACY_USE_ONLY)),
+                    hasher : HasherEnum::SHADigest(Box::new(Context::new(&SHA1_FOR_LEGACY_USE_ONLY))),
                     id : AlgorithmID::SHA1,
                 }
             }
             "256" => {
                 hasherinstance = HasherOptions {
-                    hasher : HasherEnum::SHADigest(Context::new(&SHA256)),
+                    hasher : HasherEnum::SHADigest(Box::new(Context::new(&SHA256))),
                     id : AlgorithmID::SHA256,
                 }
             }
             "384" => {
                 hasherinstance = HasherOptions {
-                    hasher : HasherEnum::SHADigest(Context::new(&SHA384)),
+                    hasher : HasherEnum::SHADigest(Box::new(Context::new(&SHA384))),
                     id : AlgorithmID::SHA384,
                 }
             }
             "512" => {
                 hasherinstance = HasherOptions {
-                    hasher :  HasherEnum::SHADigest(Context::new(&SHA512)),
+                    hasher :  HasherEnum::SHADigest(Box::new(Context::new(&SHA512))),
                     id : AlgorithmID::SHA512,
                 }
             }
             "512_256" => {
                 hasherinstance = HasherOptions {
-                    hasher : HasherEnum::SHADigest(Context::new(&SHA512_256)),
+                    hasher : HasherEnum::SHADigest(Box::new(Context::new(&SHA512_256))),
                     id : AlgorithmID::SHA512_256,
                 }
             }
@@ -117,12 +117,12 @@ pub fn len(&self) -> usize{
     }
 }
 
-    pub fn return_hash <'a> (self, input : &[u8]) -> Vec<u8>{
+    pub fn return_hash (self, input : &[u8]) -> Vec<u8>{
         let answer: Vec<u8>;
 
         match self.hasher {
             HasherEnum::Blake3Hasher(mut hasher) =>{
-                &hasher.update(input);
+                hasher.update(input);
                 let temp_hasher = hasher.finalize();
                 answer = temp_hasher.as_bytes()[..].to_vec();
             },
@@ -135,7 +135,7 @@ pub fn len(&self) -> usize{
         answer
     }
 
-    pub fn finish <'a> (self) -> Vec<u8>{
+    pub fn finish (self) -> Vec<u8>{
         let answer: Vec<u8>;
 
         match self.hasher {
@@ -151,7 +151,7 @@ pub fn len(&self) -> usize{
         answer
     }
 
-    pub fn update<'a> (self, input : &[u8]) -> Self{
+    pub fn update (self, input : &[u8]) -> Self{
         let hasherenum = self.hasher;
            match hasherenum{
                HasherEnum::Blake3Hasher(mut hasher) =>{
@@ -177,16 +177,8 @@ pub fn len(&self) -> usize{
 fn maybe_memmap_file(file: &File) -> Result<Option<memmap::Mmap>> {
     let metadata = file.metadata()?;
     let file_size = metadata.len();
-    Ok(if !metadata.is_file() {
+    Ok(if !metadata.is_file() || file_size > isize::max_value() as u64 || file_size == 0 {
         // Not a real file.
-        None
-    } else if file_size > isize::max_value() as u64 {
-        // Too long to safely map.
-        // https://github.com/danburkert/memmap-rs/issues/69
-        None
-    } else if file_size == 0 {
-        // Mapping an empty file currently fails.
-        // https://github.com/danburkert/memmap-rs/issues/72
         None
     } else {
         // Explicitly set the length of the memory map, so that filesystem
@@ -222,7 +214,7 @@ pub fn hash_file(
         output // the fast path
     } else {
         // the slow path
-        println!("slow");
+        //println!("slow");
         hash_reader(&base_hasher, file)
     }
 }

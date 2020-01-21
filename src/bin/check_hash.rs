@@ -184,10 +184,10 @@ fn main() {
     if fileoutput{
         nonce_bar.inc(1);
     }
-
-    let tokens: Vec<&str> = hash_line.split(TOKEN_SEPARATOR).collect();
-    let mut hasher = HasherOptions::new(tokens[1]);
-
+    let hash_clone = hash_line.clone();
+    let hashvec: Vec<&str> = hash_clone.split(TOKEN_SEPARATOR).collect();
+    let mut hasher_option = HasherOptions::new(hashvec[1]);
+    let mut hasher= HasherOptions::new(hashvec[1]);
     let mut file_len: usize = 0;
 
     version_line += "\n";
@@ -234,10 +234,10 @@ fn main() {
         &check_tx,
     );
 
-    let tokens: Vec<&str> = hash_line.split(TOKEN_SEPARATOR).collect();
+    //let tokens: Vec<&str> = hash_line.split(TOKEN_SEPARATOR).collect();
     send_check_message(
         PRINT_MESSAGE,
-        format!("Hash used|{}", tokens[1]),
+        format!("Hash used|{}\n",hashvec[1]),
         true,
         &check_tx,
     );
@@ -339,7 +339,7 @@ fn main() {
             while !(manifest_map.is_empty()) {
                 for (file_line, manifest_structure) in manifest_map.drain() {
                     let thread_tx = check_tx.clone();
-                    let thread_hasher = hasher.clone();
+                    let thread_hasher = hasher_option.clone();
                     scoped.execute(move || {
                         check_line(
                             file_line,
@@ -356,7 +356,7 @@ fn main() {
         for file in inputfiles {
             match manifest_map.remove(&file) {
                 Some(file_line) => {
-                    let thread_hasher = hasher.clone();
+                    let thread_hasher = hasher_option.clone();
                     let thread_tx = check_tx.clone();
                     scoped.execute(move || {
                         check_line(
