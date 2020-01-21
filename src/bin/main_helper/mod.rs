@@ -1,4 +1,7 @@
-#![forbid(unsafe_code)]
+
+
+use crate::hash_helper::hash_file;
+use crate::hash_helper::HasherOptions;
 
 use data_encoding::HEXUPPER;
 use rand::prelude::ThreadRng;
@@ -7,8 +10,8 @@ use std::hash::BuildHasher;
 
 use chrono::{DateTime, Utc};
 
-use ring::digest::{Algorithm, Context, Digest};
-use ring::digest::{SHA1_FOR_LEGACY_USE_ONLY, SHA256, SHA384, SHA512, SHA512_256};
+//use ring::digest::{Algorithm, Context, Digest};
+//use ring::digest::{SHA1_FOR_LEGACY_USE_ONLY, SHA256, SHA384, SHA512, SHA512_256};
 use std::collections::BTreeMap;
 use std::collections::HashMap;
 
@@ -18,6 +21,7 @@ use std::fs::File;
 use std::io::BufRead;
 use std::io::Write;
 use std::io::{BufReader, Read};
+use std::ffi::OsStr;
 
 use std::time::Instant;
 
@@ -37,7 +41,7 @@ pub const PUBLICKEY_LENGTH_IN_BYTES: usize = 256;
 pub const SIGNED_LENGTH_IN_BYTES: usize = 512;
 pub const BITS_IN_BYTES: usize = 8;
 
-const HASH_READ_BUFFER_IN_BYTES: usize = 4096; //Empirical test finds this faster than 8192
+pub const HASH_READ_BUFFER_IN_BYTES: usize = 4096; //Empirical test finds this faster than 8192
 pub const SEPARATOR_LINE: &str =
     "********************************************************************************"; //80 stars
 const NO_HASH: &str = "0";
@@ -183,7 +187,7 @@ pub fn write_line(wherefile: &mut Whereoutput, data: String) {
 
 pub fn write_manifest_from_channel(
     num_lines: usize,
-    hashalgo: &'static Algorithm,
+    mut hasher: HasherOptions,
     private_key_bytes: &[u8],
     rx: std::sync::mpsc::Receiver<SignMessage>,
     start: Instant,
@@ -191,7 +195,7 @@ pub fn write_manifest_from_channel(
     progress_bar: &ProgressBar,
     fileoutput: bool,
 ) {
-    let mut context = Context::new(hashalgo);
+
     let mut byte_count = 0;
     let mut data: String;
     let mut total_file_len: u64 = 0;
@@ -217,7 +221,7 @@ pub fn write_manifest_from_channel(
         data = message.text.to_string();
         byte_count += data.len();
 
-        context.update(data.as_bytes());
+        hasher = hasher.update(data.as_bytes());
         total_file_len += message.file_len;
         write_line(&mut wherefile, data);
         if x > SIGN_HEADER_MESSAGE_COUNT && fileoutput {
@@ -226,14 +230,14 @@ pub fn write_manifest_from_channel(
     }
     let mut data = SEPARATOR_LINE.to_owned() + "\n";
     byte_count += data.len();
-    context.update(data.as_bytes());
+    hasher = hasher.update(data.as_bytes());
 
     write_line(&mut wherefile, data);
 
     let duration = start.elapsed();
     data = format!("Time elapsed was|{:?}\n", duration);
     byte_count += data.len();
-    context.update(data.as_bytes());
+    hasher = hasher.update(data.as_bytes());
     write_line(&mut wherefile, data);
 
     data = format!(
@@ -241,7 +245,7 @@ pub fn write_manifest_from_channel(
         num_lines - SIGN_HEADER_MESSAGE_COUNT
     );
     byte_count += data.len();
-    context.update(data.as_bytes());
+    hasher = hasher.update(data.as_bytes());
     write_line(&mut wherefile, data);
 
     data = format!(
@@ -249,7 +253,7 @@ pub fn write_manifest_from_channel(
         HumanBytes(total_file_len)
     );
     byte_count += data.len();
-    context.update(data.as_bytes());
+    hasher = hasher.update(data.as_bytes());
     write_line(&mut wherefile, data);
 
     data = format!(
@@ -257,7 +261,7 @@ pub fn write_manifest_from_channel(
         HumanBytes((((total_file_len as f64) * 1000.0) / (duration.as_millis() as f64)) as u64)
     );
     byte_count += data.len();
-    context.update(data.as_bytes());
+    hasher = hasher.update(data.as_bytes());
     write_line(&mut wherefile, data);
 
     data = format!(
@@ -267,7 +271,7 @@ pub fn write_manifest_from_channel(
         )
     );
     byte_count += data.len();
-    context.update(data.as_bytes());
+    hasher = hasher.update(data.as_bytes());
     write_line(&mut wherefile, data);
 
     let mut nonce_bytes: [u8; (NONCE_LENGTH_IN_BYTES / BITS_IN_BYTES)] =
@@ -282,14 +286,14 @@ pub fn write_manifest_from_channel(
     }
     data = format!("Nonce for file|{}\n", HEXUPPER.encode(&nonce_bytes));
     byte_count += data.len();
-    context.update(data.as_bytes());
+    hasher = hasher.update(data.as_bytes());
     write_line(&mut wherefile, data);
 
     data = format!("Sum of size of file so far is|{:?}\n", byte_count);
-    context.update(data.as_bytes());
+    hasher = hasher.update(data.as_bytes());
     write_line(&mut wherefile, data);
 
-    let digest = context.finish();
+    let digest = hasher.finish();
     data = format!(
         "Hash of file so far|{}\n",
         HEXUPPER.encode(&digest.as_ref())
@@ -307,7 +311,7 @@ pub fn write_manifest_from_channel(
     }
 }
 
-pub fn parse_hash_manifest_line(line: String) -> &'static Algorithm {
+/*pub fn parse_hash_manifest_line(line: String) -> &'static Algorithm {
     let tokens: Vec<&str> = line.split(TOKEN_SEPARATOR).collect();
     match tokens[1] {
         "128" => &SHA1_FOR_LEGACY_USE_ONLY,
@@ -320,7 +324,7 @@ pub fn parse_hash_manifest_line(line: String) -> &'static Algorithm {
         }
     }
 }
-
+*/
 fn sign_data(data: &str, private_key_bytes: &[u8]) -> ring::signature::Signature {
     let key_pair = match ring::signature::Ed25519KeyPair::from_pkcs8(private_key_bytes) {
         Ok(key_pair) => key_pair,
@@ -386,8 +390,8 @@ pub fn dump_header(header_file: &str) -> String {
     contents
 }
 
-pub fn var_digest<R: Read>(mut reader: R, hashalgo: &'static Algorithm) -> Digest {
-    let mut context = Context::new(hashalgo);
+/*pub fn var_digest<R: Read>(mut reader: R, mut hasher: HasherOptions) -> Vec<u8> {
+
     let mut buffer = [0; (HASH_READ_BUFFER_IN_BYTES / BITS_IN_BYTES)];
 
     loop {
@@ -398,14 +402,14 @@ pub fn var_digest<R: Read>(mut reader: R, hashalgo: &'static Algorithm) -> Diges
         if count == 0 {
             break;
         }
-        context.update(&buffer[..count]);
+        hasher = hasher.update(&buffer[..count]);
     }
-    context.finish()
-}
+    hasher.finish()
+} */
 
 pub fn check_line(
     path: String,
-    hashalgo: &'static Algorithm,
+    hasher: HasherOptions,
     manifest_struct: ManifestLine,
     public_key_bytes: &[u8],
     check_tx: std::sync::mpsc::Sender<CheckMessage>,
@@ -489,8 +493,7 @@ pub fn check_line(
                         Ok(input) => input,
                         Err(why) => panic!("Couldn't open file|{}|{}", path4, why.description()),
                     };
-                    let reader = BufReader::new(input);
-                    let digest = var_digest(reader, hashalgo);
+                    let digest = hash_file(&hasher,OsStr::new(&path4));
                     digest_str = HEXUPPER.encode(&digest.as_ref());
                 }
                 send_pass_fail_check_message(
@@ -577,7 +580,7 @@ pub fn check_line(
 
 pub fn create_line(
     path: String,
-    hashalgo: &'static Algorithm,
+    hasher: HasherOptions,
     nonce_bytes: &[u8],
     private_key_bytes: &[u8],
     sign_tx: std::sync::mpsc::Sender<SignMessage>,
@@ -629,8 +632,9 @@ pub fn create_line(
                     Ok(input) => input,
                     Err(why) => panic!("Couldn't open file|{}|{}", path4, why.description()),
                 };
-                let reader = BufReader::new(input);
-                let digest = var_digest(reader, hashalgo);
+                //let reader = BufReader::new(input);
+                //let digest = var_digest(reader, hasher.clone());
+                let digest = hash_file(&hasher,OsStr::new(&path4));
                 digest_str = HEXUPPER.encode(&digest.as_ref());
                 line_type = format!("File{}", postfix);
             } else {
@@ -806,17 +810,17 @@ pub fn read_manifest_file(vec_of_lines: &mut Vec<String>, input_file: &str, file
     }
 }
 
-pub fn get_next_manifest_line(
+/*pub fn get_next_manifest_line(
     mut manifest_line: String,
     vec_of_lines: &mut Vec<String>,
-    context: &mut Context,
+    hasher: &mut HasherOptions,
     file_len: &mut usize,
 ) -> String {
     manifest_line += "\n";
-    context.update(manifest_line.as_bytes());
+    *hasher = hasher.update(manifest_line.as_bytes());
     *file_len += manifest_line.len();
     vec_of_lines.remove(0)
-}
+} */
 
 pub fn parse_next_manifest_line(
     manifest_line: &str,

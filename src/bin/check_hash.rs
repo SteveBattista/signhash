@@ -1,28 +1,31 @@
-#![forbid(unsafe_code)]
+mod main_helper;
+mod hash_helper;
 
-use signhash::SIGN_HEADER_MESSAGE_COUNT;
-use signhash::check_line;
-use signhash::get_next_manifest_line;
-use signhash::parse_hash_manifest_line;
-use signhash::parse_next_manifest_line;
-use signhash::read_manifest_file;
-use signhash::read_public_key;
-use signhash::report_duplicatve_and_insert_nonce;
-use signhash::send_check_message;
-use signhash::send_pass_fail_check_message;
-use signhash::write_check_from_channel;
-use signhash::CheckMessage;
-use signhash::ManifestLine;
-use signhash::BITS_IN_BYTES;
-use signhash::DEFAULT_MANIFEST_FILE_NAME;
-use signhash::DEFAULT_PUBIC_KEY_FILE_NAME;
-use signhash::END_MESSAGE;
-use signhash::PRINT_MESSAGE;
-use signhash::PUBLICKEY_LENGTH_IN_BYTES;
-use signhash::PWD;
-use signhash::SEPARATOR_LINE;
-use signhash::SIGNED_LENGTH_IN_BYTES;
-use signhash::TOKEN_SEPARATOR;
+use main_helper::SIGN_HEADER_MESSAGE_COUNT;
+use main_helper::check_line;
+//use main_helper::get_next_manifest_line;
+//use main_helper::parse_hash_manifest_line;
+use main_helper::parse_next_manifest_line;
+use main_helper::read_manifest_file;
+use main_helper::read_public_key;
+use main_helper::report_duplicatve_and_insert_nonce;
+use main_helper::send_check_message;
+use main_helper::send_pass_fail_check_message;
+use main_helper::write_check_from_channel;
+use main_helper::CheckMessage;
+use main_helper::ManifestLine;
+use main_helper::BITS_IN_BYTES;
+use main_helper::DEFAULT_MANIFEST_FILE_NAME;
+use main_helper::DEFAULT_PUBIC_KEY_FILE_NAME;
+use main_helper::END_MESSAGE;
+use main_helper::PRINT_MESSAGE;
+use main_helper::PUBLICKEY_LENGTH_IN_BYTES;
+use main_helper::PWD;
+use main_helper::SEPARATOR_LINE;
+use main_helper::SIGNED_LENGTH_IN_BYTES;
+use main_helper::TOKEN_SEPARATOR;
+
+use crate::hash_helper::HasherOptions;
 
 use scoped_threadpool::Pool;
 use std::collections::HashMap;
@@ -37,7 +40,7 @@ use data_encoding::HEXUPPER;
 
 use clap::{App, Arg};
 
-use ring::digest::Context;
+//use ring::digest::Context;
 
 use indicatif::ProgressBar;
 use indicatif::ProgressStyle;
@@ -181,33 +184,31 @@ fn main() {
     if fileoutput{
         nonce_bar.inc(1);
     }
-    let hashalgo = parse_hash_manifest_line(hash_line.clone());
 
-    let mut file_hash_context = Context::new(hashalgo);
+    let tokens: Vec<&str> = hash_line.split(TOKEN_SEPARATOR).collect();
+    let mut hasher = HasherOptions::new(tokens[1]);
 
     let mut file_len: usize = 0;
 
     version_line += "\n";
-    file_hash_context.update(version_line.as_bytes());
+    hasher = hasher.update(version_line.as_bytes());
     file_len += version_line.len();
 
     command_line += "\n";
-    file_hash_context.update(command_line.as_bytes());
+    hasher = hasher.update(command_line.as_bytes());
     file_len += command_line.len();
 
     hash_line += "\n";
-    file_hash_context.update(hash_line.as_bytes());
+    hasher = hasher.update(hash_line.as_bytes());
     file_len += hash_line.len();
 
     let mut manifest_line = vec_of_lines.remove(0);
 
     while manifest_line != SEPARATOR_LINE {
-        manifest_line = get_next_manifest_line(
-            manifest_line,
-            &mut vec_of_lines,
-            &mut file_hash_context,
-            &mut file_len,
-        );
+        manifest_line += "\n";
+        hasher = hasher.update(manifest_line.as_bytes());
+        file_len += manifest_line.len();
+        manifest_line= vec_of_lines.remove(0);
         if fileoutput {
          nonce_bar.inc(1);
         }
@@ -254,12 +255,10 @@ fn main() {
     let mut nonce_line = String::new();
     let mut hash_line = String::new();
     let mut sign_line = String::new();
-    manifest_line = get_next_manifest_line(
-        manifest_line,
-        &mut vec_of_lines,
-        &mut file_hash_context,
-        &mut file_len,
-    );
+    manifest_line += "\n";
+    hasher = hasher.update(manifest_line.as_bytes());
+    file_len += manifest_line.len();
+    manifest_line= vec_of_lines.remove(0);
     if fileoutput{
         nonce_bar.inc(1);
     }
@@ -296,12 +295,11 @@ fn main() {
             };
             manifest_map.insert(file_name_line.clone(), manifist_struct);
 
-            manifest_line = get_next_manifest_line(
-                manifest_line,
-                &mut vec_of_lines,
-                &mut file_hash_context,
-                &mut file_len,
-            );
+            manifest_line += "\n";
+            hasher = hasher.update(manifest_line.as_bytes());
+            file_len += manifest_line.len();
+            manifest_line= vec_of_lines.remove(0);
+
             if fileoutput {
                 nonce_bar.inc(1);
             }
@@ -341,10 +339,11 @@ fn main() {
             while !(manifest_map.is_empty()) {
                 for (file_line, manifest_structure) in manifest_map.drain() {
                     let thread_tx = check_tx.clone();
+                    let thread_hasher = hasher.clone();
                     scoped.execute(move || {
                         check_line(
                             file_line,
-                            hashalgo,
+                            thread_hasher,
                             manifest_structure,
                             &public_key_bytes,
                             thread_tx,
@@ -357,11 +356,12 @@ fn main() {
         for file in inputfiles {
             match manifest_map.remove(&file) {
                 Some(file_line) => {
+                    let thread_hasher = hasher.clone();
                     let thread_tx = check_tx.clone();
                     scoped.execute(move || {
                         check_line(
                             file,
-                            hashalgo,
+                            thread_hasher,
                             file_line,
                             &public_key_bytes,
                             thread_tx,
@@ -402,16 +402,14 @@ fn main() {
     }
 
     for _x in 0..NUMBRER_OF_LINES_UNTIL_FILE_LEN_MESSAGE {
-        manifest_line = get_next_manifest_line(
-            manifest_line,
-            &mut vec_of_lines,
-            &mut file_hash_context,
-            &mut file_len,
-        );
+        manifest_line += "\n";
+        hasher = hasher.update(manifest_line.as_bytes());
+        file_len += manifest_line.len();
+        manifest_line= vec_of_lines.remove(0);
     }
 
     manifest_line += "\n";
-    file_hash_context.update(manifest_line.as_bytes());
+    hasher = hasher.update(manifest_line.as_bytes());
 
     let tokens: Vec<&str> = manifest_line.split(TOKEN_SEPARATOR).collect();
     send_pass_fail_check_message(
@@ -425,7 +423,7 @@ fn main() {
         &check_tx,
     );
 
-    let digest = file_hash_context.finish();
+    let digest = hasher.finish();
     let digest_text = HEXUPPER.encode(&digest.as_ref());
     manifest_line = vec_of_lines.remove(0);
     let tokens: Vec<&str> = manifest_line.split(TOKEN_SEPARATOR).collect();

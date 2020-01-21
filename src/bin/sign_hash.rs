@@ -1,21 +1,25 @@
-#![forbid(unsafe_code)]
 
-use signhash::create_keys;
-use signhash::create_line;
-use signhash::provide_unique_nonce;
-use signhash::write_headers;
-use signhash::write_key;
-use signhash::write_manifest_from_channel;
-use signhash::SignMessage;
-use signhash::BITS_IN_BYTES;
-use signhash::DEFAULT_PUBIC_KEY_FILE_NAME;
-use signhash::NONCE_LENGTH_IN_BYTES;
-use signhash::NO_OUTPUTFILE;
-use signhash::PRIVATEKEY_LENGTH_IN_BYTES;
-use signhash::PUBIC_KEY_STRING_ED25519;
-use signhash::PUBLICKEY_LENGTH_IN_BYTES;
-use signhash::PWD;
-use signhash::SIGN_HEADER_MESSAGE_COUNT;
+mod main_helper;
+mod hash_helper;
+
+use crate::main_helper::create_keys;
+use crate::main_helper::create_line;
+use crate::main_helper::provide_unique_nonce;
+use crate::main_helper::write_headers;
+use crate::main_helper::write_key;
+use crate::main_helper::write_manifest_from_channel;
+use crate::main_helper::SignMessage;
+use crate::main_helper::BITS_IN_BYTES;
+use crate::main_helper::DEFAULT_PUBIC_KEY_FILE_NAME;
+use crate::main_helper::NONCE_LENGTH_IN_BYTES;
+use crate::main_helper::NO_OUTPUTFILE;
+use crate::main_helper::PRIVATEKEY_LENGTH_IN_BYTES;
+use crate::main_helper::PUBIC_KEY_STRING_ED25519;
+use crate::main_helper::PUBLICKEY_LENGTH_IN_BYTES;
+use crate::main_helper::PWD;
+use crate::main_helper::SIGN_HEADER_MESSAGE_COUNT;
+
+use crate::hash_helper::HasherOptions;
 
 use scoped_threadpool::Pool;
 use std::convert::TryInto;
@@ -26,7 +30,7 @@ use std::thread;
 use chrono::{DateTime, Utc};
 use clap::{App, Arg};
 
-use ring::digest::{Algorithm, SHA1_FOR_LEGACY_USE_ONLY, SHA256, SHA384, SHA512, SHA512_256};
+//use ring::digest::{Algorithm, SHA1_FOR_LEGACY_USE_ONLY, SHA256, SHA384, SHA512, SHA512_256};
 
 use std::collections::HashMap;
 use std::env;
@@ -54,8 +58,8 @@ fn main() {
     .arg(Arg::with_name("hash")
        .short("a")
        .long("hash")
-       .value_name("128| 256 | 384 | 512 | 512_256")
-       .help("Chooses what hash algorithm to use SHA1 -> (128), SHA256->(256), SHA384->(384), SHA512->(512) or SHA512_256->(512_256). Default is SHA256. SHA512 for files is faster than SHA256 by about 30%. Please don't use SHA1 unless you are using it to line up with threat intelligence.")
+       .value_name("128| 256 | 384 | 512 | 512_256 | blake3")
+       .help("Chooses what hash algorithm to use SHA1 -> (128), SHA256->(256), SHA384->(384), SHA512->(512), SHA512_256->(512_256) or blake3->(blake3). Default is SHA256. SHA512 for files is faster than SHA256 by about 30%. Please don't use SHA1 unless you are using it to line up with threat intelligence.")
        .takes_value(true))
     .arg(Arg::with_name("signing")
         .short("s")
@@ -79,7 +83,7 @@ fn main() {
         .short("p")
         .long("pool")
         .value_name("#")
-        .help("Sets the size of the pool of maximum number of concurrent threads when hashing. Default is number of CPU cores. Negative numbers set pool to default. Warning: Large numbers (> 60) may cause the program not to hash all files.")
+        .help("Sets the size of the pool of maximum number of concurrent threads when hashing. Default is number of CPU cores. Negative numbers set pool to default. This does not include addtional threads genreated when using blake3. Warning: Large numbers (> 60) may cause the program not to hash all files.")
         .takes_value(true))
     .arg(Arg::with_name("include")
         .short("i")
@@ -95,18 +99,9 @@ fn main() {
         .takes_value(true))
     .get_matches();
 
-    let hashalgo: &Algorithm;
     let inputhash = matches.value_of("hash").unwrap_or("256");
-    match inputhash {
-        "128" => hashalgo = &SHA1_FOR_LEGACY_USE_ONLY,
-        "256" => hashalgo = &SHA256,
-        "384" => hashalgo = &SHA384,
-        "512" => hashalgo = &SHA512,
-        "512_256" => hashalgo = &SHA512_256,
-        _ => {
-            panic!("Please choose 128, 256, 384, 512 or 512_256 for type of SHA hash.");
-        }
-    }
+    let hasher_option = HasherOptions::new(inputhash);
+
     let signing = matches.value_of("signing").unwrap_or("ED25519");
     match signing {
         "ED25519" => (),
@@ -195,12 +190,13 @@ fn main() {
         );
     }
     let num_files = inputfiles.len();
+    let thread_hasher_option = hasher_option.clone();
     let writer_child = thread::Builder::new()
         .name("Writer".to_string())
         .spawn(move || {
             write_manifest_from_channel(
                 num_files + SIGN_HEADER_MESSAGE_COUNT,
-                hashalgo,
+                thread_hasher_option,
                 &private_key_bytes,
                 sign_rx,
                 start,
@@ -215,11 +211,12 @@ fn main() {
         stdout().flush().unwrap();
         for file in inputfiles {
             let thread_tx = sign_tx.clone();
+            let thread_hasher_option = hasher_option.clone();
             provide_unique_nonce(&mut nonce_bytes, &mut nonces, rand::thread_rng());
             scoped.execute(move || {
                 create_line(
                     file.to_string(),
-                    hashalgo,
+                    thread_hasher_option,
                     &nonce_bytes,
                     &private_key_bytes,
                     thread_tx,
