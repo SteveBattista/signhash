@@ -223,7 +223,6 @@ fn hash_reader(
     base_hasher: &HasherOptions,
     mut reader: impl Read,
 ) -> Vec<u8> {
-    let local_hasher = base_hasher.clone();
     // TODO: This is a narrow copy, so it might not take advantage of SIMD or
     // threads. With a larger buffer size, most of that performance can be
     // recovered. However, this requires some platform-specific tuning, based
@@ -232,8 +231,7 @@ fn hash_reader(
     // input into one buffer while another thread is calling update() on a
     // second buffer. Since this is the slow path anyway, do the simple thing
     // for now.
-
-    let mut buffer = [0; (HASH_READ_BUFFER_IN_BYTES / BITS_IN_BYTES)];
+    let local_hasher = base_hasher.clone();
     let id = base_hasher.id.clone();
     let hasherenum = local_hasher.hasher;
        let newhasher_option = match hasherenum{
@@ -245,6 +243,7 @@ fn hash_reader(
                }
            },
            HasherEnum::SHADigest(mut digest) => {
+               let mut buffer = [0; (HASH_READ_BUFFER_IN_BYTES / BITS_IN_BYTES)];
                loop {
                    let count = match reader.read(&mut buffer) {
                        Ok(count) => count,
@@ -261,6 +260,5 @@ fn hash_reader(
                 }
             }
     };
-
     newhasher_option.finish()
 }
