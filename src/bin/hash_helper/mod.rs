@@ -223,7 +223,7 @@ fn hash_reader(
     base_hasher: &HasherOptions,
     mut reader: impl Read,
 ) -> Vec<u8> {
-    let mut hasher = base_hasher.clone();
+    let local_hasher = base_hasher.clone();
     // TODO: This is a narrow copy, so it might not take advantage of SIMD or
     // threads. With a larger buffer size, most of that performance can be
     // recovered. However, this requires some platform-specific tuning, based
@@ -232,18 +232,35 @@ fn hash_reader(
     // input into one buffer while another thread is calling update() on a
     // second buffer. Since this is the slow path anyway, do the simple thing
     // for now.
-    //std::io::copy(&mut reader, &mut hasher).unwrap();
-    let mut buffer = [0; (HASH_READ_BUFFER_IN_BYTES / BITS_IN_BYTES)];
 
-    loop {
-        let count = match reader.read(&mut buffer) {
-            Ok(count) => count,
-            Err(why) => panic!("Couldn't load data from file to hash|{}", why.description()),
-        };
-        if count == 0 {
-            break;
-        }
-        hasher = hasher.update(&buffer[..count]);
-    }
-    hasher.finish()
+    let mut buffer = [0; (HASH_READ_BUFFER_IN_BYTES / BITS_IN_BYTES)];
+    let id = base_hasher.id.clone();
+    let hasherenum = local_hasher.hasher;
+       let newhasher_option = match hasherenum{
+           HasherEnum::Blake3Hasher(mut hasher) =>{
+             std::io::copy(&mut reader, &mut hasher).unwrap();
+              HasherOptions {
+                   hasher :  HasherEnum::Blake3Hasher(hasher),
+                   id : id,
+               }
+           },
+           HasherEnum::SHADigest(mut digest) => {
+               loop {
+                   let count = match reader.read(&mut buffer) {
+                       Ok(count) => count,
+                       Err(why) => panic!("Couldn't load data from file to hash|{}", why.description()),
+                   };
+                   if count == 0 {
+                       break;
+                   }
+                   digest.update(&buffer[..count]);
+               }
+               HasherOptions {
+                    hasher :  HasherEnum::SHADigest(digest),
+                    id : id,
+                }
+            }
+    };
+
+    newhasher_option.finish()
 }

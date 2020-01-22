@@ -41,7 +41,7 @@ pub const PUBLICKEY_LENGTH_IN_BYTES: usize = 256;
 pub const SIGNED_LENGTH_IN_BYTES: usize = 512;
 pub const BITS_IN_BYTES: usize = 8;
 
-pub const HASH_READ_BUFFER_IN_BYTES: usize = 4096; //Empirical test finds this faster than 8192
+pub const HASH_READ_BUFFER_IN_BYTES: usize = 8192;
 pub const SEPARATOR_LINE: &str =
     "********************************************************************************"; //80 stars
 const NO_HASH: &str = "0";
