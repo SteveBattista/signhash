@@ -3,7 +3,6 @@
 
 <h1>Conceptual Description</h1>
 sign_hash - Takes a directory, hashes files and signs them.<br>
-check_manifest - Takes manifest and public key from a running of sign_hash and checks to see if manifest was tampered.<br>
 check_hash - Takes manifest and public key from a running of sign_hash and looks at a directory to both check to see if the files changed and also checks if manifest was tampered.<br>
 
 <h1>Why Does This Exist<br></h1>
