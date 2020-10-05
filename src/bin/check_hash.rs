@@ -1,8 +1,8 @@
-mod main_helper;
 mod hash_helper;
+mod main_helper;
 
-use main_helper::SIGN_HEADER_MESSAGE_COUNT;
 use main_helper::check_line;
+use main_helper::SIGN_HEADER_MESSAGE_COUNT;
 //use main_helper::get_next_manifest_line;
 //use main_helper::parse_hash_manifest_line;
 use main_helper::parse_next_manifest_line;
@@ -100,8 +100,8 @@ fn main() {
         .help("Use -m flag to check the validity of the manifest only. Will ignore -d option."))
     .get_matches();
 
-    let mut public_key_bytes: [u8; (PUBLICKEY_LENGTH_IN_BYTES / BITS_IN_BYTES)] =
-        [0; (PUBLICKEY_LENGTH_IN_BYTES / BITS_IN_BYTES)];
+    let mut public_key_bytes: [u8; PUBLICKEY_LENGTH_IN_BYTES / BITS_IN_BYTES] =
+        [0; PUBLICKEY_LENGTH_IN_BYTES / BITS_IN_BYTES];
     let public_key_file = matches
         .value_of("public")
         .unwrap_or(DEFAULT_PUBIC_KEY_FILE_NAME);
@@ -149,7 +149,8 @@ fn main() {
         if fileoutput {
             spinner.set_prefix("Constucting file list:");
             spinner.set_style(
-                ProgressStyle::default_bar().template("{prefix} {elapsed_precise} {spinner:.yellow/cyan}"),
+                ProgressStyle::default_bar()
+                    .template("{prefix} {elapsed_precise} {spinner:.yellow/cyan}"),
             );
         }
         for entry in WalkDir::new(input_directoy) {
@@ -161,33 +162,41 @@ fn main() {
         if fileoutput {
             spinner.finish();
         }
-
     }
-    let nonce_bar = ProgressBar::new((vec_of_lines.len()-(SIGN_HEADER_MESSAGE_COUNT +10)).try_into().unwrap()); // the 2 is for the seperators
+    let nonce_bar = ProgressBar::new(
+        (vec_of_lines.len() - (SIGN_HEADER_MESSAGE_COUNT + 10))
+            .try_into()
+            .unwrap(),
+    ); // the 2 is for the seperators
     if fileoutput {
         nonce_bar.set_prefix("Parsing and checking for duplicate nonces:");
         nonce_bar.set_style(
-            ProgressStyle::default_bar().template("{prefix} {wide_bar:.green/cyan} {pos}/{len} {elapsed_precise}"),
+            ProgressStyle::default_bar()
+                .template("{prefix} {wide_bar:.green/cyan} {pos}/{len} {elapsed_precise}"),
         );
     }
-    let progress_bar = ProgressBar::new((vec_of_lines.len()-(SIGN_HEADER_MESSAGE_COUNT + 10 )).try_into().unwrap()); // the 2 is for the seperators
+    let progress_bar = ProgressBar::new(
+        (vec_of_lines.len() - (SIGN_HEADER_MESSAGE_COUNT + 10))
+            .try_into()
+            .unwrap(),
+    ); // the 2 is for the seperators
 
     let mut version_line = vec_of_lines.remove(0);
-    if fileoutput{
+    if fileoutput {
         nonce_bar.inc(1);
     }
     let mut command_line = vec_of_lines.remove(0);
-    if fileoutput{
+    if fileoutput {
         nonce_bar.inc(1);
     }
     let mut hash_line = vec_of_lines.remove(0);
-    if fileoutput{
+    if fileoutput {
         nonce_bar.inc(1);
     }
     let hash_clone = hash_line.clone();
     let hashvec: Vec<&str> = hash_clone.split(TOKEN_SEPARATOR).collect();
-    let mut hasher_option = HasherOptions::new(hashvec[1]);
-    let mut hasher= HasherOptions::new(hashvec[1]);
+    let hasher_option = HasherOptions::new(hashvec[1]);
+    let mut hasher = HasherOptions::new(hashvec[1]);
     let mut file_len: usize = 0;
 
     version_line += "\n";
@@ -208,12 +217,11 @@ fn main() {
         manifest_line += "\n";
         hasher = hasher.update(manifest_line.as_bytes());
         file_len += manifest_line.len();
-        manifest_line= vec_of_lines.remove(0);
+        manifest_line = vec_of_lines.remove(0);
         if fileoutput {
-         nonce_bar.inc(1);
+            nonce_bar.inc(1);
         }
     }
-
 
     send_check_message(
         PRINT_MESSAGE,
@@ -237,7 +245,7 @@ fn main() {
     //let tokens: Vec<&str> = hash_line.split(TOKEN_SEPARATOR).collect();
     send_check_message(
         PRINT_MESSAGE,
-        format!("Hash used|{}\n",hashvec[1]),
+        format!("Hash used|{}\n", hashvec[1]),
         true,
         &check_tx,
     );
@@ -258,12 +266,13 @@ fn main() {
     manifest_line += "\n";
     hasher = hasher.update(manifest_line.as_bytes());
     file_len += manifest_line.len();
-    manifest_line= vec_of_lines.remove(0);
-    if fileoutput{
+    manifest_line = vec_of_lines.remove(0);
+    if fileoutput {
         nonce_bar.inc(1);
     }
     let manifest_map: &mut HashMap<String, ManifestLine> = &mut HashMap::new();
-    { //This is here to scope and free up nonce hash
+    {
+        //This is here to scope and free up nonce hash
         let nonces: &mut HashMap<String, String> = &mut HashMap::new();
 
         while manifest_line != SEPARATOR_LINE {
@@ -298,7 +307,7 @@ fn main() {
             manifest_line += "\n";
             hasher = hasher.update(manifest_line.as_bytes());
             file_len += manifest_line.len();
-            manifest_line= vec_of_lines.remove(0);
+            manifest_line = vec_of_lines.remove(0);
 
             if fileoutput {
                 nonce_bar.inc(1);
@@ -311,20 +320,19 @@ fn main() {
     }
 
     if fileoutput {
-        if manifest_only{
+        if manifest_only {
             progress_bar.set_prefix("Checking signatures :");
             progress_bar.set_style(
                 ProgressStyle::default_bar()
                     .template("{prefix} {wide_bar:.green/cyan} {pos}/{len} {elapsed_precise}"),
             );
-        } else{
+        } else {
             progress_bar.set_prefix("Checking files and signatures :");
             progress_bar.set_style(
                 ProgressStyle::default_bar()
                     .template("{prefix} {wide_bar:.yellow/cyan} {pos}/{len} {elapsed_precise}"),
             );
         }
-
     }
 
     let writer_child = thread::Builder::new()
@@ -387,7 +395,7 @@ fn main() {
 });
 
     if !(manifest_map.is_empty()) {
-        for (file_line, _manifest_structure) in manifest_map.drain(){
+        for (file_line, _manifest_structure) in manifest_map.drain() {
             send_check_message(
                 PRINT_MESSAGE,
                 format!(
@@ -405,7 +413,7 @@ fn main() {
         manifest_line += "\n";
         hasher = hasher.update(manifest_line.as_bytes());
         file_len += manifest_line.len();
-        manifest_line= vec_of_lines.remove(0);
+        manifest_line = vec_of_lines.remove(0);
     }
 
     manifest_line += "\n";
@@ -447,7 +455,7 @@ fn main() {
                 PRINT_MESSAGE,
                 format!(
                     "Failure|couldn't decode hex signature for manifest file|{}.\n",
-                    why.description()
+                    why.to_string()
                 ),
                 false,
                 &check_tx,
@@ -456,8 +464,8 @@ fn main() {
         }
     };
     // figure this out don't dont want to crash
-    let mut signature_key_bytes: [u8; (SIGNED_LENGTH_IN_BYTES / BITS_IN_BYTES)] =
-        [0; (SIGNED_LENGTH_IN_BYTES / BITS_IN_BYTES)];
+    let mut signature_key_bytes: [u8; SIGNED_LENGTH_IN_BYTES / BITS_IN_BYTES] =
+        [0; SIGNED_LENGTH_IN_BYTES / BITS_IN_BYTES];
 
     signature_key_bytes[..].clone_from_slice(&local_key[..]);
 

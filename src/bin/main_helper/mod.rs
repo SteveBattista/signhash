@@ -1,5 +1,3 @@
-
-
 use crate::hash_helper::hash_file;
 use crate::hash_helper::HasherOptions;
 
@@ -15,19 +13,16 @@ use chrono::{DateTime, Utc};
 use std::collections::BTreeMap;
 use std::collections::HashMap;
 
-use std::error::Error;
+use std::ffi::OsStr;
 use std::fs;
 use std::fs::File;
 use std::io::BufRead;
 use std::io::Write;
 use std::io::{BufReader, Read};
-use std::ffi::OsStr;
 
 use std::time::Instant;
 
 use ring::signature::KeyPair;
-
-use serde_yaml;
 
 use indicatif::HumanBytes;
 use indicatif::ProgressBar;
@@ -93,11 +88,7 @@ pub fn report_duplicatve_and_insert_nonce<S: BuildHasher>(
         Some(answer) => {
             send_check_message(
                 PRINT_MESSAGE,
-                format!(
-                    "Failure|{}|and|{}|share the same nonce.\n",
-                    nonce,
-                    answer
-                ),
+                format!("Failure|{}|and|{}|share the same nonce.\n", nonce, answer),
                 false,
                 &check_tx,
             );
@@ -148,7 +139,7 @@ pub fn write_check_from_channel(
             Err(why) => panic!(
                 "couldn't create check file requested at|{}|{}",
                 output_file,
-                why.description()
+                why.to_string()
             ),
         };
         wherefile = Whereoutput::FilePointer(filepointer);
@@ -176,7 +167,7 @@ pub fn write_line(wherefile: &mut Whereoutput, data: String) {
             Err(why) => panic!(
                 "Couldn't write|{}|to the manifest file|{}.",
                 data,
-                why.description()
+                why.to_string()
             ),
         },
         Whereoutput::StringText(_string) => {
@@ -195,7 +186,6 @@ pub fn write_manifest_from_channel(
     progress_bar: &ProgressBar,
     fileoutput: bool,
 ) {
-
     let mut byte_count = 0;
     let mut data: String;
     let mut total_file_len: u64 = 0;
@@ -210,7 +200,7 @@ pub fn write_manifest_from_channel(
             Err(why) => panic!(
                 "couldn't create manifest file requested at|{}|{}",
                 manifest_file,
-                why.description()
+                why.to_string()
             ),
         };
         wherefile = Whereoutput::FilePointer(filepointer);
@@ -274,8 +264,8 @@ pub fn write_manifest_from_channel(
     hasher = hasher.update(data.as_bytes());
     write_line(&mut wherefile, data);
 
-    let mut nonce_bytes: [u8; (NONCE_LENGTH_IN_BYTES / BITS_IN_BYTES)] =
-        [0; (NONCE_LENGTH_IN_BYTES / BITS_IN_BYTES)];
+    let mut nonce_bytes: [u8; NONCE_LENGTH_IN_BYTES / BITS_IN_BYTES] =
+        [0; NONCE_LENGTH_IN_BYTES / BITS_IN_BYTES];
     let mut rng = rand::thread_rng();
 
     for item in nonce_bytes
@@ -339,7 +329,7 @@ pub fn read_private_key(private_key_bytes: &mut [u8], private_key_file: &str) {
         Err(why) => panic!(
             "Couldn't open private key file named|{}|{}",
             private_key_file,
-            why.description()
+            why.to_string()
         ),
     };
     let mut contents = String::new();
@@ -348,7 +338,7 @@ pub fn read_private_key(private_key_bytes: &mut [u8], private_key_file: &str) {
         Err(why) => panic!(
             "Couldn't read private key file named|{}|{}",
             private_key_file,
-            why.description()
+            why.to_string()
         ),
     };
     let deserialized_map: BTreeMap<String, String> = match serde_yaml::from_str(&contents) {
@@ -356,14 +346,14 @@ pub fn read_private_key(private_key_bytes: &mut [u8], private_key_file: &str) {
         Err(why) => panic!(
             "Couldn't parse private key YAML file in|{}|{}",
             private_key_file,
-            why.description()
+            why.to_string()
         ),
     };
     let local_key = match HEXUPPER.decode(deserialized_map[PRIVATE_KEY_STRING_ED25519].as_bytes()) {
         Ok(local_key) => local_key,
         Err(why) => panic!(
             "Couldn't decode hex encoded private key|{}",
-            why.description()
+            why.to_string()
         ),
     };
     private_key_bytes[..].clone_from_slice(&local_key[..]);
@@ -375,7 +365,7 @@ pub fn dump_header(header_file: &str) -> String {
         Err(why) => panic!(
             "Couldn't open header file named|{}|{}",
             header_file,
-            why.description()
+            why.to_string()
         ),
     };
     let mut contents = String::new();
@@ -384,20 +374,19 @@ pub fn dump_header(header_file: &str) -> String {
         Err(why) => panic!(
             "Couldn't read header file named|{}|{}",
             header_file,
-            why.description()
+            why.to_string()
         ),
     };
     contents
 }
 
 pub fn var_digest<R: Read>(mut reader: R, mut hasher: HasherOptions) -> Vec<u8> {
-
-    let mut buffer = [0; (HASH_READ_BUFFER_IN_BYTES / BITS_IN_BYTES)];
+    let mut buffer = [0; HASH_READ_BUFFER_IN_BYTES / BITS_IN_BYTES];
 
     loop {
         let count = match reader.read(&mut buffer) {
             Ok(count) => count,
-            Err(why) => panic!("Couldn't load data from file to hash|{}", why.description()),
+            Err(why) => panic!("Couldn't load data from file to hash|{}", why.to_string()),
         };
         if count == 0 {
             break;
@@ -463,7 +452,7 @@ pub fn check_line(
                     Err(why) => panic!(
                         "Couldn't load datetime from|{} data|{}",
                         path3,
-                        why.description()
+                        why.to_string()
                     ),
                     Ok(datetime) => datetime,
                 };
@@ -489,13 +478,13 @@ pub fn check_line(
                     } else {
                         line_type = format!("Uknown{}", postfix);
                     }
-                     match File::open(path3) {
+                    match File::open(path3) {
                         Ok(input) => input,
-                        Err(why) => panic!("Couldn't open file|{}|{}", path4, why.description()),
+                        Err(why) => panic!("Couldn't open file|{}|{}", path4, why.to_string()),
                     };
                     //let reader = BufReader::new(input);
                     //let digest = var_digest(reader, hasher.clone());
-                    let digest = hash_file(&hasher,OsStr::new(&path4));
+                    let digest = hash_file(&hasher, OsStr::new(&path4));
                     digest_str = HEXUPPER.encode(&digest.as_ref());
                 }
                 send_pass_fail_check_message(
@@ -540,7 +529,7 @@ pub fn check_line(
                 format!(
                     "Failure|{}|Couldn't decode hex signature|{}\n",
                     path4,
-                    why.description()
+                    why.to_string()
                 ),
                 false,
                 &check_tx,
@@ -548,8 +537,8 @@ pub fn check_line(
             vec![0; SIGNED_LENGTH_IN_BYTES / BITS_IN_BYTES]
         }
     };
-    let mut signature_key_bytes: [u8; (SIGNED_LENGTH_IN_BYTES / BITS_IN_BYTES)] =
-        [0; (SIGNED_LENGTH_IN_BYTES / BITS_IN_BYTES)];
+    let mut signature_key_bytes: [u8; SIGNED_LENGTH_IN_BYTES / BITS_IN_BYTES] =
+        [0; SIGNED_LENGTH_IN_BYTES / BITS_IN_BYTES];
 
     signature_key_bytes[..].clone_from_slice(&local_key[..]);
 
@@ -609,11 +598,7 @@ pub fn create_line(
         Ok(metadata) => {
             filelen = metadata.len();
             let datetime = match metadata.modified() {
-                Err(why) => panic!(
-                    "Couldn't load datetime from|{}|{}",
-                    path3,
-                    why.description()
-                ),
+                Err(why) => panic!("Couldn't load datetime from|{}|{}", path3, why.to_string()),
                 Ok(datetime) => datetime,
             };
             let metadata2 = fs::symlink_metadata(path2).unwrap();
@@ -631,11 +616,11 @@ pub fn create_line(
             } else if metadata.is_file() {
                 match File::open(path3) {
                     Ok(input) => input,
-                    Err(why) => panic!("Couldn't open file|{}|{}", path4, why.description()),
+                    Err(why) => panic!("Couldn't open file|{}|{}", path4, why.to_string()),
                 };
                 //let reader = BufReader::new(input);
                 //let digest = var_digest(reader, hasher.clone());
-                let digest = hash_file(&hasher,OsStr::new(&path4));
+                let digest = hash_file(&hasher, OsStr::new(&path4));
                 digest_str = HEXUPPER.encode(&digest.as_ref());
                 line_type = format!("File{}", postfix);
             } else {
@@ -689,7 +674,7 @@ pub fn write_key(public_key_bytes: &[u8], pubic_key_file: &str, key_name: &str) 
             "couldn't create|{} key at|{}|{}",
             key_name,
             pubic_key_file,
-            why.description()
+            why.to_string()
         ),
     };
     match file.write_all(s.as_bytes()) {
@@ -698,7 +683,7 @@ pub fn write_key(public_key_bytes: &[u8], pubic_key_file: &str, key_name: &str) 
             "Couldn't write to|{} key to|{}|{}",
             key_name,
             pubic_key_file,
-            why.description()
+            why.to_string()
         ),
     };
 }
@@ -709,7 +694,7 @@ pub fn read_public_key(public_key_file: &str, public_key_bytes: &mut [u8]) {
         Err(why) => panic!(
             "Couldn't find public key file requested at|{}|{}",
             public_key_file,
-            why.description()
+            why.to_string()
         ),
     };
 
@@ -719,7 +704,7 @@ pub fn read_public_key(public_key_file: &str, public_key_bytes: &mut [u8]) {
         Err(why) => panic!(
             "Couldn't read from public key file requested at|{}|{}",
             public_key_file,
-            why.description()
+            why.to_string()
         ),
     };
     let deserialized_map: BTreeMap<String, String> = match serde_yaml::from_str(&contents) {
@@ -727,7 +712,7 @@ pub fn read_public_key(public_key_file: &str, public_key_bytes: &mut [u8]) {
         Err(why) => panic!(
             "Couldn't parse public key from YAML file requested at|{}|{}",
             public_key_file,
-            why.description()
+            why.to_string()
         ),
     };
     let local_key = match HEXUPPER.decode(deserialized_map[PUBIC_KEY_STRING_ED25519].as_bytes()) {
@@ -735,7 +720,7 @@ pub fn read_public_key(public_key_file: &str, public_key_bytes: &mut [u8]) {
         Err(why) => panic!(
             "Couldn't decode hex from public key file requested at|{}|{}",
             public_key_file,
-            why.description()
+            why.to_string()
         ),
     };
     public_key_bytes[..].clone_from_slice(&local_key[..])
@@ -789,7 +774,7 @@ pub fn read_manifest_file(vec_of_lines: &mut Vec<String>, input_file: &str, file
         Err(why) => panic!(
             "Couldn't open manifest file for input at|{}|{}",
             input_file,
-            why.description()
+            why.to_string()
         ),
     };
     let spinner = ProgressBar::new_spinner();
@@ -797,7 +782,8 @@ pub fn read_manifest_file(vec_of_lines: &mut Vec<String>, input_file: &str, file
     if fileoutput {
         spinner.set_prefix("Reading manifest:");
         spinner.set_style(
-            ProgressStyle::default_bar().template("{prefix} {elapsed_precise} {spinner:.yellow/cyan}"),
+            ProgressStyle::default_bar()
+                .template("{prefix} {elapsed_precise} {spinner:.yellow/cyan}"),
         );
     }
     for line in file.lines() {
@@ -857,7 +843,7 @@ pub fn send_sign_message(
         Err(why) => panic!(
             "Couldn't send|{} to writing thread.|{}",
             message_string,
-            why.description()
+            why.to_string()
         ),
     };
 }
@@ -878,7 +864,7 @@ pub fn send_check_message(
         Err(why) => panic!(
             "Couldn't send|{} to writing thread.|{}\n",
             message_string,
-            why.description()
+            why.to_string()
         ),
     };
 }

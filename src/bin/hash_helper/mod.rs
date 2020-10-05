@@ -1,11 +1,8 @@
 use crate::main_helper::BITS_IN_BYTES;
 use crate::main_helper::HASH_READ_BUFFER_IN_BYTES;
-use std::error::Error;
-use ring::digest::{SHA1_FOR_LEGACY_USE_ONLY, SHA256, SHA384, SHA512, SHA512_256};
-use ring::digest::Context;
 use blake3::Hasher;
-
-
+use ring::digest::Context;
+use ring::digest::{SHA1_FOR_LEGACY_USE_ONLY, SHA256, SHA384, SHA512, SHA512_256};
 
 use std::fs::File;
 
@@ -15,12 +12,12 @@ use anyhow::Result;
 
 #[derive(Clone)]
 pub enum HasherEnum {
-    Blake3Hasher (Box<Hasher>),
-    SHADigest ( Box<Context>),
+    Blake3Hasher(Box<Hasher>),
+    SHADigest(Box<Context>),
 }
 
 impl HasherEnum {
-    pub fn new( hash_type : &str)-> Self{
+    pub fn new(hash_type: &str) -> Self {
         match hash_type {
             "blake3" => HasherEnum::Blake3Hasher(Box::new(blake3::Hasher::new())),
             "128" => HasherEnum::SHADigest(Box::new(Context::new(&SHA1_FOR_LEGACY_USE_ONLY))),
@@ -28,13 +25,12 @@ impl HasherEnum {
             "384" => HasherEnum::SHADigest(Box::new(Context::new(&SHA384))),
             "512" => HasherEnum::SHADigest(Box::new(Context::new(&SHA512))),
             "512_256" => HasherEnum::SHADigest(Box::new(Context::new(&SHA512_256))),
-            _ => panic!("Incorrect hash string input.")
+            _ => panic!("Incorrect hash string input."),
         }
     }
 }
 
-
-#[derive(Debug, Eq, PartialEq,Clone)]
+#[derive(Debug, Eq, PartialEq, Clone)]
 enum AlgorithmID {
     BLAKE3,
     SHA1,
@@ -44,53 +40,54 @@ enum AlgorithmID {
     SHA512_256,
 }
 #[derive(Clone)]
-pub struct HasherOptions  {
+pub struct HasherOptions {
     pub hasher: HasherEnum,
     id: AlgorithmID,
-
 }
 
-impl HasherOptions{
-    pub fn new( hash_type : &str)-> Self{
-        let hasherinstance : HasherOptions;
+impl HasherOptions {
+    pub fn new(hash_type: &str) -> Self {
+        let hasherinstance: HasherOptions;
         match hash_type {
             "blake3" => {
                 hasherinstance = HasherOptions {
                     hasher: HasherEnum::Blake3Hasher(Box::new(blake3::Hasher::new())),
-                    id : AlgorithmID::BLAKE3,
+                    id: AlgorithmID::BLAKE3,
                 }
             }
             "128" => {
                 hasherinstance = HasherOptions {
-                    hasher : HasherEnum::SHADigest(Box::new(Context::new(&SHA1_FOR_LEGACY_USE_ONLY))),
-                    id : AlgorithmID::SHA1,
+                    hasher: HasherEnum::SHADigest(Box::new(Context::new(
+                        &SHA1_FOR_LEGACY_USE_ONLY,
+                    ))),
+                    id: AlgorithmID::SHA1,
                 }
             }
             "256" => {
                 hasherinstance = HasherOptions {
-                    hasher : HasherEnum::SHADigest(Box::new(Context::new(&SHA256))),
-                    id : AlgorithmID::SHA256,
+                    hasher: HasherEnum::SHADigest(Box::new(Context::new(&SHA256))),
+                    id: AlgorithmID::SHA256,
                 }
             }
             "384" => {
                 hasherinstance = HasherOptions {
-                    hasher : HasherEnum::SHADigest(Box::new(Context::new(&SHA384))),
-                    id : AlgorithmID::SHA384,
+                    hasher: HasherEnum::SHADigest(Box::new(Context::new(&SHA384))),
+                    id: AlgorithmID::SHA384,
                 }
             }
             "512" => {
                 hasherinstance = HasherOptions {
-                    hasher :  HasherEnum::SHADigest(Box::new(Context::new(&SHA512))),
-                    id : AlgorithmID::SHA512,
+                    hasher: HasherEnum::SHADigest(Box::new(Context::new(&SHA512))),
+                    id: AlgorithmID::SHA512,
                 }
             }
             "512_256" => {
                 hasherinstance = HasherOptions {
-                    hasher : HasherEnum::SHADigest(Box::new(Context::new(&SHA512_256))),
-                    id : AlgorithmID::SHA512_256,
+                    hasher: HasherEnum::SHADigest(Box::new(Context::new(&SHA512_256))),
+                    id: AlgorithmID::SHA512_256,
                 }
             }
-            _ => panic!("Incorrect hash string input.")
+            _ => panic!("Incorrect hash string input."),
         };
         hasherinstance
     }
@@ -106,109 +103,104 @@ impl HasherOptions{
         }
     }
 
-pub fn len(&self) -> usize{
-    match self.id {
-        AlgorithmID::BLAKE3 => 256,
-        AlgorithmID::SHA1 => 128,
-        AlgorithmID::SHA256 => 256,
-        AlgorithmID::SHA384 => 384,
-        AlgorithmID::SHA512 => 512,
-        AlgorithmID::SHA512_256 => 256,
+    pub fn len(&self) -> usize {
+        match self.id {
+            AlgorithmID::BLAKE3 => 256,
+            AlgorithmID::SHA1 => 128,
+            AlgorithmID::SHA256 => 256,
+            AlgorithmID::SHA384 => 384,
+            AlgorithmID::SHA512 => 512,
+            AlgorithmID::SHA512_256 => 256,
+        }
     }
-}
 
-    pub fn return_hash (self, input : &[u8]) -> Vec<u8>{
+    pub fn return_hash(self, input: &[u8]) -> Vec<u8> {
         let answer: Vec<u8>;
 
         match self.hasher {
-            HasherEnum::Blake3Hasher(mut hasher) =>{
+            HasherEnum::Blake3Hasher(mut hasher) => {
                 hasher.update(input);
                 let temp_hasher = hasher.finalize();
                 answer = temp_hasher.as_bytes()[..].to_vec();
-            },
+            }
             HasherEnum::SHADigest(mut digest) => {
                 digest.update(input);
                 let temp_digest = digest.finish();
                 answer = temp_digest.as_ref()[..].to_vec()
-            },
+            }
         }
         answer
     }
 
-    pub fn finish (self) -> Vec<u8>{
+    pub fn finish(self) -> Vec<u8> {
         let answer: Vec<u8>;
 
         match self.hasher {
-            HasherEnum::Blake3Hasher(hasher) =>{
+            HasherEnum::Blake3Hasher(hasher) => {
                 let temp_hasher = hasher.finalize();
                 answer = temp_hasher.as_bytes()[..].to_vec();
-            },
+            }
             HasherEnum::SHADigest(digest) => {
                 let temp_digest = digest.finish();
                 answer = temp_digest.as_ref()[..].to_vec()
-            },
+            }
         }
         answer
     }
 
-    pub fn update (self, input : &[u8]) -> Self{
+    pub fn update(self, input: &[u8]) -> Self {
         let hasherenum = self.hasher;
-           match hasherenum{
-               HasherEnum::Blake3Hasher(mut hasher) =>{
-                   hasher.update(input);
-                   HasherOptions {
-                       hasher :  HasherEnum::Blake3Hasher(hasher),
-                       id : self.id,
-                   }
-               },
-               HasherEnum::SHADigest(mut digest) => {
-                   digest.update(input);
-                   HasherOptions {
-                       hasher :  HasherEnum::SHADigest(digest),
-                       id : self.id,
-                   }
-               },
-           }
-   }
-
+        match hasherenum {
+            HasherEnum::Blake3Hasher(mut hasher) => {
+                hasher.update(input);
+                HasherOptions {
+                    hasher: HasherEnum::Blake3Hasher(hasher),
+                    id: self.id,
+                }
+            }
+            HasherEnum::SHADigest(mut digest) => {
+                digest.update(input);
+                HasherOptions {
+                    hasher: HasherEnum::SHADigest(digest),
+                    id: self.id,
+                }
+            }
+        }
+    }
 }
 
 #[cfg(feature = "memmap")]
 fn maybe_memmap_file(file: &File) -> Result<Option<memmap::Mmap>> {
     let metadata = file.metadata()?;
     let file_size = metadata.len();
-    Ok(if !metadata.is_file() || file_size > isize::max_value() as u64 || file_size == 0 {
-        // Not a real file.
-        None
-    } else {
-        // Explicitly set the length of the memory map, so that filesystem
-        // changes can't race to violate the invariants we just checked.
-        let map = unsafe {
-            memmap::MmapOptions::new()
-                .len(file_size as usize)
-                .map(&file)?
-        };
-        Some(map)
-    })
+    Ok(
+        if !metadata.is_file() || file_size > isize::max_value() as u64 || file_size == 0 {
+            // Not a real file.
+            None
+        } else {
+            // Explicitly set the length of the memory map, so that filesystem
+            // changes can't race to violate the invariants we just checked.
+            let map = unsafe {
+                memmap::MmapOptions::new()
+                    .len(file_size as usize)
+                    .map(&file)?
+            };
+            Some(map)
+        },
+    )
 }
 
-fn maybe_hash_memmap(
-    _base_hasher: &HasherOptions,
-    _file: &File,
-) -> Option<Vec<u8>> {
+fn maybe_hash_memmap(_base_hasher: &HasherOptions, _file: &File) -> Option<Vec<u8>> {
     #[cfg(feature = "memmap")]
     {
-        if let Some(map) = maybe_memmap_file(_file).unwrap(){
+        if let Some(map) = maybe_memmap_file(_file).unwrap() {
             return Some(_base_hasher.clone().update(&map).finish());
         }
     }
     None
 }
 
-pub fn hash_file(
-    base_hasher: &HasherOptions,
-    filepath: &std::ffi::OsStr,
-) -> Vec<u8> {
+pub fn hash_file(base_hasher: &HasherOptions, filepath: &std::ffi::OsStr) -> Vec<u8> {
     let file = File::open(filepath).unwrap();
     if let Some(output) = maybe_hash_memmap(&base_hasher, &file) {
         output // the fast path
@@ -219,10 +211,7 @@ pub fn hash_file(
     }
 }
 
-fn hash_reader(
-    base_hasher: &HasherOptions,
-    mut reader: impl Read,
-) -> Vec<u8> {
+fn hash_reader(base_hasher: &HasherOptions, mut reader: impl Read) -> Vec<u8> {
     // TODO: This is a narrow copy, so it might not take advantage of SIMD or
     // threads. With a larger buffer size, most of that performance can be
     // recovered. However, this requires some platform-specific tuning, based
@@ -234,31 +223,31 @@ fn hash_reader(
     let local_hasher = base_hasher.clone();
     let id = base_hasher.id.clone();
     let hasherenum = local_hasher.hasher;
-       let newhasher_option = match hasherenum{
-           HasherEnum::Blake3Hasher(mut hasher) =>{
-             std::io::copy(&mut reader, &mut hasher).unwrap();
-              HasherOptions {
-                   hasher :  HasherEnum::Blake3Hasher(hasher),
-                   id : id,
-               }
-           },
-           HasherEnum::SHADigest(mut digest) => {
-               let mut buffer = [0; (HASH_READ_BUFFER_IN_BYTES / BITS_IN_BYTES)];
-               loop {
-                   let count = match reader.read(&mut buffer) {
-                       Ok(count) => count,
-                       Err(why) => panic!("Couldn't load data from file to hash|{}", why.description()),
-                   };
-                   if count == 0 {
-                       break;
-                   }
-                   digest.update(&buffer[..count]);
-               }
-               HasherOptions {
-                    hasher :  HasherEnum::SHADigest(digest),
-                    id : id,
-                }
+    let newhasher_option = match hasherenum {
+        HasherEnum::Blake3Hasher(mut hasher) => {
+            std::io::copy(&mut reader, &mut hasher).unwrap();
+            HasherOptions {
+                hasher: HasherEnum::Blake3Hasher(hasher),
+                id,
             }
+        }
+        HasherEnum::SHADigest(mut digest) => {
+            let mut buffer = [0; HASH_READ_BUFFER_IN_BYTES / BITS_IN_BYTES];
+            loop {
+                let count = match reader.read(&mut buffer) {
+                    Ok(count) => count,
+                    Err(why) => panic!("Couldn't load data from file to hash|{}", why.to_string()),
+                };
+                if count == 0 {
+                    break;
+                }
+                digest.update(&buffer[..count]);
+            }
+            HasherOptions {
+                hasher: HasherEnum::SHADigest(digest),
+                id,
+            }
+        }
     };
     newhasher_option.finish()
 }

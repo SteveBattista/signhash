@@ -1,6 +1,5 @@
-
-mod main_helper;
 mod hash_helper;
+mod main_helper;
 
 use crate::main_helper::create_keys;
 use crate::main_helper::create_line;
@@ -24,7 +23,6 @@ use crate::hash_helper::HasherOptions;
 use scoped_threadpool::Pool;
 use std::convert::TryInto;
 
-use num_cpus;
 use std::thread;
 
 use chrono::{DateTime, Utc};
@@ -146,7 +144,8 @@ fn main() {
     if fileoutput {
         spinner.set_prefix("Constucting file list:");
         spinner.set_style(
-            ProgressStyle::default_bar().template("{prefix} {elapsed_precise} {spinner:.yellow/cyan}"),
+            ProgressStyle::default_bar()
+                .template("{prefix} {elapsed_precise} {spinner:.yellow/cyan}"),
         );
     }
     for entry in WalkDir::new(input_directoy) {
@@ -159,16 +158,16 @@ fn main() {
         spinner.finish();
     }
 
-    let mut private_key_bytes: [u8; (PRIVATEKEY_LENGTH_IN_BYTES / BITS_IN_BYTES)] =
-        [0; (PRIVATEKEY_LENGTH_IN_BYTES / BITS_IN_BYTES)];
-    let mut public_key_bytes: [u8; (PUBLICKEY_LENGTH_IN_BYTES / BITS_IN_BYTES)] =
-        [0; (PUBLICKEY_LENGTH_IN_BYTES / BITS_IN_BYTES)];
+    let mut private_key_bytes: [u8; PRIVATEKEY_LENGTH_IN_BYTES / BITS_IN_BYTES] =
+        [0; PRIVATEKEY_LENGTH_IN_BYTES / BITS_IN_BYTES];
+    let mut public_key_bytes: [u8; PUBLICKEY_LENGTH_IN_BYTES / BITS_IN_BYTES] =
+        [0; PUBLICKEY_LENGTH_IN_BYTES / BITS_IN_BYTES];
 
     create_keys(&mut public_key_bytes, &mut private_key_bytes);
     write_key(&public_key_bytes, public_key_file, PUBIC_KEY_STRING_ED25519);
 
-    let mut nonce_bytes: [u8; (NONCE_LENGTH_IN_BYTES / BITS_IN_BYTES)] =
-        [0; (NONCE_LENGTH_IN_BYTES / BITS_IN_BYTES)];
+    let mut nonce_bytes: [u8; NONCE_LENGTH_IN_BYTES / BITS_IN_BYTES] =
+        [0; NONCE_LENGTH_IN_BYTES / BITS_IN_BYTES];
 
     let mut nonces: HashMap<[u8; NONCE_LENGTH_IN_BYTES / BITS_IN_BYTES], i32> = HashMap::new();
 
