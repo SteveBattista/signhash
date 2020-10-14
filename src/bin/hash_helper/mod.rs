@@ -92,7 +92,7 @@ impl HasherOptions {
         hasherinstance
     }
 
-    fn as_str(&self) -> &'static str {
+    /* fn as_str(&self) -> &'static str {
         match self.id {
             AlgorithmID::BLAKE3 => "blake3",
             AlgorithmID::SHA1 => "128",
@@ -130,7 +130,7 @@ impl HasherOptions {
             }
         }
         answer
-    }
+    } */
 
     pub fn finish(self) -> Vec<u8> {
         let answer: Vec<u8>;

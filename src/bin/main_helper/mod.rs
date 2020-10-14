@@ -49,7 +49,7 @@ pub const DEFAULT_PUBIC_KEY_FILE_NAME: &str = "Signpub.txt";
 pub const NO_OUTPUTFILE: &str = "|||";
 pub const PWD: &str = ".";
 pub const PRINT_MESSAGE: u8 = 0;
-pub const TICK_MESSAGE: u8 = 1;
+const TICK_MESSAGE: u8 = 1;
 pub const END_MESSAGE: u8 = 2;
 
 pub struct SignMessage {
@@ -829,7 +829,7 @@ pub fn parse_next_manifest_line(
     *sign_line = tokens[6].to_string();
 }
 
-pub fn send_sign_message(
+fn send_sign_message(
     message_string: String,
     len: u64,
     sign_tx: &std::sync::mpsc::Sender<SignMessage>,

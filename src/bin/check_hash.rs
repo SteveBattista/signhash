@@ -31,7 +31,6 @@ use scoped_threadpool::Pool;
 use std::collections::HashMap;
 use std::convert::TryInto;
 use std::env;
-use std::error::Error;
 use std::sync::mpsc;
 use std::sync::mpsc::{Receiver, Sender};
 use std::thread;
@@ -39,8 +38,6 @@ use std::thread;
 use data_encoding::HEXUPPER;
 
 use clap::{App, Arg};
-
-//use ring::digest::Context;
 
 use indicatif::ProgressBar;
 use indicatif::ProgressStyle;
@@ -50,7 +47,7 @@ use walkdir::WalkDir;
 use chrono::DateTime;
 use chrono::Utc;
 
-const NUMBRER_OF_LINES_UNTIL_FILE_LEN_MESSAGE: usize = 7;
+const NUMBER_OF_LINES_UNTIL_FILE_LEN_MESSAGE: usize = 7;
 const NO_OUTPUTFILE: &str = "|||";
 
 fn main() {
@@ -242,7 +239,6 @@ fn main() {
         &check_tx,
     );
 
-    //let tokens: Vec<&str> = hash_line.split(TOKEN_SEPARATOR).collect();
     send_check_message(
         PRINT_MESSAGE,
         format!("Hash used|{}\n", hashvec[1]),
@@ -409,7 +405,7 @@ fn main() {
         }
     }
 
-    for _x in 0..NUMBRER_OF_LINES_UNTIL_FILE_LEN_MESSAGE {
+    for _x in 0..NUMBER_OF_LINES_UNTIL_FILE_LEN_MESSAGE {
         manifest_line += "\n";
         hasher = hasher.update(manifest_line.as_bytes());
         file_len += manifest_line.len();
