@@ -197,22 +197,22 @@ fn main() {
     let mut file_len: usize = 0;
 
     version_line += "\n";
-    hasher = hasher.update(version_line.as_bytes());
+    hasher = hasher.mutli_hash_update(version_line.as_bytes());
     file_len += version_line.len();
 
     command_line += "\n";
-    hasher = hasher.update(command_line.as_bytes());
+    hasher = hasher.mutli_hash_update(command_line.as_bytes());
     file_len += command_line.len();
 
     hash_line += "\n";
-    hasher = hasher.update(hash_line.as_bytes());
+    hasher = hasher.mutli_hash_update(hash_line.as_bytes());
     file_len += hash_line.len();
 
     let mut manifest_line = vec_of_lines.remove(0);
 
     while manifest_line != SEPARATOR_LINE {
         manifest_line += "\n";
-        hasher = hasher.update(manifest_line.as_bytes());
+        hasher = hasher.mutli_hash_update(manifest_line.as_bytes());
         file_len += manifest_line.len();
         manifest_line = vec_of_lines.remove(0);
         if fileoutput {
@@ -260,7 +260,7 @@ fn main() {
     let mut hash_line = String::new();
     let mut sign_line = String::new();
     manifest_line += "\n";
-    hasher = hasher.update(manifest_line.as_bytes());
+    hasher = hasher.mutli_hash_update(manifest_line.as_bytes());
     file_len += manifest_line.len();
     manifest_line = vec_of_lines.remove(0);
     if fileoutput {
@@ -301,7 +301,7 @@ fn main() {
             manifest_map.insert(file_name_line.clone(), manifist_struct);
 
             manifest_line += "\n";
-            hasher = hasher.update(manifest_line.as_bytes());
+            hasher = hasher.mutli_hash_update(manifest_line.as_bytes());
             file_len += manifest_line.len();
             manifest_line = vec_of_lines.remove(0);
 
@@ -407,13 +407,13 @@ fn main() {
 
     for _x in 0..NUMBER_OF_LINES_UNTIL_FILE_LEN_MESSAGE {
         manifest_line += "\n";
-        hasher = hasher.update(manifest_line.as_bytes());
+        hasher = hasher.mutli_hash_update(manifest_line.as_bytes());
         file_len += manifest_line.len();
         manifest_line = vec_of_lines.remove(0);
     }
 
     manifest_line += "\n";
-    hasher = hasher.update(manifest_line.as_bytes());
+    hasher = hasher.mutli_hash_update(manifest_line.as_bytes());
 
     let tokens: Vec<&str> = manifest_line.split(TOKEN_SEPARATOR).collect();
     send_pass_fail_check_message(

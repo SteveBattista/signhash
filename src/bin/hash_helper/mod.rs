@@ -8,7 +8,9 @@ use std::fs::File;
 
 use std::io::Read;
 
+#[cfg(feature = "memmap")]
 use anyhow::Result;
+
 
 #[derive(Clone)]
 pub enum HasherEnum {
@@ -148,11 +150,11 @@ impl HasherOptions {
         answer
     }
 
-    pub fn update(self, input: &[u8]) -> Self {
+    pub fn mutli_hash_update(self, input: &[u8]) -> Self {
         let hasherenum = self.hasher;
         match hasherenum {
             HasherEnum::Blake3Hasher(mut hasher) => {
-                hasher.update(input);
+                hasher.update_with_join::<blake3::join::RayonJoin>(input);
                 HasherOptions {
                     hasher: HasherEnum::Blake3Hasher(hasher),
                     id: self.id,
@@ -194,7 +196,7 @@ fn maybe_hash_memmap(_base_hasher: &HasherOptions, _file: &File) -> Option<Vec<u
     #[cfg(feature = "memmap")]
     {
         if let Some(map) = maybe_memmap_file(_file).unwrap() {
-            return Some(_base_hasher.clone().update(&map).finish());
+            return Some(_base_hasher.clone().mutli_hash_update(&map).finish());
         }
     }
     None

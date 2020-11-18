@@ -211,7 +211,7 @@ pub fn write_manifest_from_channel(
         data = message.text.to_string();
         byte_count += data.len();
 
-        hasher = hasher.update(data.as_bytes());
+        hasher = hasher.mutli_hash_update(data.as_bytes());
         total_file_len += message.file_len;
         write_line(&mut wherefile, data);
         if x > SIGN_HEADER_MESSAGE_COUNT && fileoutput {
@@ -220,14 +220,14 @@ pub fn write_manifest_from_channel(
     }
     let mut data = SEPARATOR_LINE.to_owned() + "\n";
     byte_count += data.len();
-    hasher = hasher.update(data.as_bytes());
+    hasher = hasher.mutli_hash_update(data.as_bytes());
 
     write_line(&mut wherefile, data);
 
     let duration = start.elapsed();
     data = format!("Time elapsed was|{:?}\n", duration);
     byte_count += data.len();
-    hasher = hasher.update(data.as_bytes());
+    hasher = hasher.mutli_hash_update(data.as_bytes());
     write_line(&mut wherefile, data);
 
     data = format!(
@@ -235,7 +235,7 @@ pub fn write_manifest_from_channel(
         num_lines - SIGN_HEADER_MESSAGE_COUNT
     );
     byte_count += data.len();
-    hasher = hasher.update(data.as_bytes());
+    hasher = hasher.mutli_hash_update(data.as_bytes());
     write_line(&mut wherefile, data);
 
     data = format!(
@@ -243,7 +243,7 @@ pub fn write_manifest_from_channel(
         HumanBytes(total_file_len)
     );
     byte_count += data.len();
-    hasher = hasher.update(data.as_bytes());
+    hasher = hasher.mutli_hash_update(data.as_bytes());
     write_line(&mut wherefile, data);
 
     data = format!(
@@ -251,7 +251,7 @@ pub fn write_manifest_from_channel(
         HumanBytes((((total_file_len as f64) * 1000.0) / (duration.as_millis() as f64)) as u64)
     );
     byte_count += data.len();
-    hasher = hasher.update(data.as_bytes());
+    hasher = hasher.mutli_hash_update(data.as_bytes());
     write_line(&mut wherefile, data);
 
     data = format!(
@@ -261,7 +261,7 @@ pub fn write_manifest_from_channel(
         )
     );
     byte_count += data.len();
-    hasher = hasher.update(data.as_bytes());
+    hasher = hasher.mutli_hash_update(data.as_bytes());
     write_line(&mut wherefile, data);
 
     let mut nonce_bytes: [u8; NONCE_LENGTH_IN_BYTES / BITS_IN_BYTES] =
@@ -276,11 +276,11 @@ pub fn write_manifest_from_channel(
     }
     data = format!("Nonce for file|{}\n", HEXUPPER.encode(&nonce_bytes));
     byte_count += data.len();
-    hasher = hasher.update(data.as_bytes());
+    hasher = hasher.mutli_hash_update(data.as_bytes());
     write_line(&mut wherefile, data);
 
     data = format!("Sum of size of file so far is|{:?}\n", byte_count);
-    hasher = hasher.update(data.as_bytes());
+    hasher = hasher.mutli_hash_update(data.as_bytes());
     write_line(&mut wherefile, data);
 
     let digest = hasher.finish();
@@ -391,7 +391,7 @@ pub fn var_digest<R: Read>(mut reader: R, mut hasher: HasherOptions) -> Vec<u8> 
         if count == 0 {
             break;
         }
-        hasher = hasher.update(&buffer[..count]);
+        hasher = hasher.mutli_hash_update(&buffer[..count]);
     }
     hasher.finish()
 }
