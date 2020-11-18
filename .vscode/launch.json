@@ -1,0 +1,82 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug executable 'sign_hash'",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--bin=sign_hash",
+                    "--package=signhash"
+                ],
+                "filter": {
+                    "name": "sign_hash",
+                    "kind": "bin"
+                }
+            },
+            "args": ["-a blake3 -d ~/Documents/Fileing/ -o TEMP"]            ,
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in executable 'sign_hash'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--bin=sign_hash",
+                    "--package=signhash"
+                ],
+                "filter": {
+                    "name": "sign_hash",
+                    "kind": "bin"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug executable 'check_hash'",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--bin=check_hash",
+                    "--package=signhash"
+                ],
+                "filter": {
+                    "name": "check_hash",
+                    "kind": "bin"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in executable 'check_hash'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--bin=check_hash",
+                    "--package=signhash"
+                ],
+                "filter": {
+                    "name": "check_hash",
+                    "kind": "bin"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        }
+    ]
+}

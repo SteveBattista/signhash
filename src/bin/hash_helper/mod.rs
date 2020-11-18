@@ -120,7 +120,7 @@ impl HasherOptions {
 
         match self.hasher {
             HasherEnum::Blake3Hasher(mut hasher) => {
-                hasher.update(input);
+                hasher.update_with_join::<blake3::join::RayonJoin>(input);
                 let temp_hasher = hasher.finalize();
                 answer = temp_hasher.as_bytes()[..].to_vec();
             }
@@ -191,11 +191,11 @@ fn maybe_memmap_file(file: &File) -> Result<Option<memmap::Mmap>> {
     )
 }
 
-fn maybe_hash_memmap(_base_hasher: &HasherOptions, _file: &File) -> Option<Vec<u8>> {
+fn maybe_hash_memmap(base_hasher: &HasherOptions, _file: &File) -> Option<Vec<u8>> {
     #[cfg(feature = "memmap")]
     {
         if let Some(map) = maybe_memmap_file(_file).unwrap() {
-            return Some(_base_hasher.clone().mutli_hash_update(&map).finish());
+            return Some(base_hasher.clone().mutli_hash_update(&map).finish());
         }
     }
     None
@@ -224,16 +224,25 @@ fn hash_reader(base_hasher: &HasherOptions, mut reader: impl Read) -> Vec<u8> {
     let local_hasher = base_hasher.clone();
     let id = base_hasher.id.clone();
     let hasherenum = local_hasher.hasher;
+    let mut buffer = [0; HASH_READ_BUFFER_IN_BYTES / BITS_IN_BYTES];
     let newhasher_option = match hasherenum {
         HasherEnum::Blake3Hasher(mut hasher) => {
-            std::io::copy(&mut reader, &mut hasher).unwrap();
+            loop {
+                let count = match reader.read(&mut buffer) {
+                    Ok(count) => count,
+                    Err(why) => panic!("Couldn't load data from file to hash|{}", why.to_string()),
+                };
+                if count == 0 {
+                    break;
+                }
+                hasher.update_with_join::<blake3::join::RayonJoin>(&buffer);
+            }
             HasherOptions {
                 hasher: HasherEnum::Blake3Hasher(hasher),
                 id,
             }
         }
         HasherEnum::SHADigest(mut digest) => {
-            let mut buffer = [0; HASH_READ_BUFFER_IN_BYTES / BITS_IN_BYTES];
             loop {
                 let count = match reader.read(&mut buffer) {
                     Ok(count) => count,

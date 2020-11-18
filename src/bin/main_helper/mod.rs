@@ -38,7 +38,10 @@ pub const PUBLICKEY_LENGTH_IN_BYTES: usize = 256;
 pub const SIGNED_LENGTH_IN_BYTES: usize = 512;
 pub const BITS_IN_BYTES: usize = 8;
 
-pub const HASH_READ_BUFFER_IN_BYTES: usize = 4096; //Emperical tests show that this is fastest for SHA hashes.
+pub const HASH_READ_BUFFER_IN_BYTES: usize = 4096 *12; 
+//Emperical tests show that 4096 is fastest for SHA hashes.
+// We went with 16Kb as blake3 is optimized for this size.
+// We hope to be using memmap anyway. 
 pub const SEPARATOR_LINE: &str =
     "********************************************************************************"; //80 stars
 const NO_HASH: &str = "0";
@@ -816,7 +819,7 @@ pub fn read_manifest_file(vec_of_lines: &mut Vec<String>, input_file: &str, file
     file_len: &mut usize,
 ) -> String {
     manifest_line += "\n";
-    *hasher = hasher.update(manifest_line.as_bytes());
+    * hasher.update_with_join::<blake3::join::RayonJoin>(input);;
     *file_len += manifest_line.len();
     vec_of_lines.remove(0)
 } */
