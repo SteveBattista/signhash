@@ -50,7 +50,7 @@ fn main() {
     let start = Instant::now();
     let args: Vec<String> = env::args().collect();
     let matches = App::new("sign_hash")
-    .version("0.1.0")
+    .version("1.0.0")
     .author("Stephen Battista <stephen.battista@gmail.com>")
     .about("Implements a signed hash for files")
     .arg(Arg::with_name("hash")
