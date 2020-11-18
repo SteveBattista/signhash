@@ -22,12 +22,12 @@ incremental = false
 overflow-checks = true
 
 [dependencies]
-ring = "0.16.*"
+ring = "0.16.16"
 data-encoding = "2.3.*"
 scoped_threadpool = "0.1.*"
 clap = "2.33.*"
 serde = "1.0.117"
-serde_yaml = "0.*"
+serde_yaml = "0.8.14"
 rand = "0.7.*"
 num_cpus = "1.13.*"
 chrono = "0.4.*"

@@ -11,13 +11,12 @@ use std::io::Read;
 #[cfg(feature = "memmap")]
 use anyhow::Result;
 
-
 #[derive(Clone)]
 pub enum HasherEnum {
     Blake3Hasher(Box<Hasher>),
     SHADigest(Box<Context>),
 }
-
+#[allow(dead_code)]
 impl HasherEnum {
     pub fn new(hash_type: &str) -> Self {
         match hash_type {

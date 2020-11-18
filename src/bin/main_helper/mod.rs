@@ -29,10 +29,12 @@ use indicatif::ProgressBar;
 use indicatif::ProgressStyle;
 
 pub const SIGN_HEADER_MESSAGE_COUNT: usize = 8;
-
+#[allow(dead_code)]
 pub const NONCE_LENGTH_IN_BYTES: usize = 128; // Chance of collision is low 2^64. Program checks for this.
+#[allow(dead_code)]
 pub const PRIVATEKEY_LENGTH_IN_BYTES: usize = 680;
 pub const PUBLICKEY_LENGTH_IN_BYTES: usize = 256;
+#[allow(dead_code)]
 pub const SIGNED_LENGTH_IN_BYTES: usize = 512;
 pub const BITS_IN_BYTES: usize = 8;
 
@@ -40,23 +42,31 @@ pub const HASH_READ_BUFFER_IN_BYTES: usize = 4096; //Emperical tests show that t
 pub const SEPARATOR_LINE: &str =
     "********************************************************************************"; //80 stars
 const NO_HASH: &str = "0";
+#[allow(dead_code)]
 pub const TOKEN_SEPARATOR: char = '|';
 const NO_TIME: &str = "00/00/0000 00:00:00";
 pub const PUBIC_KEY_STRING_ED25519: &str = "Public ED25519";
+#[allow(dead_code)]
 pub const PRIVATE_KEY_STRING_ED25519: &str = "Private ED25519";
+#[allow(dead_code)]
 pub const DEFAULT_MANIFEST_FILE_NAME: &str = "Manifest.txt";
 pub const DEFAULT_PUBIC_KEY_FILE_NAME: &str = "Signpub.txt";
+#[allow(dead_code)]
 pub const NO_OUTPUTFILE: &str = "|||";
+#[allow(dead_code)]
 pub const PWD: &str = ".";
+#[allow(dead_code)]
 pub const PRINT_MESSAGE: u8 = 0;
+#[allow(dead_code)]
 const TICK_MESSAGE: u8 = 1;
+#[allow(dead_code)]
 pub const END_MESSAGE: u8 = 2;
-
+#[allow(dead_code)]
 pub struct SignMessage {
     pub text: String,
     pub file_len: u64,
 }
-
+#[allow(dead_code)]
 pub struct CheckMessage {
     pub check_type: u8,
     pub text: String,
@@ -67,7 +77,7 @@ pub enum Whereoutput {
     FilePointer(File),
     StringText(String),
 }
-
+#[allow(dead_code)]
 pub struct ManifestLine {
     pub file_type: String,
     pub bytes: String,
@@ -76,7 +86,7 @@ pub struct ManifestLine {
     pub nonce: String,
     pub sign: String,
 }
-
+#[allow(dead_code)]
 pub fn report_duplicatve_and_insert_nonce<S: BuildHasher>(
     nonces: &mut HashMap<String, String, S>,
     nonce: String,
@@ -95,7 +105,7 @@ pub fn report_duplicatve_and_insert_nonce<S: BuildHasher>(
         }
     };
 }
-
+#[allow(dead_code)]
 pub fn provide_unique_nonce<S: BuildHasher>(
     nonce_bytes: &mut [u8; NONCE_LENGTH_IN_BYTES / BITS_IN_BYTES],
     nonces: &mut HashMap<[u8; NONCE_LENGTH_IN_BYTES / BITS_IN_BYTES], i32, S>,
@@ -120,7 +130,7 @@ pub fn provide_unique_nonce<S: BuildHasher>(
         }
     }
 }
-
+#[allow(dead_code)]
 pub fn write_check_from_channel(
     verbose: bool,
     check_rx: std::sync::mpsc::Receiver<CheckMessage>,
@@ -175,7 +185,7 @@ pub fn write_line(wherefile: &mut Whereoutput, data: String) {
         }
     };
 }
-
+#[allow(dead_code)]
 pub fn write_manifest_from_channel(
     num_lines: usize,
     mut hasher: HasherOptions,
@@ -315,6 +325,7 @@ pub fn write_manifest_from_channel(
     }
 }
 */
+#[allow(dead_code)]
 fn sign_data(data: &str, private_key_bytes: &[u8]) -> ring::signature::Signature {
     let key_pair = match ring::signature::Ed25519KeyPair::from_pkcs8(private_key_bytes) {
         Ok(key_pair) => key_pair,
@@ -322,7 +333,7 @@ fn sign_data(data: &str, private_key_bytes: &[u8]) -> ring::signature::Signature
     };
     key_pair.sign(data.as_bytes())
 }
-
+#[allow(dead_code)]
 pub fn read_private_key(private_key_bytes: &mut [u8], private_key_file: &str) {
     let mut file = match File::open(&private_key_file) {
         Ok(file) => file,
@@ -358,7 +369,7 @@ pub fn read_private_key(private_key_bytes: &mut [u8], private_key_file: &str) {
     };
     private_key_bytes[..].clone_from_slice(&local_key[..]);
 }
-
+#[allow(dead_code)]
 pub fn dump_header(header_file: &str) -> String {
     let mut file = match File::open(&header_file) {
         Ok(file) => file,
@@ -379,7 +390,7 @@ pub fn dump_header(header_file: &str) -> String {
     };
     contents
 }
-
+#[allow(dead_code)]
 pub fn var_digest<R: Read>(mut reader: R, mut hasher: HasherOptions) -> Vec<u8> {
     let mut buffer = [0; HASH_READ_BUFFER_IN_BYTES / BITS_IN_BYTES];
 
@@ -395,7 +406,7 @@ pub fn var_digest<R: Read>(mut reader: R, mut hasher: HasherOptions) -> Vec<u8> 
     }
     hasher.finish()
 }
-
+#[allow(dead_code)]
 pub fn check_line(
     path: String,
     hasher: HasherOptions,
@@ -568,7 +579,7 @@ pub fn check_line(
     };
     send_check_message(TICK_MESSAGE, "Tick".to_string(), false, &check_tx);
 }
-
+#[allow(dead_code)]
 pub fn create_line(
     path: String,
     hasher: HasherOptions,
@@ -644,7 +655,7 @@ pub fn create_line(
 
     send_sign_message(data, filelen, &sign_tx);
 }
-
+#[allow(dead_code)]
 pub fn create_keys(public_key_bytes: &mut [u8], private_key_bytes: &mut [u8]) {
     let rng = ring::rand::SystemRandom::new();
     let pkcs8_bytes = match ring::signature::Ed25519KeyPair::generate_pkcs8(&rng) {
@@ -660,7 +671,7 @@ pub fn create_keys(public_key_bytes: &mut [u8], private_key_bytes: &mut [u8]) {
     public_key_bytes[..].clone_from_slice(&key_pair.public_key().as_ref()[..]);
     private_key_bytes[..].clone_from_slice(&pkcs8_bytes.as_ref()[..]);
 }
-
+#[allow(dead_code)]
 pub fn write_key(public_key_bytes: &[u8], pubic_key_file: &str, key_name: &str) {
     let mut map = BTreeMap::new();
     map.insert(key_name.to_string(), HEXUPPER.encode(&public_key_bytes));
@@ -687,7 +698,7 @@ pub fn write_key(public_key_bytes: &[u8], pubic_key_file: &str, key_name: &str) 
         ),
     };
 }
-
+#[allow(dead_code)]
 pub fn read_public_key(public_key_file: &str, public_key_bytes: &mut [u8]) {
     let mut file = match File::open(public_key_file) {
         Ok(filepointer) => filepointer,
@@ -725,6 +736,7 @@ pub fn read_public_key(public_key_file: &str, public_key_bytes: &mut [u8]) {
     };
     public_key_bytes[..].clone_from_slice(&local_key[..])
 }
+#[allow(dead_code)]
 pub fn write_keys(
     public_key_bytes: &[u8],
     private_key_bytes: &[u8],
@@ -738,7 +750,7 @@ pub fn write_keys(
         PRIVATE_KEY_STRING_ED25519,
     );
 }
-
+#[allow(dead_code)]
 pub fn write_headers(
     sign_tx: &std::sync::mpsc::Sender<SignMessage>,
     inputhash: &str,
@@ -767,7 +779,7 @@ pub fn write_headers(
     );
     send_sign_message(format!("{}\n", SEPARATOR_LINE), 0, &sign_tx);
 }
-
+#[allow(dead_code)]
 pub fn read_manifest_file(vec_of_lines: &mut Vec<String>, input_file: &str, fileoutput: bool) {
     let f = match File::open(input_file) {
         Ok(f) => f,
@@ -808,7 +820,7 @@ pub fn read_manifest_file(vec_of_lines: &mut Vec<String>, input_file: &str, file
     *file_len += manifest_line.len();
     vec_of_lines.remove(0)
 } */
-
+#[allow(dead_code)]
 pub fn parse_next_manifest_line(
     manifest_line: &str,
     type_of_line: &mut String,
