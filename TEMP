@@ -1,0 +1,8 @@
+Manifest version|0.8.0
+Command Line|/home/sbattista/Documents/Projects/signhash/target/debug/sign_hash -a blake3 -d /home/sbattista/Documents/Projects/signhash/target/release -o TEMP
+Hash SHA|blake3
+Signature algorithm|ED25519
+No header file requested for inclusion.
+Start time was|2020-11-19 02:43:39.604561771 UTC
+Threads used for main hashing was|4
+********************************************************************************

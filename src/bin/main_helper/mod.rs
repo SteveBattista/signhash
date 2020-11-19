@@ -118,7 +118,6 @@ pub fn provide_unique_nonce<S: BuildHasher>(
     while duplicate {
         for item in nonce_bytes
             .iter_mut()
-            .take(NONCE_LENGTH_IN_BYTES / BITS_IN_BYTES)
         {
             *item = rng.gen();
         }
@@ -283,7 +282,6 @@ pub fn write_manifest_from_channel(
 
     for item in nonce_bytes
         .iter_mut()
-        .take(NONCE_LENGTH_IN_BYTES / BITS_IN_BYTES)
     {
         *item = rng.gen();
     }

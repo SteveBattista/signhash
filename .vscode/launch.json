@@ -19,7 +19,7 @@
                     "kind": "bin"
                 }
             },
-            "args": ["-a blake3 -d ~/Documents/Fileing/ -o TEMP"]            ,
+            "args": ["-a","blake3", "-d","/home/sbattista/Documents/Projects/signhash/target/release", "-o","TEMP"]            ,
             "cwd": "${workspaceFolder}"
         },
         {
