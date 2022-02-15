@@ -29,7 +29,7 @@ N.B. Some of the thoughts on how to keep this from tamper are:
 <ol>
 <li> Writing this to multiple locations that would require an adversary to compromise a majority of them.
 <li> Reading the signature over the phone (64 hexadecimal numbers)
-<li>Placing the key in an um-editable database like a public block-chain.
+<li>Placing the key in an un-editable database like a public block-chain.
 </ol>
 
 <h1> How To Use <br></h1>
