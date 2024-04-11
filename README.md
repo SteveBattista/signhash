@@ -54,5 +54,5 @@ When working on a live Linux system /proc/kcore can be very large (e.g. 128TB). 
 
 <h1>Possible Road-map <br></h1>
 <ol>
-<li> In version 2.0 we should move the nonce into the hash. This would ensure that when files matched they would not have the same hash. Also, it would make rainbow table guessing infesable. This would remove some of the reasons why you would have to keep the manifest confidential</li>
+<li> In version 2.0 we should move the nonce into the hash with a keyed hash. This would ensure that when files matched they would not have the same hash. Also, it would make rainbow table guessing infesable. This would remove some of the reasons why you would have to keep the manifest confidential</li>
 <li>There is only one signing algorithm that is in use. Thinking of adding a post quantum crypto algorithm option in addition to the first one. If we used two signatures and one of them failed due to the advent of quantum computing, the second would ensure integrity.</li><br>
