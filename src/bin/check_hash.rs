@@ -37,7 +37,7 @@ use std::thread;
 
 use data_encoding::HEXUPPER;
 
-use clap::{App, Arg};
+use clap::{Arg, ArgAction, Command};
 
 use indicatif::ProgressBar;
 use indicatif::ProgressStyle;
@@ -50,83 +50,97 @@ use chrono::Utc;
 const NUMBER_OF_LINES_UNTIL_FILE_LEN_MESSAGE: usize = 7;
 const NO_OUTPUTFILE: &str = "|||";
 
+#[allow(clippy::too_many_lines)]
 fn main() {
     let now: DateTime<Utc> = Utc::now();
     let args: Vec<String> = env::args().collect();
-    let matches = App::new("check_hash")
-    .version("1.0.0")
-    .author("Stephen Battista <stephen.battista@gmail.com>")
-    .about("Implements a signed hash for files")
-    .arg(Arg::with_name("public")
-        .short("u")
-        .long("public")
-        .value_name("FILE")
-        .help("This option allows for the user to set the location of the public key. If not used, Signpub.key is default.")
-        .takes_value(true))
-    .arg(Arg::with_name("input")
-        .short("i")
-        .long("input")
-        .value_name("FILE")
-        .help("This option allows for the user to set the location of the manifest file.  If not used, Manifest.txt is default. ")
-        .takes_value(true))
-    .arg(Arg::with_name("output")
-        .short("o")
-        .long("output")
-        .value_name("FILE")
-        .help("This option allows for the user to set the location of the output file.  If not used, STDIO is default. ")
-        .takes_value(true))
-    .arg(Arg::with_name("pool")
-        .short("p")
-        .long("pool")
-        .value_name("#")
-        .help("Sets the size of the pool of maximum number of concurrent threads when hashing. Default is number of CPU cores. Negative numbers set pool to default. Warning: Large numbers (> 60) may cause the program not to hash all files.")
-        .takes_value(true))
-    .arg(Arg::with_name("directory")
-        .short("d")
-        .long("directory")
-        .value_name("DIRECTORY")
-        .help("Directory to start hashing. Default is current working directory. Program does not follow symbolic links.")
-        .takes_value(true))
-    .arg(Arg::with_name("verbose")
-         .short("v")
-        .long("verbose")
-        .help("Use -v flag to also print out when things match."))
-    .arg(Arg::with_name("manifestonly")
-        .short("m")
-        .long("manifestonly")
-        .help("Use -m flag to check the validity of the manifest only. Will ignore -d option."))
-    .get_matches();
+    let matches = Command::new("check_hash")
+        .version("1.0.0")
+        .author("Stephen Battista <stephen.battista@gmail.com>")
+        .about("Implements a signed hash for files")
+        .arg(
+            Arg::new("public")
+                .short('u')
+                .long("public")
+                .value_name("FILE")
+                .help("This option allows for the user to set the location of the public key. If not used, Signpub.key is default.")
+                .num_args(1),
+        )
+        .arg(
+            Arg::new("input")
+                .short('i')
+                .long("input")
+                .value_name("FILE")
+                .help("This option allows for the user to set the location of the manifest file.  If not used, Manifest.txt is default. ")
+                .num_args(1),
+        )
+        .arg(
+            Arg::new("output")
+                .short('o')
+                .long("output")
+                .value_name("FILE")
+                .help("This option allows for the user to set the location of the output file.  If not used, STDIO is default. ")
+                .num_args(1),
+        )
+        .arg(
+            Arg::new("pool")
+                .short('p')
+                .long("pool")
+                .value_name("#")
+                .help("Sets the size of the pool of maximum number of concurrent threads when hashing. Default is number of CPU cores. Negative numbers set pool to default. Warning: Large numbers (> 60) may cause the program not to hash all files.")
+                .num_args(1),
+        )
+        .arg(
+            Arg::new("directory")
+                .short('d')
+                .long("directory")
+                .value_name("DIRECTORY")
+                .help("Directory to start hashing. Default is current working directory. Program does not follow symbolic links.")
+                .num_args(1),
+        )
+        .arg(
+            Arg::new("verbose")
+                .short('v')
+                .long("verbose")
+                .help("Use -v flag to also print out when things match.")
+                .action(ArgAction::SetTrue),
+        )
+        .arg(
+            Arg::new("manifestonly")
+                .short('m')
+                .long("manifestonly")
+                .help("Use -m flag to check the validity of the manifest only. Will ignore -d option.")
+                .action(ArgAction::SetTrue),
+        )
+        .get_matches();
 
     let mut public_key_bytes: [u8; PUBLICKEY_LENGTH_IN_BYTES / BITS_IN_BYTES] =
         [0; PUBLICKEY_LENGTH_IN_BYTES / BITS_IN_BYTES];
     let public_key_file = matches
-        .value_of("public")
-        .unwrap_or(DEFAULT_PUBIC_KEY_FILE_NAME);
+        .get_one::<String>("public")
+        .map_or(DEFAULT_PUBIC_KEY_FILE_NAME, std::string::String::as_str);
     read_public_key(public_key_file, &mut public_key_bytes);
 
     let output_file = matches
-        .value_of("output")
-        .unwrap_or(NO_OUTPUTFILE)
-        .to_string();
+        .get_one::<String>("output")
+        .cloned()
+        .unwrap_or_else(|| NO_OUTPUTFILE.to_string());
     let fileoutput = output_file != NO_OUTPUTFILE;
 
     let input_file = matches
-        .value_of("input")
-        .unwrap_or(DEFAULT_MANIFEST_FILE_NAME)
-        .to_string();
+        .get_one::<String>("input")
+        .cloned()
+        .unwrap_or_else(|| DEFAULT_MANIFEST_FILE_NAME.to_string());
 
     let mut vec_of_lines: Vec<String> = Vec::new();
     read_manifest_file(&mut vec_of_lines, &input_file, fileoutput);
 
-    let inputpool = matches.value_of("pool").unwrap_or("0");
-    let poolresult = inputpool.parse();
-    let mut poolnumber;
-    match poolresult {
-        Ok(n) => poolnumber = n,
-        Err(_e) => {
-            panic!("Please choose a number for the number of threads.");
-        }
-    }
+    let inputpool = matches
+        .get_one::<String>("pool")
+        .map_or("0", std::string::String::as_str);
+    let mut poolnumber = inputpool.parse::<usize>().unwrap_or_else(|why| {
+        panic!("Please choose a number for the number of threads.|{}", why);
+    });
     if poolnumber < 1 {
         poolnumber = num_cpus::get();
     }
@@ -134,11 +148,13 @@ fn main() {
     let mut pool = Pool::new(poolnumber.try_into().unwrap());
     let (check_tx, check_rx): (Sender<CheckMessage>, Receiver<CheckMessage>) = mpsc::channel();
 
-    let input_directoy = matches.value_of("directory").unwrap_or(PWD);
+    let input_directoy = matches
+        .get_one::<String>("directory")
+        .map_or(PWD, std::string::String::as_str);
 
-    let verbose: bool = matches.is_present("verbose");
+    let verbose: bool = matches.get_flag("verbose");
 
-    let manifest_only = matches.is_present("manifestonly");
+    let manifest_only = matches.get_flag("manifestonly");
 
     let mut inputfiles: Vec<String> = Vec::new();
     if !manifest_only {
@@ -147,7 +163,8 @@ fn main() {
             spinner.set_prefix("Constucting file list:");
             spinner.set_style(
                 ProgressStyle::default_bar()
-                    .template("{prefix} {elapsed_precise} {spinner:.yellow/cyan}"),
+                    .template("{prefix} {elapsed_precise} {spinner:.yellow/cyan}")
+                    .expect("valid spinner template"),
             );
         }
         for entry in WalkDir::new(input_directoy) {
@@ -169,7 +186,8 @@ fn main() {
         nonce_bar.set_prefix("Parsing and checking for duplicate nonces:");
         nonce_bar.set_style(
             ProgressStyle::default_bar()
-                .template("{prefix} {wide_bar:.green/cyan} {pos}/{len} {elapsed_precise}"),
+                .template("{prefix} {wide_bar:.green/cyan} {pos}/{len} {elapsed_precise}")
+                .expect("valid nonce progress template"),
         );
     }
     let progress_bar = ProgressBar::new(
@@ -197,22 +215,22 @@ fn main() {
     let mut file_len: usize = 0;
 
     version_line += "\n";
-    hasher = hasher.mutli_hash_update(version_line.as_bytes());
+    hasher = hasher.multi_hash_update(version_line.as_bytes());
     file_len += version_line.len();
 
     command_line += "\n";
-    hasher = hasher.mutli_hash_update(command_line.as_bytes());
+    hasher = hasher.multi_hash_update(command_line.as_bytes());
     file_len += command_line.len();
 
     hash_line += "\n";
-    hasher = hasher.mutli_hash_update(hash_line.as_bytes());
+    hasher = hasher.multi_hash_update(hash_line.as_bytes());
     file_len += hash_line.len();
 
     let mut manifest_line = vec_of_lines.remove(0);
 
     while manifest_line != SEPARATOR_LINE {
         manifest_line += "\n";
-        hasher = hasher.mutli_hash_update(manifest_line.as_bytes());
+        hasher = hasher.multi_hash_update(manifest_line.as_bytes());
         file_len += manifest_line.len();
         manifest_line = vec_of_lines.remove(0);
         if fileoutput {
@@ -228,13 +246,13 @@ fn main() {
     );
     send_check_message(
         PRINT_MESSAGE,
-        format!("Start time was|{}\n", now.to_string()),
+        format!("Start time was|{now}\n"),
         true,
         &check_tx,
     );
     send_check_message(
         PRINT_MESSAGE,
-        format!("Threads used for main hashing was|{}\n", poolnumber),
+        format!("Threads used for main hashing was|{poolnumber}\n"),
         true,
         &check_tx,
     );
@@ -260,7 +278,7 @@ fn main() {
     let mut hash_line = String::new();
     let mut sign_line = String::new();
     manifest_line += "\n";
-    hasher = hasher.mutli_hash_update(manifest_line.as_bytes());
+    hasher = hasher.multi_hash_update(manifest_line.as_bytes());
     file_len += manifest_line.len();
     manifest_line = vec_of_lines.remove(0);
     if fileoutput {
@@ -285,8 +303,8 @@ fn main() {
 
             report_duplicatve_and_insert_nonce(
                 nonces,
-                nonce_line.clone(),
-                file_name_line.clone(),
+                &nonce_line,
+                &file_name_line,
                 &check_tx,
             );
 
@@ -301,7 +319,7 @@ fn main() {
             manifest_map.insert(file_name_line.clone(), manifist_struct);
 
             manifest_line += "\n";
-            hasher = hasher.mutli_hash_update(manifest_line.as_bytes());
+            hasher = hasher.multi_hash_update(manifest_line.as_bytes());
             file_len += manifest_line.len();
             manifest_line = vec_of_lines.remove(0);
 
@@ -320,13 +338,15 @@ fn main() {
             progress_bar.set_prefix("Checking signatures :");
             progress_bar.set_style(
                 ProgressStyle::default_bar()
-                    .template("{prefix} {wide_bar:.green/cyan} {pos}/{len} {elapsed_precise}"),
+                    .template("{prefix} {wide_bar:.green/cyan} {pos}/{len} {elapsed_precise}")
+                    .expect("valid manifest progress template"),
             );
         } else {
             progress_bar.set_prefix("Checking files and signatures :");
             progress_bar.set_style(
                 ProgressStyle::default_bar()
-                    .template("{prefix} {wide_bar:.yellow/cyan} {pos}/{len} {elapsed_precise}"),
+                    .template("{prefix} {wide_bar:.yellow/cyan} {pos}/{len} {elapsed_precise}")
+                    .expect("valid file progress template"),
             );
         }
     }
@@ -334,7 +354,13 @@ fn main() {
     let writer_child = thread::Builder::new()
         .name("Writer".to_string())
         .spawn(move || {
-            write_check_from_channel(verbose, check_rx, output_file, fileoutput, progress_bar);
+            write_check_from_channel(
+                verbose,
+                &check_rx,
+                &output_file,
+                fileoutput,
+                &progress_bar,
+            );
         })
         .unwrap();
 
@@ -347,10 +373,10 @@ fn main() {
                     scoped.execute(move || {
                         check_line(
                             file_line,
-                            thread_hasher,
-                            manifest_structure,
+                            &thread_hasher,
+                            &manifest_structure,
                             &public_key_bytes,
-                            thread_tx,
+                            &thread_tx,
                             true
                         );
                     });
@@ -365,10 +391,10 @@ fn main() {
                     scoped.execute(move || {
                         check_line(
                             file,
-                            thread_hasher,
-                            file_line,
+                            &thread_hasher,
+                            &file_line,
                             &public_key_bytes,
-                            thread_tx,
+                            &thread_tx,
                             false
                         );
                     });
@@ -377,15 +403,14 @@ fn main() {
                     send_check_message(
                         PRINT_MESSAGE,
                         format!(
-                            "Failure|{}|was in the directory search but not found in directory manifest.\n",
-                            file,
+                            "Failure|{file}|was in the directory search but not found in directory manifest.\n",
                         )
                         .to_string(),
                         false,
                         &check_tx,
                     );
                 }
-            };
+            }
         }
     }
 });
@@ -395,8 +420,7 @@ fn main() {
             send_check_message(
                 PRINT_MESSAGE,
                 format!(
-                    "Failure|{}|was in the manifest but not found in directory search.\n",
-                    file_line
+                    "Failure|{file_line}|was in the manifest but not found in directory search.\n"
                 )
                 .to_string(),
                 false,
@@ -407,18 +431,18 @@ fn main() {
 
     for _x in 0..NUMBER_OF_LINES_UNTIL_FILE_LEN_MESSAGE {
         manifest_line += "\n";
-        hasher = hasher.mutli_hash_update(manifest_line.as_bytes());
+        hasher = hasher.multi_hash_update(manifest_line.as_bytes());
         file_len += manifest_line.len();
         manifest_line = vec_of_lines.remove(0);
     }
 
     manifest_line += "\n";
-    hasher = hasher.mutli_hash_update(manifest_line.as_bytes());
+    hasher = hasher.multi_hash_update(manifest_line.as_bytes());
 
     let tokens: Vec<&str> = manifest_line.split(TOKEN_SEPARATOR).collect();
     send_pass_fail_check_message(
-        tokens[1][..tokens[1].len() - 1] == format!("{}", file_len),
-        format!("Correct| file length is|{}\n", file_len),
+        tokens[1][..tokens[1].len() - 1] == format!("{file_len}"),
+        format!("Correct| file length is|{file_len}\n"),
         format!(
             "Failure|manifest length|{}|observed length|{}\n",
             &tokens[1][..tokens[1].len() - 1],
@@ -428,12 +452,12 @@ fn main() {
     );
 
     let digest = hasher.finish();
-    let digest_text = HEXUPPER.encode(&digest.as_ref());
+    let digest_text = HEXUPPER.encode(digest.as_ref());
     manifest_line = vec_of_lines.remove(0);
     let tokens: Vec<&str> = manifest_line.split(TOKEN_SEPARATOR).collect();
     send_pass_fail_check_message(
         tokens[1] == digest_text,
-        format!("Correct|file hash is|{}\n", digest_text),
+        format!("Correct|file hash is|{digest_text}\n"),
         format!(
             "Failure|manifest hash|{}|observed hash|{}\n",
             tokens[1], digest_text
@@ -445,13 +469,12 @@ fn main() {
     let tokens: Vec<&str> = manifest_line.split(TOKEN_SEPARATOR).collect();
 
     let local_key = match HEXUPPER.decode(tokens[1].as_bytes()) {
-        Ok(local_key) => (local_key),
+        Ok(local_key) => local_key,
         Err(why) => {
             send_check_message(
                 PRINT_MESSAGE,
                 format!(
-                    "Failure|couldn't decode hex signature for manifest file|{}.\n",
-                    why.to_string()
+                    "Failure|couldn't decode hex signature for manifest file|{why}.\n"
                 ),
                 false,
                 &check_tx,
@@ -485,7 +508,7 @@ fn main() {
                 &check_tx,
             );
         }
-    };
+    }
     send_check_message(END_MESSAGE, "End".to_string(), false, &check_tx);
 
     let _res = writer_child.join();

@@ -1,5 +1,6 @@
 use crate::main_helper::BITS_IN_BYTES;
 use crate::main_helper::HASH_READ_BUFFER_IN_BYTES;
+use std::convert::TryFrom;
 use blake3::Hasher;
 use ring::digest::Context;
 use ring::digest::{SHA1_FOR_LEGACY_USE_ONLY, SHA256, SHA384, SHA512, SHA512_256};
@@ -48,49 +49,33 @@ pub struct HasherOptions {
 
 impl HasherOptions {
     pub fn new(hash_type: &str) -> Self {
-        let hasherinstance: HasherOptions;
         match hash_type {
-            "blake3" => {
-                hasherinstance = HasherOptions {
-                    hasher: HasherEnum::Blake3Hasher(Box::new(blake3::Hasher::new())),
-                    id: AlgorithmID::BLAKE3,
-                }
-            }
-            "128" => {
-                hasherinstance = HasherOptions {
-                    hasher: HasherEnum::SHADigest(Box::new(Context::new(
-                        &SHA1_FOR_LEGACY_USE_ONLY,
-                    ))),
-                    id: AlgorithmID::SHA1,
-                }
-            }
-            "256" => {
-                hasherinstance = HasherOptions {
-                    hasher: HasherEnum::SHADigest(Box::new(Context::new(&SHA256))),
-                    id: AlgorithmID::SHA256,
-                }
-            }
-            "384" => {
-                hasherinstance = HasherOptions {
-                    hasher: HasherEnum::SHADigest(Box::new(Context::new(&SHA384))),
-                    id: AlgorithmID::SHA384,
-                }
-            }
-            "512" => {
-                hasherinstance = HasherOptions {
-                    hasher: HasherEnum::SHADigest(Box::new(Context::new(&SHA512))),
-                    id: AlgorithmID::SHA512,
-                }
-            }
-            "512_256" => {
-                hasherinstance = HasherOptions {
-                    hasher: HasherEnum::SHADigest(Box::new(Context::new(&SHA512_256))),
-                    id: AlgorithmID::SHA512_256,
-                }
-            }
+            "blake3" => HasherOptions {
+                hasher: HasherEnum::Blake3Hasher(Box::new(blake3::Hasher::new())),
+                id: AlgorithmID::BLAKE3,
+            },
+            "128" => HasherOptions {
+                hasher: HasherEnum::SHADigest(Box::new(Context::new(&SHA1_FOR_LEGACY_USE_ONLY))),
+                id: AlgorithmID::SHA1,
+            },
+            "256" => HasherOptions {
+                hasher: HasherEnum::SHADigest(Box::new(Context::new(&SHA256))),
+                id: AlgorithmID::SHA256,
+            },
+            "384" => HasherOptions {
+                hasher: HasherEnum::SHADigest(Box::new(Context::new(&SHA384))),
+                id: AlgorithmID::SHA384,
+            },
+            "512" => HasherOptions {
+                hasher: HasherEnum::SHADigest(Box::new(Context::new(&SHA512))),
+                id: AlgorithmID::SHA512,
+            },
+            "512_256" => HasherOptions {
+                hasher: HasherEnum::SHADigest(Box::new(Context::new(&SHA512_256))),
+                id: AlgorithmID::SHA512_256,
+            },
             _ => panic!("Incorrect hash string input."),
-        };
-        hasherinstance
+        }
     }
 
     /* fn as_str(&self) -> &'static str {
@@ -120,7 +105,7 @@ impl HasherOptions {
 
         match self.hasher {
             HasherEnum::Blake3Hasher(mut hasher) => {
-                hasher.update_with_join::<blake3::join::RayonJoin>(input);
+                hasher.update(input);
                 let temp_hasher = hasher.finalize();
                 answer = temp_hasher.as_bytes()[..].to_vec();
             }
@@ -134,26 +119,17 @@ impl HasherOptions {
     } */
 
     pub fn finish(self) -> Vec<u8> {
-        let answer: Vec<u8>;
-
         match self.hasher {
-            HasherEnum::Blake3Hasher(hasher) => {
-                let temp_hasher = hasher.finalize();
-                answer = temp_hasher.as_bytes()[..].to_vec();
-            }
-            HasherEnum::SHADigest(digest) => {
-                let temp_digest = digest.finish();
-                answer = temp_digest.as_ref()[..].to_vec()
-            }
+            HasherEnum::Blake3Hasher(hasher) => hasher.finalize().as_bytes().to_vec(),
+            HasherEnum::SHADigest(digest) => digest.finish().as_ref().to_vec(),
         }
-        answer
     }
 
-    pub fn mutli_hash_update(self, input: &[u8]) -> Self {
+    pub fn multi_hash_update(self, input: &[u8]) -> Self {
         let hasherenum = self.hasher;
         match hasherenum {
             HasherEnum::Blake3Hasher(mut hasher) => {
-                hasher.update_with_join::<blake3::join::RayonJoin>(input);
+                hasher.update(input);
                 HasherOptions {
                     hasher: HasherEnum::Blake3Hasher(hasher),
                     id: self.id,
@@ -174,28 +150,25 @@ impl HasherOptions {
 fn maybe_memmap_file(file: &File) -> Result<Option<memmap::Mmap>> {
     let metadata = file.metadata()?;
     let file_size = metadata.len();
-    Ok(
-        if !metadata.is_file() || file_size > isize::max_value() as u64 || file_size == 0 {
-            // Not a real file.
-            None
-        } else {
-            // Explicitly set the length of the memory map, so that filesystem
-            // changes can't race to violate the invariants we just checked.
-            let map = unsafe {
-                memmap::MmapOptions::new()
-                    .len(file_size as usize)
-                    .map(&file)?
-            };
-            Some(map)
-        },
-    )
+    if !metadata.is_file() || file_size == 0 {
+        return Ok(None);
+    }
+
+    let Ok(len) = usize::try_from(file_size) else {
+        return Ok(None);
+    };
+
+    // Explicitly set the length of the memory map, so that filesystem
+    // changes can't race to violate the invariants we just checked.
+    let map = unsafe { memmap::MmapOptions::new().len(len).map(file)? };
+    Ok(Some(map))
 }
 
-fn maybe_hash_memmap(base_hasher: &HasherOptions, _file: &File) -> Option<Vec<u8>> {
+fn maybe_hash_memmap(base_hasher: &HasherOptions, file: &File) -> Option<Vec<u8>> {
     #[cfg(feature = "memmap")]
     {
-        if let Some(map) = maybe_memmap_file(_file).unwrap() {
-            return Some(base_hasher.clone().mutli_hash_update(&map).finish());
+        if let Some(map) = maybe_memmap_file(file).unwrap() {
+            return Some(base_hasher.clone().multi_hash_update(&map).finish());
         }
     }
     None
@@ -203,12 +176,12 @@ fn maybe_hash_memmap(base_hasher: &HasherOptions, _file: &File) -> Option<Vec<u8
 
 pub fn hash_file(base_hasher: &HasherOptions, filepath: &std::ffi::OsStr) -> Vec<u8> {
     let file = File::open(filepath).unwrap();
-    if let Some(output) = maybe_hash_memmap(&base_hasher, &file) {
+    if let Some(output) = maybe_hash_memmap(base_hasher, &file) {
         output // the fast path
     } else {
         // the slow path
         //println!("slow");
-        hash_reader(&base_hasher, file)
+        hash_reader(base_hasher, file)
     }
 }
 
@@ -224,18 +197,19 @@ fn hash_reader(base_hasher: &HasherOptions, mut reader: impl Read) -> Vec<u8> {
     let local_hasher = base_hasher.clone();
     let id = base_hasher.id.clone();
     let hasherenum = local_hasher.hasher;
-    let mut buffer = [0; HASH_READ_BUFFER_IN_BYTES / BITS_IN_BYTES];
+    let buffer_len = HASH_READ_BUFFER_IN_BYTES / BITS_IN_BYTES;
+    let mut buffer = vec![0_u8; buffer_len];
     let newhasher_option = match hasherenum {
         HasherEnum::Blake3Hasher(mut hasher) => {
             loop {
                 let count = match reader.read(&mut buffer) {
                     Ok(count) => count,
-                    Err(why) => panic!("Couldn't load data from file to hash|{}", why.to_string()),
+                    Err(why) => panic!("Couldn't load data from file to hash|{}", why),
                 };
                 if count == 0 {
                     break;
                 }
-                hasher.update_with_join::<blake3::join::RayonJoin>(&buffer);
+                hasher.update(&buffer[..count]);
             }
             HasherOptions {
                 hasher: HasherEnum::Blake3Hasher(hasher),
@@ -246,7 +220,7 @@ fn hash_reader(base_hasher: &HasherOptions, mut reader: impl Read) -> Vec<u8> {
             loop {
                 let count = match reader.read(&mut buffer) {
                     Ok(count) => count,
-                    Err(why) => panic!("Couldn't load data from file to hash|{}", why.to_string()),
+                    Err(why) => panic!("Couldn't load data from file to hash|{}", why),
                 };
                 if count == 0 {
                     break;
