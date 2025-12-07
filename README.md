@@ -1,5 +1,7 @@
 # Description
 
+![SignHash Icon](./Gemini_Generated_Image_g63c8hg63c8hg63c.png)
+
 **Version:** 1.0.0  
 **Manifest Format:** 0.8.0
 
