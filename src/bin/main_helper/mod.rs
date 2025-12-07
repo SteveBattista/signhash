@@ -1327,7 +1327,9 @@ pub fn get_pool_size(input: &str) -> usize {
         panic!("Please choose a number for the number of threads.|{}", why);
     });
     if size < 1 { 
-        num_threads::num_threads().map_or(1, std::num::NonZeroUsize::get)
+        std::thread::available_parallelism()
+            .map(std::num::NonZeroUsize::get)
+            .unwrap_or(1)
     } else { 
         size 
     }
