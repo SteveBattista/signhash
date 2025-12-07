@@ -1,6 +1,6 @@
 # Description
 
-![SignHash Icon](./Gemini_Generated_Image_g63c8hg63c8hg63c.png){width=500 height=500}
+![SignHash Icon](./Gemini_Generated_Image_d93h3cd93h3cd93h.png){width=500 height=500}
 
 **Version:** 1.0.0  
 **Manifest Format:** 0.8.0
