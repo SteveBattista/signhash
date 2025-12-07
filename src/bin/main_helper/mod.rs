@@ -18,7 +18,7 @@ use rand::Rng;
 
 pub const SIGN_HEADER_MESSAGE_COUNT: usize = 8;
 #[allow(dead_code)]
-pub const PRIVATEKEY_LENGTH_IN_BYTES: usize = 680;
+pub const PRIVATEKEY_LENGTH_IN_BYTES: usize = 664;
 pub const PUBLICKEY_LENGTH_IN_BYTES: usize = 256;
 pub const SIGNED_LENGTH_IN_BYTES: usize = 512;
 pub const NONCE_LENGTH_IN_BYTES: usize = 1024;
@@ -841,7 +841,7 @@ pub fn create_line(
 ///
 /// ```no_run
 /// let mut pub_key = [0u8; 32];
-/// let mut priv_key = [0u8; 85];
+/// let mut priv_key = [0u8; 83];
 /// create_keys(&mut pub_key, &mut priv_key);
 /// ```
 #[allow(dead_code)]

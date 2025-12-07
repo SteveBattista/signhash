@@ -23,7 +23,7 @@ use chrono::{DateTime, Utc};
 use clap::{Arg, ArgAction, Command};
 use indicatif::ProgressBar;
 
-const NUMBER_OF_LINES_UNTIL_FILE_LEN_MESSAGE: usize = 7;
+const NUMBER_OF_LINES_UNTIL_FILE_LEN_MESSAGE: usize = 6;
 
 fn build_cli() -> Command {
     Command::new("check_hash")
@@ -128,6 +128,10 @@ fn parse_manifest_headers(
     loop {
         let mut line = vec_of_lines.remove(0); inc();
         if line == SEPARATOR_LINE {
+            // Include separator in hash before breaking
+            line += "\n";
+            hasher = hasher.multi_hash_update(line.as_bytes());
+            file_len += line.len();
             break;
         }
         line += "\n";
@@ -199,8 +203,6 @@ fn verify_manifest_footer(
 
     // Verify file length
     let mut line = vec_of_lines.remove(0);
-    line += "\n";
-    hasher = hasher.multi_hash_update(line.as_bytes());
     
     let tokens: Vec<&str> = line.split(TOKEN_SEPARATOR).collect();
     let reported_len = tokens[1].trim();
@@ -210,6 +212,9 @@ fn verify_manifest_footer(
         format!("Failure|manifest length|{reported_len}|observed|{file_len}\n"),
         check_tx,
     );
+    
+    line += "\n";
+    hasher = hasher.multi_hash_update(line.as_bytes());
 
     // Verify hash
     let digest = hasher.finish();
