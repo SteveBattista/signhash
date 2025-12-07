@@ -1,237 +1,273 @@
-use crate::main_helper::BITS_IN_BYTES;
-use crate::main_helper::HASH_READ_BUFFER_IN_BYTES;
-use std::convert::TryFrom;
-use blake3::Hasher;
-use ring::digest::Context;
-use ring::digest::{SHA1_FOR_LEGACY_USE_ONLY, SHA256, SHA384, SHA512, SHA512_256};
+//! Hash helper module providing a unified interface for multiple hash algorithms.
+//!
+//! Supports BLAKE3 and various SHA algorithms via ring.
 
+use blake3::Hasher as Blake3Hasher;
+use ring::digest::{Context, SHA1_FOR_LEGACY_USE_ONLY, SHA256, SHA384, SHA512, SHA512_256};
 use std::fs::File;
-
 use std::io::Read;
 
 #[cfg(feature = "memmap")]
 use anyhow::Result;
+#[cfg(feature = "memmap")]
+use std::convert::TryFrom;
 
-#[derive(Clone)]
-pub enum HasherEnum {
-    Blake3Hasher(Box<Hasher>),
-    SHADigest(Box<Context>),
+/// Buffer size for streaming file reads (64 KiB).
+/// This is a reasonable default that balances memory usage with read efficiency.
+const READ_BUFFER_SIZE: usize = 64 * 1024;
+
+/// Supported hash algorithm types.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Algorithm {
+    Blake3,
+    Sha1,
+    Sha256,
+    Sha384,
+    Sha512,
+    Sha512_256,
 }
-#[allow(dead_code)]
-impl HasherEnum {
-    pub fn new(hash_type: &str) -> Self {
+
+impl Algorithm {
+    /// Parse algorithm from string identifier.
+    ///
+    /// # Panics
+    /// Panics if the hash type string is not recognized.
+    #[must_use]
+    pub fn from_str(hash_type: &str) -> Self {
         match hash_type {
-            "blake3" => HasherEnum::Blake3Hasher(Box::new(blake3::Hasher::new())),
-            "128" => HasherEnum::SHADigest(Box::new(Context::new(&SHA1_FOR_LEGACY_USE_ONLY))),
-            "256" => HasherEnum::SHADigest(Box::new(Context::new(&SHA256))),
-            "384" => HasherEnum::SHADigest(Box::new(Context::new(&SHA384))),
-            "512" => HasherEnum::SHADigest(Box::new(Context::new(&SHA512))),
-            "512_256" => HasherEnum::SHADigest(Box::new(Context::new(&SHA512_256))),
-            _ => panic!("Incorrect hash string input."),
+            "blake3" => Self::Blake3,
+            "128" => Self::Sha1,
+            "256" => Self::Sha256,
+            "384" => Self::Sha384,
+            "512" => Self::Sha512,
+            "512_256" => Self::Sha512_256,
+            _ => panic!("Unknown hash algorithm: {}", hash_type),
         }
     }
 }
 
-#[derive(Debug, Eq, PartialEq, Clone)]
-enum AlgorithmID {
-    BLAKE3,
-    SHA1,
-    SHA256,
-    SHA384,
-    SHA512,
-    SHA512_256,
+/// Internal hasher state - either BLAKE3 or ring SHA.
+enum HasherInner {
+    Blake3(Box<Blake3Hasher>),
+    Sha(Box<Context>),
 }
+
+impl HasherInner {
+    /// Update the hasher with a chunk of data.
+    fn update(&mut self, data: &[u8]) {
+        match self {
+            Self::Blake3(h) => {
+                h.update(data);
+            }
+            Self::Sha(c) => c.update(data),
+        }
+    }
+
+    /// Finalize the hash and return the digest as a byte vector.
+    fn finalize(self) -> Vec<u8> {
+        match self {
+            Self::Blake3(h) => h.finalize().as_bytes().to_vec(),
+            Self::Sha(c) => c.finish().as_ref().to_vec(),
+        }
+    }
+}
+
+/// A hasher that can be cloned and reused for multiple files with the same algorithm.
 #[derive(Clone)]
 pub struct HasherOptions {
-    pub hasher: HasherEnum,
-    id: AlgorithmID,
+    algorithm: Algorithm,
 }
 
 impl HasherOptions {
+    /// Create a new hasher configuration for the given algorithm string.
+    ///
+    /// # Panics
+    /// Panics if the hash type is not recognized.
+    #[must_use]
     pub fn new(hash_type: &str) -> Self {
-        match hash_type {
-            "blake3" => HasherOptions {
-                hasher: HasherEnum::Blake3Hasher(Box::new(blake3::Hasher::new())),
-                id: AlgorithmID::BLAKE3,
-            },
-            "128" => HasherOptions {
-                hasher: HasherEnum::SHADigest(Box::new(Context::new(&SHA1_FOR_LEGACY_USE_ONLY))),
-                id: AlgorithmID::SHA1,
-            },
-            "256" => HasherOptions {
-                hasher: HasherEnum::SHADigest(Box::new(Context::new(&SHA256))),
-                id: AlgorithmID::SHA256,
-            },
-            "384" => HasherOptions {
-                hasher: HasherEnum::SHADigest(Box::new(Context::new(&SHA384))),
-                id: AlgorithmID::SHA384,
-            },
-            "512" => HasherOptions {
-                hasher: HasherEnum::SHADigest(Box::new(Context::new(&SHA512))),
-                id: AlgorithmID::SHA512,
-            },
-            "512_256" => HasherOptions {
-                hasher: HasherEnum::SHADigest(Box::new(Context::new(&SHA512_256))),
-                id: AlgorithmID::SHA512_256,
-            },
-            _ => panic!("Incorrect hash string input."),
+        Self {
+            algorithm: Algorithm::from_str(hash_type),
         }
     }
 
-    /* fn as_str(&self) -> &'static str {
-        match self.id {
-            AlgorithmID::BLAKE3 => "blake3",
-            AlgorithmID::SHA1 => "128",
-            AlgorithmID::SHA256 => "256",
-            AlgorithmID::SHA384 => "384",
-            AlgorithmID::SHA512 => "512",
-            AlgorithmID::SHA512_256 => "512_256",
+    /// Create a fresh hasher instance for this algorithm.
+    /// 
+    /// Returns a new `HasherInner` configured for the algorithm specified
+    /// during construction.
+    fn create_hasher(&self) -> HasherInner {
+        match self.algorithm {
+            Algorithm::Blake3 => HasherInner::Blake3(Box::new(Blake3Hasher::new())),
+            Algorithm::Sha1 => HasherInner::Sha(Box::new(Context::new(&SHA1_FOR_LEGACY_USE_ONLY))),
+            Algorithm::Sha256 => HasherInner::Sha(Box::new(Context::new(&SHA256))),
+            Algorithm::Sha384 => HasherInner::Sha(Box::new(Context::new(&SHA384))),
+            Algorithm::Sha512 => HasherInner::Sha(Box::new(Context::new(&SHA512))),
+            Algorithm::Sha512_256 => HasherInner::Sha(Box::new(Context::new(&SHA512_256))),
         }
     }
 
-    pub fn len(&self) -> usize {
-        match self.id {
-            AlgorithmID::BLAKE3 => 256,
-            AlgorithmID::SHA1 => 128,
-            AlgorithmID::SHA256 => 256,
-            AlgorithmID::SHA384 => 384,
-            AlgorithmID::SHA512 => 512,
-            AlgorithmID::SHA512_256 => 256,
+    /// Hash a single chunk of data and return the digest.
+    /// 
+    /// This is useful for one-shot hashing where you have all the data
+    /// available at once. For streaming or incremental hashing, use
+    /// `multi_hash_update` instead.
+    #[must_use]
+    pub fn hash_once(&self, data: &[u8]) -> Vec<u8> {
+        let mut hasher = self.create_hasher();
+        hasher.update(data);
+        hasher.finalize()
+    }
+
+    /// Update hasher state with data and return a streaming hasher.
+    /// 
+    /// This begins incremental hashing by consuming the `HasherOptions`
+    /// and returning a `StreamingHasher` that can be used to continue
+    /// adding data via chained calls.
+    /// 
+    /// # Example
+    /// ```ignore
+    /// let hasher = HasherOptions::new("256");
+    /// let result = hasher.multi_hash_update(b"hello")
+    ///                    .multi_hash_update(b" world")
+    ///                    .finish();
+    /// ```
+    #[must_use]
+    pub fn multi_hash_update(self, input: &[u8]) -> StreamingHasher {
+        let mut hasher = self.create_hasher();
+        hasher.update(input);
+        StreamingHasher {
+            inner: hasher,
         }
     }
 
-    pub fn return_hash(self, input: &[u8]) -> Vec<u8> {
-        let answer: Vec<u8>;
-
-        match self.hasher {
-            HasherEnum::Blake3Hasher(mut hasher) => {
-                hasher.update(input);
-                let temp_hasher = hasher.finalize();
-                answer = temp_hasher.as_bytes()[..].to_vec();
-            }
-            HasherEnum::SHADigest(mut digest) => {
-                digest.update(input);
-                let temp_digest = digest.finish();
-                answer = temp_digest.as_ref()[..].to_vec()
-            }
-        }
-        answer
-    } */
-
+    /// Finish a hasher that hasn't been fed any data.
+    /// 
+    /// Returns the hash of an empty input for this algorithm.
+    /// This is primarily used for initialization in certain contexts.
+    #[must_use]
     pub fn finish(self) -> Vec<u8> {
-        match self.hasher {
-            HasherEnum::Blake3Hasher(hasher) => hasher.finalize().as_bytes().to_vec(),
-            HasherEnum::SHADigest(digest) => digest.finish().as_ref().to_vec(),
-        }
-    }
-
-    pub fn multi_hash_update(self, input: &[u8]) -> Self {
-        let hasherenum = self.hasher;
-        match hasherenum {
-            HasherEnum::Blake3Hasher(mut hasher) => {
-                hasher.update(input);
-                HasherOptions {
-                    hasher: HasherEnum::Blake3Hasher(hasher),
-                    id: self.id,
-                }
-            }
-            HasherEnum::SHADigest(mut digest) => {
-                digest.update(input);
-                HasherOptions {
-                    hasher: HasherEnum::SHADigest(digest),
-                    id: self.id,
-                }
-            }
-        }
+        self.create_hasher().finalize()
     }
 }
 
+/// A hasher that's in the middle of processing data.
+pub struct StreamingHasher {
+    inner: HasherInner,
+}
+
+impl StreamingHasher {
+    /// Continue updating with more data.
+    /// 
+    /// Consumes `self` and returns it back, allowing for method chaining.
+    /// This pattern ensures the hasher is used in a linear fashion without
+    /// accidentally duplicating state.
+    #[must_use]
+    pub fn multi_hash_update(mut self, input: &[u8]) -> Self {
+        self.inner.update(input);
+        self
+    }
+
+    /// Finalize and return the digest.
+    /// 
+    /// Consumes the hasher and produces the final hash value as a byte vector.
+    /// After calling this, the hasher cannot be used again.
+    #[must_use]
+    pub fn finish(self) -> Vec<u8> {
+        self.inner.finalize()
+    }
+}
+
+/// Attempt to create a memory mapping for a file.
+/// 
+/// This function tries to memory-map the given file for fast reading.
+/// Returns `Ok(None)` if the file cannot be mapped (e.g., not a regular file,
+/// empty, or too large for address space).
+/// 
+/// # Safety
+/// The memory mapping is only valid while the file remains unchanged.
+/// The explicit length parameter helps prevent TOCTOU (time-of-check-time-of-use)
+/// races where the file size changes between checking and mapping.
 #[cfg(feature = "memmap")]
-fn maybe_memmap_file(file: &File) -> Result<Option<memmap::Mmap>> {
+fn try_memmap_file(file: &File) -> Result<Option<memmap::Mmap>> {
     let metadata = file.metadata()?;
     let file_size = metadata.len();
+
+    // Can't mmap non-files or empty files
     if !metadata.is_file() || file_size == 0 {
         return Ok(None);
     }
 
+    // Check if file fits in address space
     let Ok(len) = usize::try_from(file_size) else {
         return Ok(None);
     };
 
-    // Explicitly set the length of the memory map, so that filesystem
-    // changes can't race to violate the invariants we just checked.
+    // SAFETY: We've verified the file exists and has the expected size.
+    // Setting explicit length prevents TOCTOU races with file modifications.
     let map = unsafe { memmap::MmapOptions::new().len(len).map(file)? };
     Ok(Some(map))
 }
 
-fn maybe_hash_memmap(base_hasher: &HasherOptions, file: &File) -> Option<Vec<u8>> {
+/// Try to hash a file using memory mapping (fast path).
+/// 
+/// Attempts to use memory-mapped I/O to hash the file efficiently.
+/// Returns `Some(digest)` if successful, `None` if memory mapping
+/// is unavailable or fails.
+/// 
+/// Memory mapping is typically faster for large files as it avoids
+/// intermediate buffering and allows the OS to optimize page caching.
+fn try_hash_memmap(hasher: &HasherOptions, file: &File) -> Option<Vec<u8>> {
     #[cfg(feature = "memmap")]
     {
-        if let Some(map) = maybe_memmap_file(file).unwrap() {
-            return Some(base_hasher.clone().multi_hash_update(&map).finish());
+        if let Ok(Some(map)) = try_memmap_file(file) {
+            return Some(hasher.hash_once(&map));
         }
     }
+    let _ = (hasher, file); // Suppress unused warnings when memmap disabled
     None
 }
 
-pub fn hash_file(base_hasher: &HasherOptions, filepath: &std::ffi::OsStr) -> Vec<u8> {
-    let file = File::open(filepath).unwrap();
-    if let Some(output) = maybe_hash_memmap(base_hasher, &file) {
-        output // the fast path
-    } else {
-        // the slow path
-        //println!("slow");
-        hash_reader(base_hasher, file)
+/// Hash a file using streaming reads (fallback path).
+/// 
+/// Reads the file in chunks and incrementally updates the hash.
+/// This is slower than memory mapping but works for all file types
+/// and doesn't require the memmap feature.
+/// 
+/// # Panics
+/// Panics if reading from the file fails.
+fn hash_streaming(hasher: &HasherOptions, mut reader: impl Read) -> Vec<u8> {
+    let mut inner = hasher.create_hasher();
+    let mut buffer = vec![0_u8; READ_BUFFER_SIZE];
+
+    loop {
+        let count = reader
+            .read(&mut buffer)
+            .unwrap_or_else(|e| panic!("Failed to read file for hashing: {}", e));
+
+        if count == 0 {
+            break;
+        }
+        inner.update(&buffer[..count]);
     }
+
+    inner.finalize()
 }
 
-fn hash_reader(base_hasher: &HasherOptions, mut reader: impl Read) -> Vec<u8> {
-    // TODO: This is a narrow copy, so it might not take advantage of SIMD or
-    // threads. With a larger buffer size, most of that performance can be
-    // recovered. However, this requires some platform-specific tuning, based
-    // on both the SIMD degree and the number of cores. A double-buffering
-    // strategy is also helpful, where a dedicated background thread reads
-    // input into one buffer while another thread is calling update() on a
-    // second buffer. Since this is the slow path anyway, do the simple thing
-    // for now.
-    let local_hasher = base_hasher.clone();
-    let id = base_hasher.id.clone();
-    let hasherenum = local_hasher.hasher;
-    let buffer_len = HASH_READ_BUFFER_IN_BYTES / BITS_IN_BYTES;
-    let mut buffer = vec![0_u8; buffer_len];
-    let newhasher_option = match hasherenum {
-        HasherEnum::Blake3Hasher(mut hasher) => {
-            loop {
-                let count = match reader.read(&mut buffer) {
-                    Ok(count) => count,
-                    Err(why) => panic!("Couldn't load data from file to hash|{}", why),
-                };
-                if count == 0 {
-                    break;
-                }
-                hasher.update(&buffer[..count]);
-            }
-            HasherOptions {
-                hasher: HasherEnum::Blake3Hasher(hasher),
-                id,
-            }
-        }
-        HasherEnum::SHADigest(mut digest) => {
-            loop {
-                let count = match reader.read(&mut buffer) {
-                    Ok(count) => count,
-                    Err(why) => panic!("Couldn't load data from file to hash|{}", why),
-                };
-                if count == 0 {
-                    break;
-                }
-                digest.update(&buffer[..count]);
-            }
-            HasherOptions {
-                hasher: HasherEnum::SHADigest(digest),
-                id,
-            }
-        }
-    };
-    newhasher_option.finish()
+/// Hash a file, using memory mapping if available, falling back to streaming.
+///
+/// # Panics
+/// Panics if the file cannot be opened or read.
+#[must_use]
+pub fn hash_file(hasher: &HasherOptions, filepath: &std::ffi::OsStr) -> Vec<u8> {
+    use std::path::Path;
+    let path = Path::new(filepath);
+    let file = File::open(filepath)
+        .unwrap_or_else(|e| panic!("Cannot open file {}: {}", path.display(), e));
+
+    // Try fast path (memory-mapped) first
+    if let Some(digest) = try_hash_memmap(hasher, &file) {
+        return digest;
+    }
+
+    // Fall back to streaming
+    hash_streaming(hasher, file)
 }
