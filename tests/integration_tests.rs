@@ -61,8 +61,8 @@ fn test_multiple_files() {
     
     // Create multiple files
     for i in 1..=5 {
-        let file_path = temp_dir.path().join(format!("file{}.txt", i));
-        fs::write(&file_path, format!("content {}", i)).unwrap();
+        let file_path = temp_dir.path().join(format!("file{i}.txt"));
+        fs::write(&file_path, format!("content {i}")).unwrap();
     }
     
     // Would: sign_hash should create manifest with all 5 files
@@ -82,7 +82,7 @@ fn test_nested_directories() {
     let nested = temp_dir.path().join("level1").join("level2").join("level3");
     fs::create_dir_all(&nested).unwrap();
     
-    create_test_file(&nested.join("deep_file.txt"), b"deep content").unwrap();
+    create_test_file(nested.join("deep_file.txt"), b"deep content").unwrap();
     
     // Would: sign_hash should recursively find all files
     assert!(nested.join("deep_file.txt").exists());
@@ -118,12 +118,12 @@ fn test_mixed_file_types() {
     let temp_dir = TempDir::new().unwrap();
     
     // Regular file
-    create_test_file(&temp_dir.path().join("file.txt"), b"file").unwrap();
+    create_test_file(temp_dir.path().join("file.txt"), b"file").unwrap();
     
     // Subdirectory
     let subdir = temp_dir.path().join("subdir");
     fs::create_dir(&subdir).unwrap();
-    create_test_file(&subdir.join("nested.txt"), b"nested").unwrap();
+    create_test_file(subdir.join("nested.txt"), b"nested").unwrap();
     
     // Would: sign_hash should handle mixed types correctly
     assert!(temp_dir.path().join("file.txt").exists());
@@ -136,8 +136,8 @@ fn test_large_directory() {
     
     // Create 100 files
     for i in 0..100 {
-        let file_path = temp_dir.path().join(format!("file_{:03}.txt", i));
-        fs::write(&file_path, format!("content {}", i)).unwrap();
+        let file_path = temp_dir.path().join(format!("file_{i:03}.txt"));
+        fs::write(&file_path, format!("content {i}")).unwrap();
     }
     
     // Would: sign_hash should handle many files efficiently
@@ -203,8 +203,10 @@ fn test_concurrent_file_hashing() {
     
     // Create files for concurrent hashing
     for i in 0..10 {
-        let file_path = temp_dir.path().join(format!("file{}.txt", i));
-        fs::write(&file_path, vec![i as u8; 1000]).unwrap();
+        let file_path = temp_dir.path().join(format!("file{i}.txt"));
+        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+        let byte = i as u8;
+        fs::write(&file_path, vec![byte; 1000]).unwrap();
     }
     
     // Would: sign_hash with multi-threading enabled
@@ -220,8 +222,8 @@ fn test_progress_tracking() {
     // Create files to track progress
     for i in 0..20 {
         create_test_file(
-            &temp_dir.path().join(format!("file{}.txt", i)),
-            format!("content {}", i).as_bytes()
+            temp_dir.path().join(format!("file{i}.txt")),
+            format!("content {i}").as_bytes()
         ).unwrap();
     }
     

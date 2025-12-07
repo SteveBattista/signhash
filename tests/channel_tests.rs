@@ -1,4 +1,4 @@
-//! Tests for channel communication functions (send_sign_message, send_check_message, etc.)
+//! Tests for channel communication (`SignMessage`, `CheckMessage`)
 
 use std::sync::mpsc::channel;
 use std::thread;
@@ -61,8 +61,8 @@ fn test_send_sign_message_multiple() {
 }
 
 #[test]
-#[should_panic]
-fn test_send_sign_message_closed_channel() {
+#[should_panic(expected = "SendError")]
+fn test_send_sign_message_invalid_type() {
     let (tx, rx) = channel::<(String, u64)>();
     
     drop(rx); // Close receiver
@@ -80,7 +80,7 @@ fn test_send_check_message_print() {
     let (msg_type, content, verbose) = rx.recv().unwrap();
     assert_eq!(msg_type, PRINT_MESSAGE);
     assert_eq!(content, message);
-    assert_eq!(verbose, false);
+    assert!(!verbose);
 }
 
 #[test]
@@ -109,17 +109,18 @@ fn test_send_check_message_verbose_flag() {
     
     // Test verbose = true
     tx.send((PRINT_MESSAGE, "verbose".to_string(), true)).unwrap();
-    let (_, _, verbose1) = rx.recv().unwrap();
-    assert_eq!(verbose1, true);
+    let (msg_type1, _, verbose1) = rx.recv().unwrap();
+    assert_eq!(msg_type1, PRINT_MESSAGE);
+    assert!(verbose1);
     
     // Test verbose = false
     tx.send((PRINT_MESSAGE, "normal".to_string(), false)).unwrap();
     let (_, _, verbose2) = rx.recv().unwrap();
-    assert_eq!(verbose2, false);
+    assert!(!verbose2);
 }
 
 #[test]
-#[should_panic]
+#[should_panic(expected = "SendError")]
 fn test_send_check_message_closed_channel() {
     let (tx, rx) = channel::<(u8, String, bool)>();
     
@@ -141,7 +142,7 @@ fn test_send_pass_fail_check_message_pass() {
     
     let (_, msg, verbose) = rx.recv().unwrap();
     assert_eq!(msg, pass_msg);
-    assert_eq!(verbose, true); // Pass messages are verbose
+    assert!(verbose); // Pass messages are verbose
 }
 
 #[test]
@@ -157,7 +158,7 @@ fn test_send_pass_fail_check_message_fail() {
     
     let (_, msg, verbose) = rx.recv().unwrap();
     assert_eq!(msg, fail_msg);
-    assert_eq!(verbose, false); // Fail messages are not verbose
+    assert!(!verbose); // Fail messages are not verbose
 }
 
 #[test]
@@ -336,7 +337,7 @@ fn test_write_manifest_from_channel_updates_progress() {
     
     thread::spawn(move || {
         for i in 0..total_files {
-            tx.send(format!("file{}.txt|hash|size|date", i)).unwrap();
+            tx.send(format!("file{i}.txt|hash|size|date")).unwrap();
         }
     });
     

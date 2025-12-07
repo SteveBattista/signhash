@@ -1,4 +1,4 @@
-//! Tests for key management functions (create_keys, write_key, read_public_key, etc.)
+//! Tests for key management functions (`create_keys`, `write_key`, `read_public_key`, etc.)
 
 use ring::signature::{Ed25519KeyPair, KeyPair};
 use ring::rand::SystemRandom;

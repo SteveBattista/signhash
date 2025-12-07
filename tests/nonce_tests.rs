@@ -29,6 +29,7 @@ fn provide_unique_nonce<S: std::hash::BuildHasher>(
 ) {
     let mut duplicate = true;
     while duplicate {
+        #[allow(clippy::cast_possible_truncation)]
         for item in nonce_bytes.iter_mut() {
             *item = rng.next_u32() as u8;
         }
@@ -79,6 +80,7 @@ fn test_provide_unique_nonce_generates_nonce() {
 }
 
 #[test]
+#[allow(clippy::similar_names)]
 fn test_provide_unique_nonce_unique() {
     let mut nonces = HashMap::new();
     let mut rng = rand::rng();
@@ -99,6 +101,7 @@ fn test_provide_unique_nonce_unique() {
 }
 
 #[test]
+#[allow(clippy::similar_names)]
 fn test_provide_unique_nonce_avoids_duplicates() {
     let mut nonces = HashMap::new();
     let mut rng = rand::rng();

@@ -1,4 +1,4 @@
-//! Tests for I/O and file handling functions (write_line, dump_header, var_digest)
+//! Tests for I/O and file handling functions (`write_line`, `dump_header`, `var_digest`)
 
 use std::fs::{self, File};
 use std::io::{Cursor, Write};
@@ -172,7 +172,6 @@ fn test_var_digest_chunked_reading() {
 fn test_var_digest_different_algorithms() {
     // Would test var_digest with SHA256, SHA512, BLAKE3, etc.
     // Each should produce different hash for same input
-    let _data = b"test data";
     let algorithms = vec!["blake3", "256", "512"];
     
     for algo in algorithms {

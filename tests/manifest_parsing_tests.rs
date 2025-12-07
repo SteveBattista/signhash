@@ -87,7 +87,7 @@ fn test_parse_manifest_line_extracts_all_fields() {
 }
 
 #[test]
-#[should_panic]
+#[should_panic(expected = "index out of bounds")]
 fn test_parse_manifest_line_invalid_format() {
     // Too few tokens - should cause panic when indexing
     let line = "File|./test.txt|1024";
@@ -95,7 +95,7 @@ fn test_parse_manifest_line_invalid_format() {
 }
 
 #[test]
-#[should_panic]
+#[should_panic(expected = "index out of bounds")]
 fn test_parse_manifest_line_missing_separator() {
     // No separators at all
     let line = "FileTestData";
@@ -128,7 +128,7 @@ fn test_parse_manifest_line_unicode_path() {
 fn test_parse_manifest_line_long_hash() {
     // Test with realistic SHA512 hash length
     let long_hash = "A".repeat(128);
-    let line = format!("File|./test.txt|1024|2024-12-07T10:30:00Z|{}|NONCE|SIG", long_hash);
+    let line = format!("File|./test.txt|1024|2024-12-07T10:30:00Z|{long_hash}|NONCE|SIG");
     let (_, manifest) = parse_manifest_line(&line);
     
     assert_eq!(manifest.hash, long_hash);
@@ -205,10 +205,9 @@ fn test_read_manifest_file_large() {
     // Create manifest with 1000 entries
     let mut content = String::new();
     for i in 0..1000 {
-        content.push_str(&format!(
-            "File|./file{}.txt|{}|2024-12-07T10:30:00Z|HASH{}|NONCE{}|SIG{}\n",
-            i, i * 100, i, i, i
-        ));
+        use std::fmt::Write;
+        let size = i * 100;
+        writeln!(&mut content, "File|./file{i}.txt|{size}|2024-12-07T10:30:00Z|HASH{i}|NONCE{i}|SIG{i}").unwrap();
     }
     
     fs::write(&manifest_path, &content).unwrap();
@@ -290,7 +289,7 @@ fn test_parse_manifest_line_different_types() {
     let types = vec!["File", "Dir", "Link", "Special"];
     
     for file_type in types {
-        let line = format!("{}|./test|100|2024-12-07T10:30:00Z|HASH|NONCE|SIG", file_type);
+        let line = format!("{file_type}|./test|100|2024-12-07T10:30:00Z|HASH|NONCE|SIG");
         let (_, manifest) = parse_manifest_line(&line);
         assert_eq!(manifest.file_type, file_type);
     }

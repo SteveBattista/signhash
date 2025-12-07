@@ -108,7 +108,7 @@ fn test_signature_length() {
 }
 
 #[test]
-#[should_panic]
+#[should_panic(expected = "PKCS8")]
 fn test_sign_data_invalid_key() {
     // Try to sign with invalid key data
     let invalid_key = [0u8; 50]; // Wrong length and format
@@ -118,7 +118,7 @@ fn test_sign_data_invalid_key() {
 }
 
 #[test]
-#[should_panic]
+#[should_panic(expected = "PKCS8")]
 fn test_sign_data_empty_key() {
     // Try to sign with empty key
     let empty_key = [];

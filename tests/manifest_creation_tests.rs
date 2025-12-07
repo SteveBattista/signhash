@@ -1,4 +1,4 @@
-//! Tests for manifest creation functions (create_line, write_headers, write_manifest_from_channel)
+//! Tests for manifest creation functions (`create_line`, `write_headers`, `write_manifest_from_channel`)
 
 #[test]
 fn test_create_line_regular_file() {

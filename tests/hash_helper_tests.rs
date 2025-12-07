@@ -1,6 +1,4 @@
-//! Tests for hash_helper module functions
-
-use blake3;
+//! Tests for hash algorithm helpers (`BLAKE3`, SHA family)
 use ring::digest::{Context, SHA1_FOR_LEGACY_USE_ONLY, SHA256, SHA384, SHA512, SHA512_256};
 use std::fs::{self, File};
 use tempfile::TempDir;

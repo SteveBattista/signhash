@@ -1,4 +1,4 @@
-//! Tests for helper utility functions (collect_files, create_progress_bar, get_pool_size)
+//! Tests for helper utility functions (`file_vector`, `progress_bar`, `get_pool_size`)
 
 use std::fs::{self, File};
 use tempfile::TempDir;
@@ -90,7 +90,6 @@ fn test_create_progress_bar_with_display() {
     // Would call: create_progress_bar(100, "Test:", "green", show=true)
     // Verify progress bar is configured with proper style
     // Hard to test UI components, but we can verify the function doesn't panic
-    let _value = 100_u64;
     assert!(true);
 }
 
@@ -98,7 +97,6 @@ fn test_create_progress_bar_with_display() {
 fn test_create_progress_bar_silent() {
     // Would call: create_progress_bar(100, "Test:", "green", show=false)
     // Verify progress bar is created but without visual display
-    let _value = 100_u64;
     assert!(true);
 }
 
@@ -133,7 +131,7 @@ fn test_get_pool_size_zero_returns_cpu_count() {
 }
 
 #[test]
-#[should_panic(expected = "invalid digit")]
+#[should_panic(expected = "ParseIntError")]
 fn test_get_pool_size_invalid_string() {
     // Test that invalid string panics
     // Would call: get_pool_size("invalid")

@@ -6,6 +6,10 @@ use std::path::Path;
 
 
 /// Create a temporary test file with specified content
+///
+/// # Errors
+///
+/// Returns an error if file creation or writing fails
 pub fn create_test_file<P: AsRef<Path>>(path: P, content: &[u8]) -> std::io::Result<()> {
     let mut file = File::create(path)?;
     file.write_all(content)?;
@@ -13,6 +17,10 @@ pub fn create_test_file<P: AsRef<Path>>(path: P, content: &[u8]) -> std::io::Res
 }
 
 /// Create a test directory structure
+///
+/// # Errors
+///
+/// Returns an error if directory or file creation fails
 pub fn create_test_directory(base: &Path, structure: &[&str]) -> std::io::Result<()> {
     for item in structure {
         let path = base.join(item);
@@ -29,17 +37,22 @@ pub fn create_test_directory(base: &Path, structure: &[&str]) -> std::io::Result
 }
 
 /// Generate test data of specified size
+#[must_use]
 pub fn generate_test_data(size: usize) -> Vec<u8> {
+    #[allow(clippy::cast_possible_truncation)]
     (0..size).map(|i| (i % 256) as u8).collect()
 }
 
 /// Compare two byte slices with detailed error message
+///
+/// # Panics
+///
+/// Panics if the slices differ in length or content
 pub fn assert_bytes_equal(actual: &[u8], expected: &[u8], context: &str) {
     assert_eq!(
         actual.len(),
         expected.len(),
-        "{}: length mismatch - actual: {}, expected: {}",
-        context,
+        "{context}: length mismatch - actual: {}, expected: {}",
         actual.len(),
         expected.len()
     );
@@ -47,13 +60,17 @@ pub fn assert_bytes_equal(actual: &[u8], expected: &[u8], context: &str) {
     for (i, (a, e)) in actual.iter().zip(expected.iter()).enumerate() {
         assert_eq!(
             a, e,
-            "{}: byte mismatch at position {} - actual: {:02x}, expected: {:02x}",
-            context, i, a, e
+            "{context}: byte mismatch at position {i} - actual: {a:02x}, expected: {e:02x}"
         );
     }
 }
 
 /// Convert hex string to bytes
+///
+/// # Panics
+///
+/// Panics if the hex string is invalid
+#[must_use]
 pub fn hex_to_bytes(hex: &str) -> Vec<u8> {
     (0..hex.len())
         .step_by(2)
@@ -62,8 +79,14 @@ pub fn hex_to_bytes(hex: &str) -> Vec<u8> {
 }
 
 /// Convert bytes to hex string
+#[must_use]
 pub fn bytes_to_hex(bytes: &[u8]) -> String {
-    bytes.iter().map(|b| format!("{:02x}", b)).collect()
+    use std::fmt::Write;
+    let mut result = String::with_capacity(bytes.len() * 2);
+    for b in bytes {
+        write!(&mut result, "{b:02x}").unwrap();
+    }
+    result
 }
 
 #[cfg(test)]

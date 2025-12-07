@@ -1,4 +1,4 @@
-//! Tests for file verification functions (check_line)
+//! Tests for file verification functions (`check_line`)
 
 use chrono::{DateTime, Utc};
 use data_encoding::HEXUPPER;
@@ -43,7 +43,7 @@ enum HasherOptions {
 }
 
 // Helper functions that mimic main_helper functionality
-fn hash_file(hasher: &HasherOptions, path: &std::path::Path) -> Vec<u8> {
+fn hash_file(hasher: HasherOptions, path: &std::path::Path) -> Vec<u8> {
     let contents = fs::read(path).unwrap();
     match hasher {
         HasherOptions::Blake3 => blake3::hash(&contents).as_bytes().to_vec(),
@@ -87,9 +87,10 @@ fn send_pass_fail_check_message(
     }
 }
 
+#[allow(clippy::too_many_lines)]
 fn check_line(
     path: &str,
-    hasher: &HasherOptions,
+    hasher: HasherOptions,
     manifest_struct: &ManifestLine,
     public_key_bytes: &[u8],
     check_tx: &mpsc::Sender<CheckMessage>,
@@ -255,7 +256,7 @@ fn test_check_line_valid_file() {
     
     // Calculate hash
     let hasher = HasherOptions::Blake3;
-    let hash = hash_file(&hasher, &file_path);
+    let hash = hash_file(hasher, &file_path);
     let hash_str = HEXUPPER.encode(&hash);
     
     // Generate keys and sign
@@ -285,7 +286,7 @@ fn test_check_line_valid_file() {
     let (tx, rx) = mpsc::channel();
     check_line(
         file_path.to_str().unwrap(),
-        &hasher,
+        hasher,
         &manifest,
         key_pair.public_key().as_ref(),
         &tx,
@@ -319,7 +320,7 @@ fn test_check_line_modified_file() {
     let file_size = format!("{}", metadata.len());
     
     let hasher = HasherOptions::Blake3;
-    let hash = hash_file(&hasher, &file_path);
+    let hash = hash_file(hasher, &file_path);
     let hash_str = HEXUPPER.encode(&hash);
     
     // Generate keys and sign
@@ -354,7 +355,7 @@ fn test_check_line_modified_file() {
     let (tx, rx) = mpsc::channel();
     check_line(
         file_path.to_str().unwrap(),
-        &hasher,
+        hasher,
         &manifest,
         key_pair.public_key().as_ref(),
         &tx,
@@ -404,7 +405,7 @@ fn test_check_line_missing_file() {
     let (tx, rx) = mpsc::channel();
     check_line(
         file_path.to_str().unwrap(),
-        &hasher,
+        hasher,
         &manifest,
         key_pair.public_key().as_ref(),
         &tx,
@@ -433,7 +434,7 @@ fn test_check_line_wrong_size() {
     let datetime_string = format!("{}", datetime.format("%d/%m/%Y %T"));
     
     let hasher = HasherOptions::Blake3;
-    let hash = hash_file(&hasher, &file_path);
+    let hash = hash_file(hasher, &file_path);
     let hash_str = HEXUPPER.encode(&hash);
     
     let rng = SystemRandom::new();
@@ -464,7 +465,7 @@ fn test_check_line_wrong_size() {
     let (tx, rx) = mpsc::channel();
     check_line(
         file_path.to_str().unwrap(),
-        &hasher,
+        hasher,
         &manifest,
         key_pair.public_key().as_ref(),
         &tx,
@@ -522,7 +523,7 @@ fn test_check_line_wrong_hash() {
     let (tx, rx) = mpsc::channel();
     check_line(
         file_path.to_str().unwrap(),
-        &hasher,
+        hasher,
         &manifest,
         key_pair.public_key().as_ref(),
         &tx,
@@ -550,7 +551,7 @@ fn test_check_line_wrong_timestamp() {
     let file_size = format!("{}", metadata.len());
     
     let hasher = HasherOptions::Blake3;
-    let hash = hash_file(&hasher, &file_path);
+    let hash = hash_file(hasher, &file_path);
     let hash_str = HEXUPPER.encode(&hash);
     
     let rng = SystemRandom::new();
@@ -581,7 +582,7 @@ fn test_check_line_wrong_timestamp() {
     let (tx, rx) = mpsc::channel();
     check_line(
         file_path.to_str().unwrap(),
-        &hasher,
+        hasher,
         &manifest,
         key_pair.public_key().as_ref(),
         &tx,
@@ -635,7 +636,7 @@ fn test_check_line_wrong_type() {
     let (tx, rx) = mpsc::channel();
     check_line(
         dir_path.to_str().unwrap(),
-        &hasher,
+        hasher,
         &manifest,
         key_pair.public_key().as_ref(),
         &tx,
@@ -665,7 +666,7 @@ fn test_check_line_invalid_signature() {
     let file_size = format!("{}", metadata.len());
     
     let hasher = HasherOptions::Blake3;
-    let hash = hash_file(&hasher, &file_path);
+    let hash = hash_file(hasher, &file_path);
     let hash_str = HEXUPPER.encode(&hash);
     
     let rng = SystemRandom::new();
@@ -687,7 +688,7 @@ fn test_check_line_invalid_signature() {
     let (tx, rx) = mpsc::channel();
     check_line(
         file_path.to_str().unwrap(),
-        &hasher,
+        hasher,
         &manifest,
         key_pair.public_key().as_ref(),
         &tx,
@@ -735,7 +736,7 @@ fn test_check_line_manifest_only_mode() {
     let (tx, rx) = mpsc::channel();
     check_line(
         file_path.to_str().unwrap(),
-        &hasher,
+        hasher,
         &manifest,
         key_pair.public_key().as_ref(),
         &tx,
@@ -794,7 +795,7 @@ fn test_check_line_directory() {
     let (tx, rx) = mpsc::channel();
     check_line(
         dir_path.to_str().unwrap(),
-        &hasher,
+        hasher,
         &manifest,
         key_pair.public_key().as_ref(),
         &tx,
@@ -832,7 +833,7 @@ fn test_check_line_symlink() {
     let file_size = format!("{}", metadata.len());
     
     let hasher = HasherOptions::Blake3;
-    let hash = hash_file(&hasher, &symlink_path);
+    let hash = hash_file(hasher, &symlink_path);
     let hash_str = HEXUPPER.encode(&hash);
     
     let rng = SystemRandom::new();
@@ -861,7 +862,7 @@ fn test_check_line_symlink() {
     let (tx, rx) = mpsc::channel();
     check_line(
         symlink_path.to_str().unwrap(),
-        &hasher,
+        hasher,
         &manifest,
         key_pair.public_key().as_ref(),
         &tx,
@@ -913,7 +914,7 @@ fn test_check_line_bad_symlink() {
     let (tx, rx) = mpsc::channel();
     check_line(
         symlink_path.to_str().unwrap(),
-        &hasher,
+        hasher,
         &manifest,
         key_pair.public_key().as_ref(),
         &tx,
@@ -943,7 +944,7 @@ fn test_check_line_sends_all_messages() {
     let file_size = format!("{}", metadata.len());
     
     let hasher = HasherOptions::Blake3;
-    let hash = hash_file(&hasher, &file_path);
+    let hash = hash_file(hasher, &file_path);
     let hash_str = HEXUPPER.encode(&hash);
     
     let rng = SystemRandom::new();
@@ -972,7 +973,7 @@ fn test_check_line_sends_all_messages() {
     let (tx, rx) = mpsc::channel();
     check_line(
         file_path.to_str().unwrap(),
-        &hasher,
+        hasher,
         &manifest,
         key_pair.public_key().as_ref(),
         &tx,
@@ -1017,7 +1018,7 @@ fn test_check_line_signature_verification() {
     let file_size = format!("{}", metadata.len());
     
     let hasher = HasherOptions::Blake3;
-    let hash = hash_file(&hasher, &file_path);
+    let hash = hash_file(hasher, &file_path);
     let hash_str = HEXUPPER.encode(&hash);
     
     let rng = SystemRandom::new();
@@ -1047,7 +1048,7 @@ fn test_check_line_signature_verification() {
     let (tx, rx) = mpsc::channel();
     check_line(
         file_path.to_str().unwrap(),
-        &hasher,
+        hasher,
         &manifest,
         key_pair.public_key().as_ref(),
         &tx,
@@ -1071,7 +1072,7 @@ fn test_check_line_signature_verification() {
     let (tx2, rx2) = mpsc::channel();
     check_line(
         file_path.to_str().unwrap(),
-        &hasher,
+        hasher,
         &manifest2,
         key_pair2.public_key().as_ref(), // Different key
         &tx2,
