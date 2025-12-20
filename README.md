@@ -1,6 +1,8 @@
 # Description
 
-![SignHash Icon](./Gemini_Generated_Image_d93h3cd93h3cd93h.png){width=500 height=500}
+![Gemini](https://img.shields.io/badge/Built%20with-Gemini%20AI-blue?logo=google&logoColor=white)
+
+![SignHash Icon](./Gemini_Generated_Image_d93h3cd93h3cd93h.png)
 
 **Version:** 1.0.0  
 **Manifest Format:** 0.8.0

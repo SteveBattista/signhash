@@ -6,21 +6,21 @@ Comprehensive test suite with **289 fully implemented tests** organized across *
 
 ## Test Files Status
 
-| File | Test Count | Status | Purpose |
-|------|------------|--------|---------|
-| `hash_helper_tests.rs` | 47 | ✅ Complete | Hash algorithm functionality, BLAKE3 and SHA variants |
-| `key_management_tests.rs` | 28 | ✅ Complete | Ed25519 key generation, storage, and retrieval |
-| `signing_tests.rs` | 29 | ✅ Complete | Cryptographic signing and verification |
-| `manifest_parsing_tests.rs` | 35 | ✅ Complete | Manifest file parsing and data extraction |
-| `manifest_creation_tests.rs` | 31 | ✅ Complete | Manifest creation, headers, and statistics |
-| `verification_tests.rs` | 14 | ✅ Complete | File verification against manifests |
-| `nonce_tests.rs` | 19 | ✅ Complete | Cryptographic nonce generation and collision detection |
-| `helper_utils_tests.rs` | 15 | ✅ Complete | Utility functions (file collection, progress bars, thread pools) |
-| `io_tests.rs` | 24 | ✅ Complete | I/O operations and file handling |
-| `channel_tests.rs` | 18 | ✅ Complete | Inter-thread communication via channels |
-| `integration_tests.rs` | 20 | ✅ Complete | End-to-end workflows |
-| `test_utils.rs` | 9 | ✅ Complete | Common test utilities with comprehensive tests |
-| **TOTAL** | **289** | ✅ **All Passing** | **Complete test coverage** |
+| File                         | Test Count | Status              | Purpose                                                            |
+| ---------------------------- | ---------- | ------------------- | -----------------------------------------------------------------  |
+| `hash_helper_tests.rs`       | 47         | ✅ Complete         | Hash algorithm functionality, BLAKE3 and SHA variants              |
+| `key_management_tests.rs`    | 28         | ✅ Complete         | Ed25519 key generation, storage, and retrieval                     |
+| `signing_tests.rs`           | 29         | ✅ Complete         | Cryptographic signing and verification                             |
+| `manifest_parsing_tests.rs`  | 35         | ✅ Complete         | Manifest file parsing and data extraction                          |
+| `manifest_creation_tests.rs` | 31         | ✅ Complete         | Manifest creation, headers, and statistics                         |
+| `verification_tests.rs`      | 14         | ✅ Complete         | File verification against manifests                                |
+| `nonce_tests.rs`             | 19         | ✅ Complete         | Cryptographic nonce generation and collision detection             |
+| `helper_utils_tests.rs`      | 15         | ✅ Complete         | Utility functions (file collection, progress bars, thread pools)   |
+| `io_tests.rs`                | 24         | ✅ Complete         | I/O operations and file handling                                   |
+| `channel_tests.rs`           | 18         | ✅ Complete         | Inter-thread communication via channels                            |
+| `integration_tests.rs`       | 20         | ✅ Complete         | End-to-end workflows                                               |
+| `test_utils.rs`              | 9          | ✅ Complete         | Common test utilities with comprehensive tests                     |
+| **TOTAL**                    | **289**    | ✅ **All Passing**  | **Complete test coverage**                                         |
 
 ## Additional Files
 

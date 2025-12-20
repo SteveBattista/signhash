@@ -1,0 +1,40 @@
+before_script:
+  - rm -rf .git  # Only remove Git dir
+  - find . -maxdepth 1 -name '[!.]*' -not -name '.git' -not -name 'target' -exec rm -rf {} + 2>/dev/null || true
+  - find . -maxdepth 1 -name '*' -not -path './target/*' -not -name 'target' -exec rm -rf {} + 2>/dev/null || true
+  - git init
+  - git remote add origin "http://gitlab-ci-token:${CI_JOB_TOKEN}@localhost/${CI_PROJECT_PATH}.git"
+  - git -c protocol.version=2 fetch --depth 20 origin "$CI_COMMIT_REF_NAME"
+  - git checkout "$CI_COMMIT_SHA"
+
+stages:
+  - fmt
+  - test
+  - clippy
+
+variables:
+  CARGO_INCREMENTAL: '0'
+  CARGO_NET_RETRY: '10'
+  RUSTUP_MAX_RETRIES: '10'
+  RUST_BACKTRACE: 1
+  RUSTFLAGS: "-D warnings"
+
+fmt:
+  stage: fmt
+  script:
+    - cargo fmt --all -- --check
+
+ 
+test:
+  stage: test
+  script:
+    - cargo test --all-features --workspace --no-fail-fast
+
+
+clippy:
+  stage: clippy
+  script:
+    - cargo clippy --all-features --all-targets -- -D warnings -D clippy::pedantic 
+
+
+    
