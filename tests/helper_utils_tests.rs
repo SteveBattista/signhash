@@ -11,7 +11,7 @@ fn test_collect_files_single_file() {
     let temp_dir = TempDir::new().unwrap();
     let file_path = temp_dir.path().join("test.txt");
     File::create(&file_path).unwrap();
-    
+
     // Would call: collect_files(temp_dir.path().to_str().unwrap(), false)
     // Expected: Vector containing at least the file path
     assert!(file_path.exists());
@@ -23,7 +23,7 @@ fn test_collect_files_multiple_files() {
     File::create(temp_dir.path().join("file1.txt")).unwrap();
     File::create(temp_dir.path().join("file2.txt")).unwrap();
     File::create(temp_dir.path().join("file3.txt")).unwrap();
-    
+
     // Would verify: collect_files returns all 3 files plus directory
     let file_count = fs::read_dir(temp_dir.path()).unwrap().count();
     assert_eq!(file_count, 3);
@@ -35,7 +35,7 @@ fn test_collect_files_nested_directories() {
     let nested = temp_dir.path().join("level1").join("level2");
     fs::create_dir_all(&nested).unwrap();
     File::create(nested.join("deep_file.txt")).unwrap();
-    
+
     // Would verify: collect_files recursively finds deep_file.txt
     assert!(nested.join("deep_file.txt").exists());
 }
@@ -43,7 +43,7 @@ fn test_collect_files_nested_directories() {
 #[test]
 fn test_collect_files_empty_directory() {
     let temp_dir = TempDir::new().unwrap();
-    
+
     // Would verify: collect_files returns only the directory itself
     assert!(temp_dir.path().exists());
     assert_eq!(fs::read_dir(temp_dir.path()).unwrap().count(), 0);
@@ -53,7 +53,7 @@ fn test_collect_files_empty_directory() {
 fn test_collect_files_with_progress() {
     let temp_dir = TempDir::new().unwrap();
     File::create(temp_dir.path().join("test.txt")).unwrap();
-    
+
     // Would call: collect_files(path, show_progress=true)
     // Verify progress spinner is created and used (hard to test in automated tests)
     assert!(temp_dir.path().join("test.txt").exists());
@@ -63,7 +63,7 @@ fn test_collect_files_with_progress() {
 fn test_collect_files_without_progress() {
     let temp_dir = TempDir::new().unwrap();
     File::create(temp_dir.path().join("test.txt")).unwrap();
-    
+
     // Would call: collect_files(path, show_progress=false)
     // Verify no progress output (silent mode)
     assert!(temp_dir.path().join("test.txt").exists());
@@ -73,14 +73,14 @@ fn test_collect_files_without_progress() {
 #[cfg(unix)]
 fn test_collect_files_includes_symlinks() {
     use std::os::unix::fs::symlink;
-    
+
     let temp_dir = TempDir::new().unwrap();
     let target = temp_dir.path().join("target.txt");
     let link = temp_dir.path().join("link.txt");
-    
+
     File::create(&target).unwrap();
     symlink(&target, &link).unwrap();
-    
+
     // Would verify: collect_files includes the symlink
     assert!(link.exists());
 }

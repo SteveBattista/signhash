@@ -1,10 +1,12 @@
 use crate::hash_helper::{hash_file, HasherOptions};
 
+use chrono::{DateTime, Utc};
 use data_encoding::HEXUPPER;
 use indicatif::HumanBytes;
 use indicatif::ProgressBar;
 use indicatif::ProgressStyle;
 use rand::prelude::ThreadRng;
+use rand::Rng;
 use ring::signature::KeyPair;
 use std::collections::{BTreeMap, HashMap};
 use std::convert::TryFrom;
@@ -13,8 +15,6 @@ use std::fs::{self, File};
 use std::hash::BuildHasher;
 use std::io::{BufRead, BufReader, Read, Write};
 use std::time::Instant;
-use chrono::{DateTime, Utc};
-use rand::Rng;
 
 pub const SIGN_HEADER_MESSAGE_COUNT: usize = 8;
 #[allow(dead_code)]
@@ -26,7 +26,7 @@ pub const HASH_READ_BUFFER_IN_BYTES: usize = 524_288;
 pub const BITS_IN_BYTES: usize = 8;
 pub const TOKEN_SEPARATOR: &str = "|";
 pub const PRIVATE_KEY_STRING_ED25519: &str = "Private ED25519";
-// We hope to be using memmap anyway. 
+// We hope to be using memmap anyway.
 pub const SEPARATOR_LINE: &str =
     "********************************************************************************"; //80 stars
 const NO_HASH: &str = "0";
@@ -124,9 +124,7 @@ pub fn provide_unique_nonce<S: BuildHasher>(
 ) {
     let mut duplicate = true;
     while duplicate {
-        for item in nonce_bytes
-            .iter_mut()
-        {
+        for item in nonce_bytes.iter_mut() {
             *item = rng.random();
         }
         if nonces.contains_key(nonce_bytes) {
@@ -171,8 +169,7 @@ pub fn write_check_from_channel(
             Ok(filepointer) => filepointer,
             Err(why) => panic!(
                 "couldn't create check file requested at|{}|{}",
-                output_file,
-                why
+                output_file, why
             ),
         };
         wherefile = Whereoutput::FilePointer(filepointer);
@@ -209,11 +206,7 @@ pub fn write_line(wherefile: &mut Whereoutput, data: &str) {
     match wherefile {
         Whereoutput::FilePointer(ref mut file) => {
             if let Err(why) = file.write_all(data.as_bytes()) {
-                panic!(
-                    "Couldn't write|{}|to the manifest file|{}.",
-                    data,
-                    why
-                );
+                panic!("Couldn't write|{}|to the manifest file|{}.", data, why);
             }
         }
         Whereoutput::StringText(_string) => {
@@ -258,12 +251,15 @@ pub fn write_manifest_from_channel(
 ) {
     let mut byte_count = 0;
     let mut total_file_len: u64 = 0;
-    
+
     let wherefile = if ctx.manifest_file == "|||" {
         Whereoutput::StringText("STDIO".to_owned())
     } else {
         let fp = File::create(ctx.manifest_file).unwrap_or_else(|why| {
-            panic!("couldn't create manifest file requested at|{}|{}", ctx.manifest_file, why)
+            panic!(
+                "couldn't create manifest file requested at|{}|{}",
+                ctx.manifest_file, why
+            )
         });
         Whereoutput::FilePointer(fp)
     };
@@ -322,9 +318,7 @@ pub fn write_manifest_from_channel(
     write_line(&mut wherefile, &data);
 
     let human_total_file_len = HumanBytes(total_file_len);
-    data = format!(
-        "Total byte count of files in bytes is|{human_total_file_len}\n"
-    );
+    data = format!("Total byte count of files in bytes is|{human_total_file_len}\n");
     byte_count += data.len();
     hasher = hasher.multi_hash_update(data.as_bytes());
     write_line(&mut wherefile, &data);
@@ -336,9 +330,7 @@ pub fn write_manifest_from_channel(
     write_line(&mut wherefile, &data);
 
     let human_avg_bytes = HumanBytes(avg_bytes);
-    data = format!(
-        "Average byte count per file in bytes is|{human_avg_bytes}\n"
-    );
+    data = format!("Average byte count per file in bytes is|{human_avg_bytes}\n");
     byte_count += data.len();
     hasher = hasher.multi_hash_update(data.as_bytes());
     write_line(&mut wherefile, &data);
@@ -347,8 +339,7 @@ pub fn write_manifest_from_channel(
         [0; NONCE_LENGTH_IN_BYTES / BITS_IN_BYTES];
     let mut rng = rand::rng();
 
-    for item in &mut nonce_bytes
-    {
+    for item in &mut nonce_bytes {
         *item = rng.random();
     }
     data = format!("Nonce for file|{}\n", HEXUPPER.encode(&nonce_bytes));
@@ -361,10 +352,7 @@ pub fn write_manifest_from_channel(
     write_line(&mut wherefile, &data);
 
     let digest = hasher.finish();
-    data = format!(
-        "Hash of file so far|{}\n",
-        HEXUPPER.encode(digest.as_ref())
-    );
+    data = format!("Hash of file so far|{}\n", HEXUPPER.encode(digest.as_ref()));
     write_line(&mut wherefile, &data);
 
     let signature = sign_data(&HEXUPPER.encode(digest.as_ref()), private_key_bytes);
@@ -435,8 +423,7 @@ pub fn read_private_key(private_key_bytes: &mut [u8], private_key_file: &str) {
         Ok(file) => file,
         Err(why) => panic!(
             "Couldn't open private key file named|{}|{}",
-            private_key_file,
-            why
+            private_key_file, why
         ),
     };
     let mut contents = String::new();
@@ -444,24 +431,19 @@ pub fn read_private_key(private_key_bytes: &mut [u8], private_key_file: &str) {
         Ok(_x) => (),
         Err(why) => panic!(
             "Couldn't read private key file named|{}|{}",
-            private_key_file,
-            why
+            private_key_file, why
         ),
     }
     let deserialized_map: BTreeMap<String, String> = match serde_yaml::from_str(&contents) {
         Ok(deserialized_map) => deserialized_map,
         Err(why) => panic!(
             "Couldn't parse private key YAML file in|{}|{}",
-            private_key_file,
-            why
+            private_key_file, why
         ),
     };
     let local_key = match HEXUPPER.decode(deserialized_map[PRIVATE_KEY_STRING_ED25519].as_bytes()) {
         Ok(local_key) => local_key,
-        Err(why) => panic!(
-            "Couldn't decode hex encoded private key|{}",
-            why
-        ),
+        Err(why) => panic!("Couldn't decode hex encoded private key|{}", why),
     };
     private_key_bytes[..].clone_from_slice(&local_key[..]);
 }
@@ -482,20 +464,12 @@ pub fn read_private_key(private_key_bytes: &mut [u8], private_key_file: &str) {
 pub fn dump_header(header_file: &str) -> String {
     let mut file = match File::open(header_file) {
         Ok(file) => file,
-        Err(why) => panic!(
-            "Couldn't open header file named|{}|{}",
-            header_file,
-            why
-        ),
+        Err(why) => panic!("Couldn't open header file named|{}|{}", header_file, why),
     };
     let mut contents = String::new();
     match file.read_to_string(&mut contents) {
         Ok(_x) => (),
-        Err(why) => panic!(
-            "Couldn't read header file named|{}|{}",
-            header_file,
-            why
-        ),
+        Err(why) => panic!("Couldn't read header file named|{}|{}", header_file, why),
     }
     contents
 }
@@ -614,19 +588,13 @@ pub fn check_line(
                     format!("Correct|{path}|File length check passed.\n"),
                     format!(
                         "Failure|{}|{}|{}|File len check failed.\n",
-                        &path,
-                        manifest_struct.bytes,
-                        filelen
+                        &path, manifest_struct.bytes, filelen
                     ),
                     check_tx,
                 );
 
                 let datetime = match metadata.modified() {
-                    Err(why) => panic!(
-                        "Couldn't load datetime from|{} data|{}",
-                        &path,
-                        why
-                    ),
+                    Err(why) => panic!("Couldn't load datetime from|{} data|{}", &path, why),
                     Ok(datetime) => datetime,
                 };
                 let datetime: DateTime<Utc> = datetime.into();
@@ -637,9 +605,7 @@ pub fn check_line(
                     format!("Correct|{path}|Date check passed.\n"),
                     format!(
                         "Failure|{}|{}|{}|File date check failed.\n",
-                        &path,
-                        manifest_struct.time,
-                        datetime_string
+                        &path, manifest_struct.time, datetime_string
                     ),
                     check_tx,
                 );
@@ -665,9 +631,7 @@ pub fn check_line(
                     format!("Correct|{path}|File type check passed.\n"),
                     format!(
                         "Failure|{}|File type check failed|{}|{}\n",
-                        &path,
-                        manifest_struct.file_type,
-                        line_type
+                        &path, manifest_struct.file_type, line_type
                     ),
                     check_tx,
                 );
@@ -677,9 +641,7 @@ pub fn check_line(
                     format!("Correct|{path}|Hash check passed.\n"),
                     format!(
                         "Failure|{}|Hash check failed|{}|{}.\n",
-                        &path,
-                        manifest_struct.hash,
-                        digest_str
+                        &path, manifest_struct.hash, digest_str
                     ),
                     check_tx,
                 );
@@ -703,9 +665,7 @@ pub fn check_line(
         Err(why) => {
             send_check_message(
                 PRINT_MESSAGE,
-                format!(
-                    "Failure|{path}|Couldn't decode hex signature|{why}\n"
-                ),
+                format!("Failure|{path}|Couldn't decode hex signature|{why}\n"),
                 false,
                 check_tx,
             );
@@ -721,9 +681,7 @@ pub fn check_line(
         Ok(()) => {
             send_check_message(
                 PRINT_MESSAGE,
-                format!(
-                    "Correct|{path}|Signature check passed. Can trust manifest line.\n"
-                ),
+                format!("Correct|{path}|Signature check passed. Can trust manifest line.\n"),
                 true,
                 check_tx,
             );
@@ -731,9 +689,7 @@ pub fn check_line(
         Err(_) => {
             send_check_message(
                 PRINT_MESSAGE,
-                format!(
-                    "Failure|{path}|Signature check failed. Can't trust manifest line.\n"
-                ),
+                format!("Failure|{path}|Signature check failed. Can't trust manifest line.\n"),
                 false,
                 check_tx,
             );
@@ -767,7 +723,7 @@ pub fn create_line(
     let line_type: String;
     let mut data: String;
     let mut filelen: u64 = 0;
-    
+
     match fs::metadata(path) {
         Err(_why) => {
             data = format!(
@@ -890,18 +846,14 @@ pub fn write_key(public_key_bytes: &[u8], pubic_key_file: &str, key_name: &str) 
         Ok(file) => file,
         Err(why) => panic!(
             "couldn't create|{} key at|{}|{}",
-            key_name,
-            pubic_key_file,
-            why
+            key_name, pubic_key_file, why
         ),
     };
     match file.write_all(s.as_bytes()) {
         Ok(()) => (),
         Err(why) => panic!(
             "Couldn't write to|{} key to|{}|{}",
-            key_name,
-            pubic_key_file,
-            why
+            key_name, pubic_key_file, why
         ),
     }
 }
@@ -928,8 +880,7 @@ pub fn read_public_key(public_key_file: &str, public_key_bytes: &mut [u8]) {
         Ok(filepointer) => filepointer,
         Err(why) => panic!(
             "Couldn't find public key file requested at|{}|{}",
-            public_key_file,
-            why
+            public_key_file, why
         ),
     };
 
@@ -938,24 +889,21 @@ pub fn read_public_key(public_key_file: &str, public_key_bytes: &mut [u8]) {
         Ok(_x) => (),
         Err(why) => panic!(
             "Couldn't read from public key file requested at|{}|{}",
-            public_key_file,
-            why
+            public_key_file, why
         ),
     }
     let deserialized_map: BTreeMap<String, String> = match serde_yaml::from_str(&contents) {
         Ok(deserialized_map) => deserialized_map,
         Err(why) => panic!(
             "Couldn't parse public key from YAML file requested at|{}|{}",
-            public_key_file,
-            why
+            public_key_file, why
         ),
     };
     let local_key = match HEXUPPER.decode(deserialized_map[PUBIC_KEY_STRING_ED25519].as_bytes()) {
         Ok(local_key) => local_key,
         Err(why) => panic!(
             "Couldn't decode hex from public key file requested at|{}|{}",
-            public_key_file,
-            why
+            public_key_file, why
         ),
     };
     public_key_bytes[..].clone_from_slice(&local_key[..]);
@@ -1058,8 +1006,7 @@ pub fn read_manifest_file(vec_of_lines: &mut Vec<String>, input_file: &str, file
         Ok(f) => f,
         Err(why) => panic!(
             "Couldn't open manifest file for input at|{}|{}",
-            input_file,
-            why
+            input_file, why
         ),
     };
     let spinner = ProgressBar::new_spinner();
@@ -1250,7 +1197,7 @@ pub fn collect_files(directory: &str, show_progress: bool) -> Vec<String> {
                 .expect("valid spinner template"),
         );
     }
-    
+
     let files: Vec<String> = WalkDir::new(directory)
         .into_iter()
         .map(|entry| {
@@ -1260,7 +1207,7 @@ pub fn collect_files(directory: &str, show_progress: bool) -> Vec<String> {
             entry.unwrap().path().display().to_string()
         })
         .collect();
-    
+
     if show_progress {
         spinner.finish();
     }
@@ -1291,7 +1238,8 @@ pub fn create_progress_bar(len: u64, prefix: &str, color: &str, show: bool) -> P
     let bar = ProgressBar::new(len);
     if show {
         bar.set_prefix(prefix.to_string());
-        let template = format!("{{prefix}} {{wide_bar:.{color}/cyan}} {{pos}}/{{len}} {{elapsed_precise}}");
+        let template =
+            format!("{{prefix}} {{wide_bar:.{color}/cyan}} {{pos}}/{{len}} {{elapsed_precise}}");
         bar.set_style(
             ProgressStyle::default_bar()
                 .template(&template)
@@ -1326,11 +1274,11 @@ pub fn get_pool_size(input: &str) -> usize {
     let size = input.parse::<usize>().unwrap_or_else(|why| {
         panic!("Please choose a number for the number of threads.|{}", why);
     });
-    if size < 1 { 
+    if size < 1 {
         std::thread::available_parallelism()
             .map(std::num::NonZeroUsize::get)
             .unwrap_or(1)
-    } else { 
-        size 
+    } else {
+        size
     }
 }

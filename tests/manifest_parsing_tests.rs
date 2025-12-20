@@ -40,7 +40,7 @@ fn parse_manifest_line(manifest_line: &str) -> (String, ManifestLine) {
 fn test_parse_manifest_line_valid_file() {
     let line = "File|./test.txt|1024|2024-12-07T10:30:00Z|ABCDEF1234567890|NONCE123|SIGNATURE456";
     let (path, manifest) = parse_manifest_line(line);
-    
+
     assert_eq!(path, "./test.txt");
     assert_eq!(manifest.file_type, "File");
     assert_eq!(manifest.bytes, "1024");
@@ -54,7 +54,7 @@ fn test_parse_manifest_line_valid_file() {
 fn test_parse_manifest_line_valid_directory() {
     let line = "Dir|./mydir|0|2024-12-07T10:30:00Z|DIRHASH|NONCE789|DIRSIG";
     let (path, manifest) = parse_manifest_line(line);
-    
+
     assert_eq!(path, "./mydir");
     assert_eq!(manifest.file_type, "Dir");
     assert_eq!(manifest.bytes, "0");
@@ -64,7 +64,7 @@ fn test_parse_manifest_line_valid_directory() {
 fn test_parse_manifest_line_with_symlink() {
     let line = "Link|./mylink|0|2024-12-07T10:30:00Z|LINKHASH|NONCELINK|LINKSIG";
     let (path, manifest) = parse_manifest_line(line);
-    
+
     assert_eq!(path, "./mylink");
     assert_eq!(manifest.file_type, "Link");
 }
@@ -73,10 +73,10 @@ fn test_parse_manifest_line_with_symlink() {
 fn test_parse_manifest_line_extracts_all_fields() {
     let line = "File|./data.bin|999999|2024-01-01T00:00:00Z|HASH1234|NONCE5678|SIG9012";
     let (path, manifest) = parse_manifest_line(line);
-    
+
     // Verify file name
     assert_eq!(path, "./data.bin");
-    
+
     // Verify all fields are extracted correctly
     assert_eq!(manifest.file_type, "File");
     assert_eq!(manifest.bytes, "999999");
@@ -108,7 +108,7 @@ fn test_parse_manifest_line_special_characters_in_path() {
     let line = "File|./test file (1).txt|1024|2024-12-07T10:30:00Z|HASH|NONCE|SIG";
     let (path, _) = parse_manifest_line(line);
     assert_eq!(path, "./test file (1).txt");
-    
+
     // Test path with dots and underscores
     let line2 = "File|./my_test.file.v2.txt|512|2024-12-07T10:30:00Z|HASH2|NONCE2|SIG2";
     let (path2, _) = parse_manifest_line(line2);
@@ -119,7 +119,7 @@ fn test_parse_manifest_line_special_characters_in_path() {
 fn test_parse_manifest_line_unicode_path() {
     let line = "File|./测试文件.txt|1024|2024-12-07T10:30:00Z|HASH|NONCE|SIG";
     let (path, manifest) = parse_manifest_line(line);
-    
+
     assert_eq!(path, "./测试文件.txt");
     assert_eq!(manifest.file_type, "File");
 }
@@ -130,7 +130,7 @@ fn test_parse_manifest_line_long_hash() {
     let long_hash = "A".repeat(128);
     let line = format!("File|./test.txt|1024|2024-12-07T10:30:00Z|{long_hash}|NONCE|SIG");
     let (_, manifest) = parse_manifest_line(&line);
-    
+
     assert_eq!(manifest.hash, long_hash);
 }
 
@@ -138,7 +138,7 @@ fn test_parse_manifest_line_long_hash() {
 fn test_parse_manifest_line_zero_bytes() {
     let line = "File|./empty.txt|0|2024-12-07T10:30:00Z|HASH|NONCE|SIG";
     let (_, manifest) = parse_manifest_line(line);
-    
+
     assert_eq!(manifest.bytes, "0");
 }
 
@@ -146,7 +146,7 @@ fn test_parse_manifest_line_zero_bytes() {
 fn test_parse_manifest_line_large_file_size() {
     let line = "File|./large.bin|9999999999|2024-12-07T10:30:00Z|HASH|NONCE|SIG";
     let (_, manifest) = parse_manifest_line(line);
-    
+
     assert_eq!(manifest.bytes, "9999999999");
 }
 
@@ -156,21 +156,21 @@ fn test_parse_manifest_line_large_file_size() {
 fn test_read_manifest_file_valid() {
     let temp_dir = TempDir::new().unwrap();
     let manifest_path = temp_dir.path().join("manifest.txt");
-    
+
     let content = concat!(
         "File|./file1.txt|100|2024-12-07T10:30:00Z|HASH1|NONCE1|SIG1\n",
         "File|./file2.txt|200|2024-12-07T10:30:00Z|HASH2|NONCE2|SIG2\n",
         "Dir|./mydir|0|2024-12-07T10:30:00Z|HASH3|NONCE3|SIG3\n"
     );
-    
+
     fs::write(&manifest_path, content).unwrap();
-    
+
     // Read and parse manifest
     let file_content = fs::read_to_string(&manifest_path).unwrap();
     let lines: Vec<&str> = file_content.lines().collect();
-    
+
     assert_eq!(lines.len(), 3);
-    
+
     // Parse first line
     let (path1, manifest1) = parse_manifest_line(lines[0]);
     assert_eq!(path1, "./file1.txt");
@@ -187,12 +187,12 @@ fn test_read_manifest_file_missing() {
 fn test_read_manifest_file_empty() {
     let temp_dir = TempDir::new().unwrap();
     let manifest_path = temp_dir.path().join("empty_manifest.txt");
-    
+
     fs::write(&manifest_path, "").unwrap();
-    
+
     let content = fs::read_to_string(&manifest_path).unwrap();
     assert_eq!(content.len(), 0);
-    
+
     let lines: Vec<&str> = content.lines().collect();
     assert_eq!(lines.len(), 0);
 }
@@ -201,27 +201,31 @@ fn test_read_manifest_file_empty() {
 fn test_read_manifest_file_large() {
     let temp_dir = TempDir::new().unwrap();
     let manifest_path = temp_dir.path().join("large_manifest.txt");
-    
+
     // Create manifest with 1000 entries
     let mut content = String::new();
     for i in 0..1000 {
         use std::fmt::Write;
         let size = i * 100;
-        writeln!(&mut content, "File|./file{i}.txt|{size}|2024-12-07T10:30:00Z|HASH{i}|NONCE{i}|SIG{i}").unwrap();
+        writeln!(
+            &mut content,
+            "File|./file{i}.txt|{size}|2024-12-07T10:30:00Z|HASH{i}|NONCE{i}|SIG{i}"
+        )
+        .unwrap();
     }
-    
+
     fs::write(&manifest_path, &content).unwrap();
-    
+
     // Read and verify
     let file_content = fs::read_to_string(&manifest_path).unwrap();
     let lines: Vec<&str> = file_content.lines().collect();
-    
+
     assert_eq!(lines.len(), 1000);
-    
+
     // Verify first and last entries
     let (path_first, _) = parse_manifest_line(lines[0]);
     assert_eq!(path_first, "./file0.txt");
-    
+
     let (path_last, _) = parse_manifest_line(lines[999]);
     assert_eq!(path_last, "./file999.txt");
 }
@@ -238,7 +242,7 @@ fn test_manifest_line_struct_creation() {
         nonce: "NONCE123".to_string(),
         sign: "SIG456".to_string(),
     };
-    
+
     assert_eq!(manifest.file_type, "File");
     assert_eq!(manifest.bytes, "1024");
     assert_eq!(manifest.time, "2024-12-07T10:30:00Z");
@@ -251,10 +255,10 @@ fn test_manifest_line_struct_creation() {
 fn test_manifest_line_round_trip() {
     // Create a manifest line string
     let original_line = "File|./test.txt|2048|2024-12-07T10:30:00Z|HASH123|NONCE456|SIG789";
-    
+
     // Parse it
     let (path, manifest) = parse_manifest_line(original_line);
-    
+
     // Reconstruct the line
     let reconstructed = format!(
         "{}|{}|{}|{}|{}|{}|{}",
@@ -266,7 +270,7 @@ fn test_manifest_line_round_trip() {
         manifest.nonce,
         manifest.sign
     );
-    
+
     // Verify round trip
     assert_eq!(reconstructed, original_line);
 }
@@ -278,7 +282,7 @@ fn test_parse_manifest_line_trailing_separator() {
     // Extra separator at end
     let line = "File|./test.txt|1024|2024-12-07T10:30:00Z|HASH|NONCE|SIG|";
     let (path, manifest) = parse_manifest_line(line);
-    
+
     assert_eq!(path, "./test.txt");
     assert_eq!(manifest.sign, "SIG");
 }
@@ -287,7 +291,7 @@ fn test_parse_manifest_line_trailing_separator() {
 fn test_parse_manifest_line_different_types() {
     // Test different file type values
     let types = vec!["File", "Dir", "Link", "Special"];
-    
+
     for file_type in types {
         let line = format!("{file_type}|./test|100|2024-12-07T10:30:00Z|HASH|NONCE|SIG");
         let (_, manifest) = parse_manifest_line(&line);
@@ -300,7 +304,7 @@ fn test_parse_manifest_line_empty_fields() {
     // Some fields might be empty in edge cases
     let line = "File|./test.txt|||HASH||SIG";
     let (path, manifest) = parse_manifest_line(line);
-    
+
     assert_eq!(path, "./test.txt");
     assert_eq!(manifest.bytes, "");
     assert_eq!(manifest.time, "");
@@ -312,7 +316,7 @@ fn test_manifest_preserves_whitespace() {
     // Whitespace should be preserved in fields
     let line = "File| ./path with spaces |100|2024-12-07T10:30:00Z|HASH|NONCE|SIG";
     let (path, _) = parse_manifest_line(line);
-    
+
     assert_eq!(path, " ./path with spaces ");
 }
 
@@ -323,13 +327,13 @@ fn test_parse_multiple_manifest_lines() {
         "File|./file2.txt|200|2024-12-07T10:30:00Z|HASH2|NONCE2|SIG2",
         "Dir|./dir1|0|2024-12-07T10:30:00Z|HASH3|NONCE3|SIG3",
     ];
-    
+
     let mut paths = Vec::new();
     for line in lines {
         let (path, _) = parse_manifest_line(line);
         paths.push(path);
     }
-    
+
     assert_eq!(paths.len(), 3);
     assert_eq!(paths[0], "./file1.txt");
     assert_eq!(paths[1], "./file2.txt");
@@ -340,7 +344,7 @@ fn test_parse_multiple_manifest_lines() {
 fn test_manifest_line_with_nested_paths() {
     let line = "File|./deeply/nested/path/to/file.txt|1024|2024-12-07T10:30:00Z|HASH|NONCE|SIG";
     let (path, manifest) = parse_manifest_line(line);
-    
+
     assert_eq!(path, "./deeply/nested/path/to/file.txt");
     assert_eq!(manifest.file_type, "File");
 }
@@ -349,7 +353,7 @@ fn test_manifest_line_with_nested_paths() {
 fn test_manifest_line_with_absolute_path() {
     let line = "File|/absolute/path/file.txt|1024|2024-12-07T10:30:00Z|HASH|NONCE|SIG";
     let (path, _) = parse_manifest_line(line);
-    
+
     assert_eq!(path, "/absolute/path/file.txt");
 }
 
@@ -357,10 +361,10 @@ fn test_manifest_line_with_absolute_path() {
 fn test_manifest_consistency() {
     // Parse same line multiple times - should get same result
     let line = "File|./test.txt|1024|2024-12-07T10:30:00Z|HASH|NONCE|SIG";
-    
+
     let (path1, manifest1) = parse_manifest_line(line);
     let (path2, manifest2) = parse_manifest_line(line);
-    
+
     assert_eq!(path1, path2);
     assert_eq!(manifest1, manifest2);
 }
@@ -369,27 +373,27 @@ fn test_manifest_consistency() {
 fn test_manifest_with_header_lines() {
     let temp_dir = TempDir::new().unwrap();
     let manifest_path = temp_dir.path().join("manifest_with_header.txt");
-    
+
     let content = concat!(
         "# Manifest Header\n",
         "# Created: 2024-12-07\n",
         "File|./file1.txt|100|2024-12-07T10:30:00Z|HASH1|NONCE1|SIG1\n",
         "File|./file2.txt|200|2024-12-07T10:30:00Z|HASH2|NONCE2|SIG2\n"
     );
-    
+
     fs::write(&manifest_path, content).unwrap();
-    
+
     let file_content = fs::read_to_string(&manifest_path).unwrap();
     let lines: Vec<&str> = file_content.lines().collect();
-    
+
     assert_eq!(lines.len(), 4);
-    
+
     // Skip header lines and parse data lines
-    let data_lines: Vec<&str> = lines.iter()
+    let data_lines: Vec<&str> = lines
+        .iter()
         .filter(|line| !line.starts_with('#'))
         .copied()
         .collect();
-    
+
     assert_eq!(data_lines.len(), 2);
 }
-

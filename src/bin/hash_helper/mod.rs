@@ -91,7 +91,7 @@ impl HasherOptions {
     }
 
     /// Create a fresh hasher instance for this algorithm.
-    /// 
+    ///
     /// Returns a new `HasherInner` configured for the algorithm specified
     /// during construction.
     fn create_hasher(&self) -> HasherInner {
@@ -106,7 +106,7 @@ impl HasherOptions {
     }
 
     /// Hash a single chunk of data and return the digest.
-    /// 
+    ///
     /// This is useful for one-shot hashing where you have all the data
     /// available at once. For streaming or incremental hashing, use
     /// `multi_hash_update` instead.
@@ -118,11 +118,11 @@ impl HasherOptions {
     }
 
     /// Update hasher state with data and return a streaming hasher.
-    /// 
+    ///
     /// This begins incremental hashing by consuming the `HasherOptions`
     /// and returning a `StreamingHasher` that can be used to continue
     /// adding data via chained calls.
-    /// 
+    ///
     /// # Example
     /// ```ignore
     /// let hasher = HasherOptions::new("256");
@@ -134,13 +134,11 @@ impl HasherOptions {
     pub fn multi_hash_update(self, input: &[u8]) -> StreamingHasher {
         let mut hasher = self.create_hasher();
         hasher.update(input);
-        StreamingHasher {
-            inner: hasher,
-        }
+        StreamingHasher { inner: hasher }
     }
 
     /// Finish a hasher that hasn't been fed any data.
-    /// 
+    ///
     /// Returns the hash of an empty input for this algorithm.
     /// This is primarily used for initialization in certain contexts.
     #[must_use]
@@ -156,7 +154,7 @@ pub struct StreamingHasher {
 
 impl StreamingHasher {
     /// Continue updating with more data.
-    /// 
+    ///
     /// Consumes `self` and returns it back, allowing for method chaining.
     /// This pattern ensures the hasher is used in a linear fashion without
     /// accidentally duplicating state.
@@ -167,7 +165,7 @@ impl StreamingHasher {
     }
 
     /// Finalize and return the digest.
-    /// 
+    ///
     /// Consumes the hasher and produces the final hash value as a byte vector.
     /// After calling this, the hasher cannot be used again.
     #[must_use]
@@ -177,11 +175,11 @@ impl StreamingHasher {
 }
 
 /// Attempt to create a memory mapping for a file.
-/// 
+///
 /// This function tries to memory-map the given file for fast reading.
 /// Returns `Ok(None)` if the file cannot be mapped (e.g., not a regular file,
 /// empty, or too large for address space).
-/// 
+///
 /// # Safety
 /// The memory mapping is only valid while the file remains unchanged.
 /// The explicit length parameter helps prevent TOCTOU (time-of-check-time-of-use)
@@ -208,11 +206,11 @@ fn try_memmap_file(file: &File) -> Result<Option<memmap::Mmap>> {
 }
 
 /// Try to hash a file using memory mapping (fast path).
-/// 
+///
 /// Attempts to use memory-mapped I/O to hash the file efficiently.
 /// Returns `Some(digest)` if successful, `None` if memory mapping
 /// is unavailable or fails.
-/// 
+///
 /// Memory mapping is typically faster for large files as it avoids
 /// intermediate buffering and allows the OS to optimize page caching.
 fn try_hash_memmap(hasher: &HasherOptions, file: &File) -> Option<Vec<u8>> {
@@ -227,11 +225,11 @@ fn try_hash_memmap(hasher: &HasherOptions, file: &File) -> Option<Vec<u8>> {
 }
 
 /// Hash a file using streaming reads (fallback path).
-/// 
+///
 /// Reads the file in chunks and incrementally updates the hash.
 /// This is slower than memory mapping but works for all file types
 /// and doesn't require the memmap feature.
-/// 
+///
 /// # Panics
 /// Panics if reading from the file fails.
 fn hash_streaming(hasher: &HasherOptions, mut reader: impl Read) -> Vec<u8> {

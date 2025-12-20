@@ -4,10 +4,10 @@ mod main_helper;
 use hash_helper::HasherOptions;
 use main_helper::{
     collect_files, create_keys, create_line, create_progress_bar, get_pool_size,
-    provide_unique_nonce, write_headers, write_key, write_manifest_from_channel,
-    WriterContext, BITS_IN_BYTES, DEFAULT_PUBIC_KEY_FILE_NAME, NONCE_LENGTH_IN_BYTES,
-    NO_OUTPUTFILE, PRIVATEKEY_LENGTH_IN_BYTES, PUBIC_KEY_STRING_ED25519, PUBLICKEY_LENGTH_IN_BYTES,
-    PWD, SIGN_HEADER_MESSAGE_COUNT,
+    provide_unique_nonce, write_headers, write_key, write_manifest_from_channel, WriterContext,
+    BITS_IN_BYTES, DEFAULT_PUBIC_KEY_FILE_NAME, NONCE_LENGTH_IN_BYTES, NO_OUTPUTFILE,
+    PRIVATEKEY_LENGTH_IN_BYTES, PUBIC_KEY_STRING_ED25519, PUBLICKEY_LENGTH_IN_BYTES, PWD,
+    SIGN_HEADER_MESSAGE_COUNT,
 };
 
 use scoped_threadpool::Pool;
@@ -64,23 +64,39 @@ fn main() {
     let matches = build_cli().get_matches();
 
     // Parse arguments
-    let inputhash = matches.get_one::<String>("hash").map_or("256", String::as_str);
+    let inputhash = matches
+        .get_one::<String>("hash")
+        .map_or("256", String::as_str);
     let hasher_option = HasherOptions::new(inputhash);
-    
-    let signing = matches.get_one::<String>("signing").map_or("ED25519", String::as_str);
-    assert!(signing == "ED25519", "Please choose ED25519 for signature algorithm.");
 
-    let manifest_file = matches.get_one::<String>("output").cloned()
+    let signing = matches
+        .get_one::<String>("signing")
+        .map_or("ED25519", String::as_str);
+    assert!(
+        signing == "ED25519",
+        "Please choose ED25519 for signature algorithm."
+    );
+
+    let manifest_file = matches
+        .get_one::<String>("output")
+        .cloned()
         .unwrap_or_else(|| NO_OUTPUTFILE.to_string());
     let fileoutput = manifest_file != NO_OUTPUTFILE;
-    
-    let public_key_file = matches.get_one::<String>("public")
+
+    let public_key_file = matches
+        .get_one::<String>("public")
         .map_or(DEFAULT_PUBIC_KEY_FILE_NAME, String::as_str);
-    let header_file = matches.get_one::<String>("include").map_or("|||", String::as_str);
-    let input_directory = matches.get_one::<String>("directory").map_or(PWD, String::as_str);
-    
+    let header_file = matches
+        .get_one::<String>("include")
+        .map_or("|||", String::as_str);
+    let input_directory = matches
+        .get_one::<String>("directory")
+        .map_or(PWD, String::as_str);
+
     let poolnumber = get_pool_size(
-        matches.get_one::<String>("pool").map_or("0", String::as_str)
+        matches
+            .get_one::<String>("pool")
+            .map_or("0", String::as_str),
     );
 
     // Collect files
@@ -98,12 +114,20 @@ fn main() {
     let mut pool = Pool::new(poolnumber.try_into().unwrap());
 
     // Write manifest headers
-    write_headers(&sign_tx, inputhash, &args.join(" "), header_file, &now, poolnumber);
+    write_headers(
+        &sign_tx,
+        inputhash,
+        &args.join(" "),
+        header_file,
+        &now,
+        poolnumber,
+    );
 
     // Setup progress bar and writer thread
-    let progress_bar = create_progress_bar(num_files as u64, "Hashing files:", "yellow", fileoutput);
+    let progress_bar =
+        create_progress_bar(num_files as u64, "Hashing files:", "yellow", fileoutput);
     let thread_hasher = hasher_option.clone();
-    
+
     let writer_child = thread::spawn(move || {
         let ctx = WriterContext {
             manifest_file: &manifest_file,
@@ -131,7 +155,13 @@ fn main() {
             let thread_hasher = hasher_option.clone();
             provide_unique_nonce(&mut nonce_bytes, &mut nonces, rand::rng());
             scoped.execute(move || {
-                create_line(&file, &thread_hasher, &nonce_bytes, &private_key_bytes, &thread_tx);
+                create_line(
+                    &file,
+                    &thread_hasher,
+                    &nonce_bytes,
+                    &private_key_bytes,
+                    &thread_tx,
+                );
             });
         }
     });

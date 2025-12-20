@@ -99,7 +99,7 @@ fn check_line(
     let line_type: String;
     let data: String;
     let digest_str: String;
-    
+
     if manifest_only {
         data = format!(
             "{}|{}|{}|{}|{}|{}",
@@ -115,12 +115,7 @@ fn check_line(
             Err(_) => {
                 data = format!(
                     "{}|{}|{}|{}|{}|{}",
-                    "Bad-symlink",
-                    path,
-                    0,
-                    NO_TIME,
-                    NO_HASH,
-                    manifest_struct.nonce
+                    "Bad-symlink", path, 0, NO_TIME, NO_HASH, manifest_struct.nonce
                 );
             }
             Ok(metadata) => {
@@ -167,7 +162,7 @@ fn check_line(
                     let digest = hash_file(hasher, std::path::Path::new(path));
                     digest_str = HEXUPPER.encode(&digest);
                 }
-                
+
                 send_pass_fail_check_message(
                     line_type == manifest_struct.file_type,
                     format!("Correct|{path}|File type check passed.\n"),
@@ -187,7 +182,7 @@ fn check_line(
                     ),
                     check_tx,
                 );
-                
+
                 data = format!(
                     "{}|{}|{}|{}|{}|{}",
                     manifest_struct.file_type,
@@ -216,7 +211,7 @@ fn check_line(
             vec![0; 64]
         }
     };
-    
+
     let mut signature_key_bytes: [u8; 64] = [0; 64];
     signature_key_bytes[..].clone_from_slice(&local_key[..]);
 
@@ -247,23 +242,23 @@ fn test_check_line_valid_file() {
     let file_path = temp_dir.path().join("test_file.txt");
     let mut file = File::create(&file_path).unwrap();
     file.write_all(b"Test content").unwrap();
-    
+
     // Get actual file metadata
     let metadata = fs::metadata(&file_path).unwrap();
     let datetime: DateTime<Utc> = metadata.modified().unwrap().into();
     let datetime_string = format!("{}", datetime.format("%d/%m/%Y %T"));
     let file_size = format!("{}", metadata.len());
-    
+
     // Calculate hash
     let hasher = HasherOptions::Blake3;
     let hash = hash_file(hasher, &file_path);
     let hash_str = HEXUPPER.encode(&hash);
-    
+
     // Generate keys and sign
     let rng = SystemRandom::new();
     let pkcs8_bytes = Ed25519KeyPair::generate_pkcs8(&rng).unwrap();
     let key_pair = Ed25519KeyPair::from_pkcs8(pkcs8_bytes.as_ref()).unwrap();
-    
+
     let data = format!(
         "File|{}|{}|{}|{}|nonce123",
         file_path.to_str().unwrap(),
@@ -273,7 +268,7 @@ fn test_check_line_valid_file() {
     );
     let signature = sign_data(&data, pkcs8_bytes.as_ref());
     let signature_str = HEXUPPER.encode(signature.as_ref());
-    
+
     let manifest = ManifestLine {
         file_type: "File".to_string(),
         bytes: file_size,
@@ -282,7 +277,7 @@ fn test_check_line_valid_file() {
         nonce: "nonce123".to_string(),
         sign: signature_str,
     };
-    
+
     let (tx, rx) = mpsc::channel();
     check_line(
         file_path.to_str().unwrap(),
@@ -292,11 +287,11 @@ fn test_check_line_valid_file() {
         &tx,
         false,
     );
-    
+
     // Collect all messages
     drop(tx);
     let messages: Vec<CheckMessage> = rx.iter().collect();
-    
+
     // Should have pass messages for size, date, type, hash, signature, plus tick
     assert!(messages.len() >= 6);
     let pass_count = messages
@@ -312,22 +307,22 @@ fn test_check_line_modified_file() {
     let file_path = temp_dir.path().join("test_file.txt");
     let mut file = File::create(&file_path).unwrap();
     file.write_all(b"Original content").unwrap();
-    
+
     // Get metadata and hash for original
     let metadata = fs::metadata(&file_path).unwrap();
     let datetime: DateTime<Utc> = metadata.modified().unwrap().into();
     let datetime_string = format!("{}", datetime.format("%d/%m/%Y %T"));
     let file_size = format!("{}", metadata.len());
-    
+
     let hasher = HasherOptions::Blake3;
     let hash = hash_file(hasher, &file_path);
     let hash_str = HEXUPPER.encode(&hash);
-    
+
     // Generate keys and sign
     let rng = SystemRandom::new();
     let pkcs8_bytes = Ed25519KeyPair::generate_pkcs8(&rng).unwrap();
     let key_pair = Ed25519KeyPair::from_pkcs8(pkcs8_bytes.as_ref()).unwrap();
-    
+
     let data = format!(
         "File|{}|{}|{}|{}|nonce123",
         file_path.to_str().unwrap(),
@@ -337,12 +332,12 @@ fn test_check_line_modified_file() {
     );
     let signature = sign_data(&data, pkcs8_bytes.as_ref());
     let signature_str = HEXUPPER.encode(signature.as_ref());
-    
+
     // Now modify the file
     thread::sleep(Duration::from_millis(10));
     let mut file = File::create(&file_path).unwrap();
     file.write_all(b"Modified content - different!").unwrap();
-    
+
     let manifest = ManifestLine {
         file_type: "File".to_string(),
         bytes: file_size,
@@ -351,7 +346,7 @@ fn test_check_line_modified_file() {
         nonce: "nonce123".to_string(),
         sign: signature_str,
     };
-    
+
     let (tx, rx) = mpsc::channel();
     check_line(
         file_path.to_str().unwrap(),
@@ -361,10 +356,10 @@ fn test_check_line_modified_file() {
         &tx,
         false,
     );
-    
+
     drop(tx);
     let messages: Vec<CheckMessage> = rx.iter().collect();
-    
+
     // Should have failure messages for size, date, and hash
     let failure_count = messages
         .iter()
@@ -377,11 +372,11 @@ fn test_check_line_modified_file() {
 fn test_check_line_missing_file() {
     let temp_dir = TempDir::new().unwrap();
     let file_path = temp_dir.path().join("nonexistent.txt");
-    
+
     let rng = SystemRandom::new();
     let pkcs8_bytes = Ed25519KeyPair::generate_pkcs8(&rng).unwrap();
     let key_pair = Ed25519KeyPair::from_pkcs8(pkcs8_bytes.as_ref()).unwrap();
-    
+
     // Create manifest for missing file
     let data = format!(
         "Bad-symlink|{}|0|{}|{}|nonce123",
@@ -391,7 +386,7 @@ fn test_check_line_missing_file() {
     );
     let signature = sign_data(&data, pkcs8_bytes.as_ref());
     let signature_str = HEXUPPER.encode(signature.as_ref());
-    
+
     let manifest = ManifestLine {
         file_type: "File".to_string(),
         bytes: "100".to_string(),
@@ -400,7 +395,7 @@ fn test_check_line_missing_file() {
         nonce: "nonce123".to_string(),
         sign: signature_str,
     };
-    
+
     let hasher = HasherOptions::Blake3;
     let (tx, rx) = mpsc::channel();
     check_line(
@@ -411,10 +406,10 @@ fn test_check_line_missing_file() {
         &tx,
         false,
     );
-    
+
     drop(tx);
     let messages: Vec<CheckMessage> = rx.iter().collect();
-    
+
     // File doesn't exist, so it will be treated as bad symlink and signature should pass
     let signature_pass = messages
         .iter()
@@ -428,19 +423,19 @@ fn test_check_line_wrong_size() {
     let file_path = temp_dir.path().join("test_file.txt");
     let mut file = File::create(&file_path).unwrap();
     file.write_all(b"Test content").unwrap();
-    
+
     let metadata = fs::metadata(&file_path).unwrap();
     let datetime: DateTime<Utc> = metadata.modified().unwrap().into();
     let datetime_string = format!("{}", datetime.format("%d/%m/%Y %T"));
-    
+
     let hasher = HasherOptions::Blake3;
     let hash = hash_file(hasher, &file_path);
     let hash_str = HEXUPPER.encode(&hash);
-    
+
     let rng = SystemRandom::new();
     let pkcs8_bytes = Ed25519KeyPair::generate_pkcs8(&rng).unwrap();
     let key_pair = Ed25519KeyPair::from_pkcs8(pkcs8_bytes.as_ref()).unwrap();
-    
+
     // Use wrong size in manifest (actual is 12 bytes)
     let wrong_size = "999";
     let data = format!(
@@ -452,7 +447,7 @@ fn test_check_line_wrong_size() {
     );
     let signature = sign_data(&data, pkcs8_bytes.as_ref());
     let signature_str = HEXUPPER.encode(signature.as_ref());
-    
+
     let manifest = ManifestLine {
         file_type: "File".to_string(),
         bytes: wrong_size.to_string(),
@@ -461,7 +456,7 @@ fn test_check_line_wrong_size() {
         nonce: "nonce123".to_string(),
         sign: signature_str,
     };
-    
+
     let (tx, rx) = mpsc::channel();
     check_line(
         file_path.to_str().unwrap(),
@@ -471,10 +466,10 @@ fn test_check_line_wrong_size() {
         &tx,
         false,
     );
-    
+
     drop(tx);
     let messages: Vec<CheckMessage> = rx.iter().collect();
-    
+
     // Should have failure for file length
     let size_failure = messages
         .iter()
@@ -488,16 +483,16 @@ fn test_check_line_wrong_hash() {
     let file_path = temp_dir.path().join("test_file.txt");
     let mut file = File::create(&file_path).unwrap();
     file.write_all(b"Test content").unwrap();
-    
+
     let metadata = fs::metadata(&file_path).unwrap();
     let datetime: DateTime<Utc> = metadata.modified().unwrap().into();
     let datetime_string = format!("{}", datetime.format("%d/%m/%Y %T"));
     let file_size = format!("{}", metadata.len());
-    
+
     let rng = SystemRandom::new();
     let pkcs8_bytes = Ed25519KeyPair::generate_pkcs8(&rng).unwrap();
     let key_pair = Ed25519KeyPair::from_pkcs8(pkcs8_bytes.as_ref()).unwrap();
-    
+
     // Use wrong hash
     let wrong_hash = "DEADBEEF123456789ABCDEF";
     let data = format!(
@@ -509,7 +504,7 @@ fn test_check_line_wrong_hash() {
     );
     let signature = sign_data(&data, pkcs8_bytes.as_ref());
     let signature_str = HEXUPPER.encode(signature.as_ref());
-    
+
     let manifest = ManifestLine {
         file_type: "File".to_string(),
         bytes: file_size,
@@ -518,7 +513,7 @@ fn test_check_line_wrong_hash() {
         nonce: "nonce123".to_string(),
         sign: signature_str,
     };
-    
+
     let hasher = HasherOptions::Blake3;
     let (tx, rx) = mpsc::channel();
     check_line(
@@ -529,10 +524,10 @@ fn test_check_line_wrong_hash() {
         &tx,
         false,
     );
-    
+
     drop(tx);
     let messages: Vec<CheckMessage> = rx.iter().collect();
-    
+
     // Should have failure for hash check
     let hash_failure = messages
         .iter()
@@ -546,18 +541,18 @@ fn test_check_line_wrong_timestamp() {
     let file_path = temp_dir.path().join("test_file.txt");
     let mut file = File::create(&file_path).unwrap();
     file.write_all(b"Test content").unwrap();
-    
+
     let metadata = fs::metadata(&file_path).unwrap();
     let file_size = format!("{}", metadata.len());
-    
+
     let hasher = HasherOptions::Blake3;
     let hash = hash_file(hasher, &file_path);
     let hash_str = HEXUPPER.encode(&hash);
-    
+
     let rng = SystemRandom::new();
     let pkcs8_bytes = Ed25519KeyPair::generate_pkcs8(&rng).unwrap();
     let key_pair = Ed25519KeyPair::from_pkcs8(pkcs8_bytes.as_ref()).unwrap();
-    
+
     // Use wrong timestamp
     let wrong_time = "01/01/1970 00:00:00";
     let data = format!(
@@ -569,7 +564,7 @@ fn test_check_line_wrong_timestamp() {
     );
     let signature = sign_data(&data, pkcs8_bytes.as_ref());
     let signature_str = HEXUPPER.encode(signature.as_ref());
-    
+
     let manifest = ManifestLine {
         file_type: "File".to_string(),
         bytes: file_size,
@@ -578,7 +573,7 @@ fn test_check_line_wrong_timestamp() {
         nonce: "nonce123".to_string(),
         sign: signature_str,
     };
-    
+
     let (tx, rx) = mpsc::channel();
     check_line(
         file_path.to_str().unwrap(),
@@ -588,10 +583,10 @@ fn test_check_line_wrong_timestamp() {
         &tx,
         false,
     );
-    
+
     drop(tx);
     let messages: Vec<CheckMessage> = rx.iter().collect();
-    
+
     // Should have failure for date check
     let date_failure = messages
         .iter()
@@ -604,15 +599,15 @@ fn test_check_line_wrong_type() {
     let temp_dir = TempDir::new().unwrap();
     let dir_path = temp_dir.path().join("test_dir");
     fs::create_dir(&dir_path).unwrap();
-    
+
     let metadata = fs::metadata(&dir_path).unwrap();
     let datetime: DateTime<Utc> = metadata.modified().unwrap().into();
     let datetime_string = format!("{}", datetime.format("%d/%m/%Y %T"));
-    
+
     let rng = SystemRandom::new();
     let pkcs8_bytes = Ed25519KeyPair::generate_pkcs8(&rng).unwrap();
     let key_pair = Ed25519KeyPair::from_pkcs8(pkcs8_bytes.as_ref()).unwrap();
-    
+
     // Create manifest claiming it's a file (but it's actually a directory)
     let data = format!(
         "File|{}|0|{}|{}|nonce123",
@@ -622,7 +617,7 @@ fn test_check_line_wrong_type() {
     );
     let signature = sign_data(&data, pkcs8_bytes.as_ref());
     let signature_str = HEXUPPER.encode(signature.as_ref());
-    
+
     let manifest = ManifestLine {
         file_type: "File".to_string(),
         bytes: "0".to_string(),
@@ -631,7 +626,7 @@ fn test_check_line_wrong_type() {
         nonce: "nonce123".to_string(),
         sign: signature_str,
     };
-    
+
     let hasher = HasherOptions::Blake3;
     let (tx, rx) = mpsc::channel();
     check_line(
@@ -642,10 +637,10 @@ fn test_check_line_wrong_type() {
         &tx,
         false,
     );
-    
+
     drop(tx);
     let messages: Vec<CheckMessage> = rx.iter().collect();
-    
+
     // Should have failure for file type check
     let type_failure = messages
         .iter()
@@ -659,23 +654,23 @@ fn test_check_line_invalid_signature() {
     let file_path = temp_dir.path().join("test_file.txt");
     let mut file = File::create(&file_path).unwrap();
     file.write_all(b"Test content").unwrap();
-    
+
     let metadata = fs::metadata(&file_path).unwrap();
     let datetime: DateTime<Utc> = metadata.modified().unwrap().into();
     let datetime_string = format!("{}", datetime.format("%d/%m/%Y %T"));
     let file_size = format!("{}", metadata.len());
-    
+
     let hasher = HasherOptions::Blake3;
     let hash = hash_file(hasher, &file_path);
     let hash_str = HEXUPPER.encode(&hash);
-    
+
     let rng = SystemRandom::new();
     let pkcs8_bytes = Ed25519KeyPair::generate_pkcs8(&rng).unwrap();
     let key_pair = Ed25519KeyPair::from_pkcs8(pkcs8_bytes.as_ref()).unwrap();
-    
+
     // Create tampered signature (just wrong bytes)
     let fake_signature = "A".repeat(128); // 64 bytes in hex
-    
+
     let manifest = ManifestLine {
         file_type: "File".to_string(),
         bytes: file_size,
@@ -684,7 +679,7 @@ fn test_check_line_invalid_signature() {
         nonce: "nonce123".to_string(),
         sign: fake_signature,
     };
-    
+
     let (tx, rx) = mpsc::channel();
     check_line(
         file_path.to_str().unwrap(),
@@ -694,10 +689,10 @@ fn test_check_line_invalid_signature() {
         &tx,
         false,
     );
-    
+
     drop(tx);
     let messages: Vec<CheckMessage> = rx.iter().collect();
-    
+
     // Should have failure for signature check
     let signature_failure = messages
         .iter()
@@ -709,20 +704,20 @@ fn test_check_line_invalid_signature() {
 fn test_check_line_manifest_only_mode() {
     let temp_dir = TempDir::new().unwrap();
     let file_path = temp_dir.path().join("test_file.txt");
-    
+
     // Don't create the file - manifest_only mode doesn't check filesystem
-    
+
     let rng = SystemRandom::new();
     let pkcs8_bytes = Ed25519KeyPair::generate_pkcs8(&rng).unwrap();
     let key_pair = Ed25519KeyPair::from_pkcs8(pkcs8_bytes.as_ref()).unwrap();
-    
+
     let data = format!(
         "File|{}|100|01/01/2024 12:00:00|ABC123|nonce123",
         file_path.to_str().unwrap()
     );
     let signature = sign_data(&data, pkcs8_bytes.as_ref());
     let signature_str = HEXUPPER.encode(signature.as_ref());
-    
+
     let manifest = ManifestLine {
         file_type: "File".to_string(),
         bytes: "100".to_string(),
@@ -731,7 +726,7 @@ fn test_check_line_manifest_only_mode() {
         nonce: "nonce123".to_string(),
         sign: signature_str,
     };
-    
+
     let hasher = HasherOptions::Blake3;
     let (tx, rx) = mpsc::channel();
     check_line(
@@ -742,16 +737,16 @@ fn test_check_line_manifest_only_mode() {
         &tx,
         true, // manifest_only = true
     );
-    
+
     drop(tx);
     let messages: Vec<CheckMessage> = rx.iter().collect();
-    
+
     // In manifest_only mode, signature should be checked but no file checks
     let signature_pass = messages
         .iter()
         .any(|m| m.text.contains("Signature check passed"));
     assert!(signature_pass);
-    
+
     // Should NOT have file-specific checks
     let has_file_checks = messages
         .iter()
@@ -764,15 +759,15 @@ fn test_check_line_directory() {
     let temp_dir = TempDir::new().unwrap();
     let dir_path = temp_dir.path().join("test_dir");
     fs::create_dir(&dir_path).unwrap();
-    
+
     let metadata = fs::metadata(&dir_path).unwrap();
     let datetime: DateTime<Utc> = metadata.modified().unwrap().into();
     let datetime_string = format!("{}", datetime.format("%d/%m/%Y %T"));
-    
+
     let rng = SystemRandom::new();
     let pkcs8_bytes = Ed25519KeyPair::generate_pkcs8(&rng).unwrap();
     let key_pair = Ed25519KeyPair::from_pkcs8(pkcs8_bytes.as_ref()).unwrap();
-    
+
     let data = format!(
         "Dir|{}|0|{}|{}|nonce123",
         dir_path.to_str().unwrap(),
@@ -781,7 +776,7 @@ fn test_check_line_directory() {
     );
     let signature = sign_data(&data, pkcs8_bytes.as_ref());
     let signature_str = HEXUPPER.encode(signature.as_ref());
-    
+
     let manifest = ManifestLine {
         file_type: "Dir".to_string(),
         bytes: "0".to_string(),
@@ -790,7 +785,7 @@ fn test_check_line_directory() {
         nonce: "nonce123".to_string(),
         sign: signature_str,
     };
-    
+
     let hasher = HasherOptions::Blake3;
     let (tx, rx) = mpsc::channel();
     check_line(
@@ -801,16 +796,16 @@ fn test_check_line_directory() {
         &tx,
         false,
     );
-    
+
     drop(tx);
     let messages: Vec<CheckMessage> = rx.iter().collect();
-    
+
     // Directory checks should pass
     let type_pass = messages
         .iter()
         .any(|m| m.text.contains("File type check passed"));
     assert!(type_pass);
-    
+
     let hash_pass = messages
         .iter()
         .any(|m| m.text.contains("Hash check passed"));
@@ -823,23 +818,23 @@ fn test_check_line_symlink() {
     let target_path = temp_dir.path().join("target.txt");
     let mut target_file = File::create(&target_path).unwrap();
     target_file.write_all(b"Target content").unwrap();
-    
+
     let symlink_path = temp_dir.path().join("link.txt");
     unix_fs::symlink(&target_path, &symlink_path).unwrap();
-    
+
     let metadata = fs::metadata(&symlink_path).unwrap();
     let datetime: DateTime<Utc> = metadata.modified().unwrap().into();
     let datetime_string = format!("{}", datetime.format("%d/%m/%Y %T"));
     let file_size = format!("{}", metadata.len());
-    
+
     let hasher = HasherOptions::Blake3;
     let hash = hash_file(hasher, &symlink_path);
     let hash_str = HEXUPPER.encode(&hash);
-    
+
     let rng = SystemRandom::new();
     let pkcs8_bytes = Ed25519KeyPair::generate_pkcs8(&rng).unwrap();
     let key_pair = Ed25519KeyPair::from_pkcs8(pkcs8_bytes.as_ref()).unwrap();
-    
+
     let data = format!(
         "File-symlink|{}|{}|{}|{}|nonce123",
         symlink_path.to_str().unwrap(),
@@ -849,7 +844,7 @@ fn test_check_line_symlink() {
     );
     let signature = sign_data(&data, pkcs8_bytes.as_ref());
     let signature_str = HEXUPPER.encode(signature.as_ref());
-    
+
     let manifest = ManifestLine {
         file_type: "File-symlink".to_string(),
         bytes: file_size,
@@ -858,7 +853,7 @@ fn test_check_line_symlink() {
         nonce: "nonce123".to_string(),
         sign: signature_str,
     };
-    
+
     let (tx, rx) = mpsc::channel();
     check_line(
         symlink_path.to_str().unwrap(),
@@ -868,10 +863,10 @@ fn test_check_line_symlink() {
         &tx,
         false,
     );
-    
+
     drop(tx);
     let messages: Vec<CheckMessage> = rx.iter().collect();
-    
+
     // Symlink checks should pass
     let type_pass = messages
         .iter()
@@ -885,13 +880,13 @@ fn test_check_line_bad_symlink() {
     let target_path = temp_dir.path().join("nonexistent_target.txt");
     let symlink_path = temp_dir.path().join("broken_link.txt");
     unix_fs::symlink(&target_path, &symlink_path).unwrap();
-    
+
     // symlink exists but target doesn't - this is a bad symlink
-    
+
     let rng = SystemRandom::new();
     let pkcs8_bytes = Ed25519KeyPair::generate_pkcs8(&rng).unwrap();
     let key_pair = Ed25519KeyPair::from_pkcs8(pkcs8_bytes.as_ref()).unwrap();
-    
+
     let data = format!(
         "Bad-symlink|{}|0|{}|{}|nonce123",
         symlink_path.to_str().unwrap(),
@@ -900,7 +895,7 @@ fn test_check_line_bad_symlink() {
     );
     let signature = sign_data(&data, pkcs8_bytes.as_ref());
     let signature_str = HEXUPPER.encode(signature.as_ref());
-    
+
     let manifest = ManifestLine {
         file_type: "File-symlink".to_string(),
         bytes: "100".to_string(),
@@ -909,7 +904,7 @@ fn test_check_line_bad_symlink() {
         nonce: "nonce123".to_string(),
         sign: signature_str,
     };
-    
+
     let hasher = HasherOptions::Blake3;
     let (tx, rx) = mpsc::channel();
     check_line(
@@ -920,10 +915,10 @@ fn test_check_line_bad_symlink() {
         &tx,
         false,
     );
-    
+
     drop(tx);
     let messages: Vec<CheckMessage> = rx.iter().collect();
-    
+
     // Signature should pass because we signed with Bad-symlink data
     let signature_pass = messages
         .iter()
@@ -937,20 +932,20 @@ fn test_check_line_sends_all_messages() {
     let file_path = temp_dir.path().join("test_file.txt");
     let mut file = File::create(&file_path).unwrap();
     file.write_all(b"Test content").unwrap();
-    
+
     let metadata = fs::metadata(&file_path).unwrap();
     let datetime: DateTime<Utc> = metadata.modified().unwrap().into();
     let datetime_string = format!("{}", datetime.format("%d/%m/%Y %T"));
     let file_size = format!("{}", metadata.len());
-    
+
     let hasher = HasherOptions::Blake3;
     let hash = hash_file(hasher, &file_path);
     let hash_str = HEXUPPER.encode(&hash);
-    
+
     let rng = SystemRandom::new();
     let pkcs8_bytes = Ed25519KeyPair::generate_pkcs8(&rng).unwrap();
     let key_pair = Ed25519KeyPair::from_pkcs8(pkcs8_bytes.as_ref()).unwrap();
-    
+
     let data = format!(
         "File|{}|{}|{}|{}|nonce123",
         file_path.to_str().unwrap(),
@@ -960,7 +955,7 @@ fn test_check_line_sends_all_messages() {
     );
     let signature = sign_data(&data, pkcs8_bytes.as_ref());
     let signature_str = HEXUPPER.encode(signature.as_ref());
-    
+
     let manifest = ManifestLine {
         file_type: "File".to_string(),
         bytes: file_size,
@@ -969,7 +964,7 @@ fn test_check_line_sends_all_messages() {
         nonce: "nonce123".to_string(),
         sign: signature_str,
     };
-    
+
     let (tx, rx) = mpsc::channel();
     check_line(
         file_path.to_str().unwrap(),
@@ -979,10 +974,10 @@ fn test_check_line_sends_all_messages() {
         &tx,
         false,
     );
-    
+
     drop(tx);
     let messages: Vec<CheckMessage> = rx.iter().collect();
-    
+
     // Should have all check types: size, date, type, hash, signature, tick
     assert!(messages.iter().any(|m| m.text.contains("length check")));
     assert!(messages.iter().any(|m| m.text.contains("Date check")));
@@ -990,7 +985,7 @@ fn test_check_line_sends_all_messages() {
     assert!(messages.iter().any(|m| m.text.contains("Hash check")));
     assert!(messages.iter().any(|m| m.text.contains("Signature check")));
     assert!(messages.iter().any(|m| m.text == "Tick"));
-    
+
     // Check message types
     let print_messages = messages
         .iter()
@@ -1000,7 +995,7 @@ fn test_check_line_sends_all_messages() {
         .iter()
         .filter(|m| m.check_type == TICK_MESSAGE)
         .count();
-    
+
     assert!(print_messages >= 5);
     assert_eq!(tick_messages, 1);
 }
@@ -1011,20 +1006,20 @@ fn test_check_line_signature_verification() {
     let file_path = temp_dir.path().join("test_file.txt");
     let mut file = File::create(&file_path).unwrap();
     file.write_all(b"Test content").unwrap();
-    
+
     let metadata = fs::metadata(&file_path).unwrap();
     let datetime: DateTime<Utc> = metadata.modified().unwrap().into();
     let datetime_string = format!("{}", datetime.format("%d/%m/%Y %T"));
     let file_size = format!("{}", metadata.len());
-    
+
     let hasher = HasherOptions::Blake3;
     let hash = hash_file(hasher, &file_path);
     let hash_str = HEXUPPER.encode(&hash);
-    
+
     let rng = SystemRandom::new();
     let pkcs8_bytes = Ed25519KeyPair::generate_pkcs8(&rng).unwrap();
     let key_pair = Ed25519KeyPair::from_pkcs8(pkcs8_bytes.as_ref()).unwrap();
-    
+
     // Sign with correct data
     let data = format!(
         "File|{}|{}|{}|{}|nonce123",
@@ -1035,7 +1030,7 @@ fn test_check_line_signature_verification() {
     );
     let signature = sign_data(&data, pkcs8_bytes.as_ref());
     let signature_str = HEXUPPER.encode(signature.as_ref());
-    
+
     let manifest = ManifestLine {
         file_type: "File".to_string(),
         bytes: file_size,
@@ -1044,7 +1039,7 @@ fn test_check_line_signature_verification() {
         nonce: "nonce123".to_string(),
         sign: signature_str,
     };
-    
+
     let (tx, rx) = mpsc::channel();
     check_line(
         file_path.to_str().unwrap(),
@@ -1054,20 +1049,21 @@ fn test_check_line_signature_verification() {
         &tx,
         false,
     );
-    
+
     drop(tx);
     let messages: Vec<CheckMessage> = rx.iter().collect();
-    
+
     // Signature verification should pass with correct key
-    let signature_pass = messages
-        .iter()
-        .any(|m| m.text.contains("Signature check passed. Can trust manifest line"));
+    let signature_pass = messages.iter().any(|m| {
+        m.text
+            .contains("Signature check passed. Can trust manifest line")
+    });
     assert!(signature_pass);
-    
+
     // Now test with wrong public key
     let pkcs8_bytes2 = Ed25519KeyPair::generate_pkcs8(&rng).unwrap();
     let key_pair2 = Ed25519KeyPair::from_pkcs8(pkcs8_bytes2.as_ref()).unwrap();
-    
+
     let manifest2 = manifest.clone();
     let (tx2, rx2) = mpsc::channel();
     check_line(
@@ -1078,14 +1074,15 @@ fn test_check_line_signature_verification() {
         &tx2,
         false,
     );
-    
+
     drop(tx2);
     let messages2: Vec<CheckMessage> = rx2.iter().collect();
-    
+
     // Signature verification should fail with wrong key
-    let signature_fail = messages2
-        .iter()
-        .any(|m| m.text.contains("Signature check failed. Can't trust manifest line"));
+    let signature_fail = messages2.iter().any(|m| {
+        m.text
+            .contains("Signature check failed. Can't trust manifest line")
+    });
     assert!(signature_fail);
 }
 
