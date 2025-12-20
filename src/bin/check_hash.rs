@@ -25,6 +25,7 @@ use indicatif::ProgressBar;
 
 const NUMBER_OF_LINES_UNTIL_FILE_LEN_MESSAGE: usize = 6;
 
+/// Build the command-line interface definition for `check_hash`.
 fn build_cli() -> Command {
     Command::new("check_hash")
         .version("1.0.0")
@@ -94,6 +95,7 @@ struct Config {
 }
 
 impl Config {
+    /// Construct configuration from parsed CLI matches.
     fn from_matches(matches: &clap::ArgMatches) -> Self {
         let output_file = matches
             .get_one::<String>("output")
@@ -324,103 +326,129 @@ fn verify_manifest_footer(
     }
 }
 
-fn main() {
-    let now: DateTime<Utc> = Utc::now();
-    let args: Vec<String> = env::args().collect();
-    let config = Config::from_matches(&build_cli().get_matches());
-
-    // Load public key
+/// Initialize environment: load public key, read manifest, and collect input files
+fn initialize_data(
+    config: &Config,
+) -> (
+    [u8; PUBLICKEY_LENGTH_IN_BYTES / BITS_IN_BYTES],
+    Vec<String>,
+    Vec<String>,
+) {
     let mut public_key_bytes = [0u8; PUBLICKEY_LENGTH_IN_BYTES / BITS_IN_BYTES];
     read_public_key(&config.public_key_file, &mut public_key_bytes);
 
-    // Read manifest
     let mut vec_of_lines: Vec<String> = Vec::new();
     read_manifest_file(&mut vec_of_lines, &config.input_file, config.fileoutput);
 
-    // Collect files (empty if manifest-only)
     let inputfiles = if config.manifest_only {
         Vec::new()
     } else {
         collect_files(&config.input_directory, config.fileoutput)
     };
 
-    // Setup
-    let (check_tx, check_rx) = mpsc::channel();
-    let mut pool = Pool::new(config.poolnumber.try_into().unwrap());
+    (public_key_bytes, vec_of_lines, inputfiles)
+}
+
+/// Parse manifest headers and entries, returning parsed structures and hash context
+fn process_and_parse_manifest(
+    vec_of_lines: &mut Vec<String>,
+    config: &Config,
+    check_tx: &mpsc::Sender<CheckMessage>,
+) -> (
+    HasherOptions,
+    HashMap<String, ManifestLine>,
+    hash_helper::StreamingHasher,
+    usize,
+    String,
+) {
     let bar_len = vec_of_lines
         .len()
         .saturating_sub(SIGN_HEADER_MESSAGE_COUNT + 10) as u64;
     let nonce_bar = create_progress_bar(bar_len, "Parsing manifest:", "green", config.fileoutput);
 
-    // Parse manifest headers
     let (hasher_option, hasher, file_len, hash_algo) =
-        parse_manifest_headers(&mut vec_of_lines, config.fileoutput, &nonce_bar);
+        parse_manifest_headers(vec_of_lines, config.fileoutput, &nonce_bar);
 
-    // Log check info
+    let (manifest_map, hasher, file_len) = parse_manifest_entries(
+        vec_of_lines,
+        hasher,
+        file_len,
+        config.fileoutput,
+        &nonce_bar,
+        check_tx,
+    );
+
+    if config.fileoutput {
+        nonce_bar.finish();
+    }
+
+    (hasher_option, manifest_map, hasher, file_len, hash_algo)
+}
+
+/// Log initial execution information
+fn log_execution_info(
+    args: &[String],
+    now: &DateTime<Utc>,
+    config: &Config,
+    hash_algo: &str,
+    check_tx: &mpsc::Sender<CheckMessage>,
+) {
     send_check_message(
         PRINT_MESSAGE,
         format!("Command Line|{}\n", args.join(" ")),
         true,
-        &check_tx,
+        check_tx,
     );
-    send_check_message(
-        PRINT_MESSAGE,
-        format!("Start time|{now}\n"),
-        true,
-        &check_tx,
-    );
+    send_check_message(PRINT_MESSAGE, format!("Start time|{now}\n"), true, check_tx);
     send_check_message(
         PRINT_MESSAGE,
         format!("Threads|{}\n", config.poolnumber),
         true,
-        &check_tx,
+        check_tx,
     );
     send_check_message(
         PRINT_MESSAGE,
         format!("Hash algorithm|{hash_algo}\n"),
         true,
-        &check_tx,
+        check_tx,
     );
-    send_check_message(PRINT_MESSAGE, "Signature|ED25519\n", true, &check_tx);
+    send_check_message(PRINT_MESSAGE, "Signature|ED25519\n", true, check_tx);
+}
 
-    // Parse file entries
-    let (mut manifest_map, hasher, file_len) = parse_manifest_entries(
-        &mut vec_of_lines,
-        hasher,
-        file_len,
-        config.fileoutput,
-        &nonce_bar,
-        &check_tx,
-    );
-    if config.fileoutput {
-        nonce_bar.finish();
-    }
+/// Spawn writer thread responsible for emitting results
+fn spawn_writer_thread(
+    config: &Config,
+    progress_bar: ProgressBar,
+    check_rx: mpsc::Receiver<CheckMessage>,
+) -> thread::JoinHandle<()> {
+    let verbose = config.verbose;
+    let output_file = config.output_file.clone();
+    let fileoutput = config.fileoutput;
 
-    // Setup verification progress bar and writer thread
-    let check_prefix = if config.manifest_only {
-        "Checking signatures:"
-    } else {
-        "Checking files:"
-    };
-    let progress_bar = create_progress_bar(bar_len, check_prefix, "yellow", config.fileoutput);
-
-    let (verbose, output_file, fileoutput) = (
-        config.verbose,
-        config.output_file.clone(),
-        config.fileoutput,
-    );
-    let writer_child = thread::spawn(move || {
+    thread::spawn(move || {
         write_check_from_channel(verbose, &check_rx, &output_file, fileoutput, &progress_bar);
-    });
+    })
+}
 
-    // Parallel file checking
+/// Execute parallel checks and return any remaining manifest entries
+fn execute_parallel_checks(
+    config: &Config,
+    inputfiles: Vec<String>,
+    mut manifest_map: HashMap<String, ManifestLine>,
+    hasher_option: &HasherOptions,
+    public_key_bytes: &[u8; PUBLICKEY_LENGTH_IN_BYTES / BITS_IN_BYTES],
+    check_tx: &mpsc::Sender<CheckMessage>,
+    pool: &mut Pool,
+) -> HashMap<String, ManifestLine> {
     pool.scoped(|scoped| {
         if config.manifest_only {
             for (path, manifest) in manifest_map.drain() {
                 let tx = check_tx.clone();
                 let h = hasher_option.clone();
+                let pk = *public_key_bytes;
+
                 scoped.execute(move || {
-                    check_line(&path, &h, &manifest, &public_key_bytes, &tx, true);
+                    check_line(&path, &h, &manifest, &pk, &tx, true);
                 });
             }
         } else {
@@ -429,39 +457,95 @@ fn main() {
                     Some(manifest) => {
                         let tx = check_tx.clone();
                         let h = hasher_option.clone();
+                        let pk = *public_key_bytes;
+
                         scoped.execute(move || {
-                            check_line(&file, &h, &manifest, &public_key_bytes, &tx, false);
+                            check_line(&file, &h, &manifest, &pk, &tx, false);
                         });
                     }
                     None => send_check_message(
                         PRINT_MESSAGE,
                         format!("Failure|{file}|not in manifest\n"),
                         false,
-                        &check_tx,
+                        check_tx,
                     ),
                 }
             }
         }
     });
 
-    // Report missing files
-    for (path, _) in manifest_map.drain() {
+    manifest_map
+}
+
+/// Report missing files and verify manifest footer
+fn finalize_and_verify(
+    manifest_map: HashMap<String, ManifestLine>,
+    vec_of_lines: &mut Vec<String>,
+    hasher: hash_helper::StreamingHasher,
+    file_len: usize,
+    public_key_bytes: &[u8; PUBLICKEY_LENGTH_IN_BYTES / BITS_IN_BYTES],
+    check_tx: &mpsc::Sender<CheckMessage>,
+) {
+    for (path, _) in manifest_map {
         send_check_message(
             PRINT_MESSAGE,
             format!("Failure|{path}|in manifest but not found\n"),
             false,
-            &check_tx,
+            check_tx,
         );
     }
 
-    // Verify footer and end
-    verify_manifest_footer(
+    verify_manifest_footer(vec_of_lines, hasher, file_len, public_key_bytes, check_tx);
+    send_check_message(END_MESSAGE, "End", false, check_tx);
+}
+
+/// Entry point for verifying manifests and files against signed hashes.
+fn main() {
+    let now: DateTime<Utc> = Utc::now();
+    let args: Vec<String> = env::args().collect();
+    let config = Config::from_matches(&build_cli().get_matches());
+
+    // Initialize key, manifest, and file list
+    let (public_key_bytes, mut vec_of_lines, inputfiles) = initialize_data(&config);
+
+    // Setup channel and thread pool
+    let (check_tx, check_rx) = mpsc::channel();
+    let mut pool = Pool::new(config.poolnumber.try_into().unwrap());
+    let (hasher_option, manifest_map, hasher, file_len, hash_algo) =
+        process_and_parse_manifest(&mut vec_of_lines, &config, &check_tx);
+
+    log_execution_info(&args, &now, &config, &hash_algo, &check_tx);
+
+    // Setup verification progress bar and writer thread
+    let check_prefix = if config.manifest_only {
+        "Checking signatures:"
+    } else {
+        "Checking files:"
+    };
+    let bar_len = vec_of_lines
+        .len()
+        .saturating_sub(SIGN_HEADER_MESSAGE_COUNT + 10) as u64;
+    let progress_bar = create_progress_bar(bar_len, check_prefix, "yellow", config.fileoutput);
+    let writer_child = spawn_writer_thread(&config, progress_bar, check_rx);
+
+    let remaining_manifest = execute_parallel_checks(
+        &config,
+        inputfiles,
+        manifest_map,
+        &hasher_option,
+        &public_key_bytes,
+        &check_tx,
+        &mut pool,
+    );
+
+    finalize_and_verify(
+        remaining_manifest,
         &mut vec_of_lines,
         hasher,
         file_len,
         &public_key_bytes,
         &check_tx,
     );
-    send_check_message(END_MESSAGE, "End", false, &check_tx);
+
     let _res = writer_child.join();
 }
