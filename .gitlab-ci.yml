@@ -23,18 +23,22 @@ fmt:
   stage: fmt
   script:
     - cargo fmt --all -- --check
+  tags:
+    - Shell-Runner
 
  
 test:
   stage: test
   script:
     - cargo test --all-features --workspace --no-fail-fast
-
+  tags:
+    - Shell-Runner
 
 clippy:
   stage: clippy
   script:
     - cargo clippy --all-features --all-targets -- -D warnings -D clippy::pedantic 
-
+  tags:
+    - Shell-Runner
 
     
