@@ -344,7 +344,7 @@ fn test_write_manifest_from_channel_updates_progress() {
     });
 
     let mut progress = 0;
-    while let Ok(_) = rx.recv_timeout(Duration::from_millis(100)) {
+    while rx.recv_timeout(Duration::from_millis(100)).is_ok() {
         progress += 1;
     }
 

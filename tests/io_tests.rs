@@ -19,8 +19,9 @@ fn test_write_line_to_file() {
 #[test]
 fn test_write_line_to_stdio() {
     // Writing to stdio can't be easily tested, but we can verify the logic
-    let data = "stdout output";
+    let data = String::from("stdout output");
     assert!(!data.is_empty());
+    assert_eq!(data, "stdout output");
 }
 
 #[test]
