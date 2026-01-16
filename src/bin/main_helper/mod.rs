@@ -22,11 +22,10 @@ pub const PRIVATEKEY_LENGTH_IN_BYTES: usize = 664;
 pub const PUBLICKEY_LENGTH_IN_BYTES: usize = 256;
 pub const SIGNED_LENGTH_IN_BYTES: usize = 512;
 pub const NONCE_LENGTH_IN_BYTES: usize = 1024;
-pub const HASH_READ_BUFFER_IN_BYTES: usize = 524_288;
 pub const BITS_IN_BYTES: usize = 8;
 pub const TOKEN_SEPARATOR: &str = "|";
 pub const PRIVATE_KEY_STRING_ED25519: &str = "Private ED25519";
-// We hope to be using memmap anyway.
+// Note: Memory-mapped I/O (memmap2) is used for files ≥16KB for optimal performance
 pub const SEPARATOR_LINE: &str =
     "********************************************************************************"; //80 stars
 const NO_HASH: &str = "0";
@@ -63,6 +62,7 @@ pub enum Whereoutput {
     StringText(String),
 }
 #[allow(dead_code)]
+#[derive(Debug)]
 pub struct ManifestLine {
     pub file_type: String,
     pub bytes: String,
@@ -498,7 +498,10 @@ pub fn dump_header(header_file: &str) -> String {
 /// ```
 #[allow(dead_code)]
 pub fn var_digest<R: Read>(mut reader: R, hasher_opts: HasherOptions) -> Vec<u8> {
-    let mut buffer = vec![0_u8; HASH_READ_BUFFER_IN_BYTES / BITS_IN_BYTES];
+    // Use adaptive buffer sizing for better performance
+    // For generic readers, use 256KB as a reasonable default
+    const ADAPTIVE_BUFFER_SIZE: usize = 256 * 1024;
+    let mut buffer = vec![0_u8; ADAPTIVE_BUFFER_SIZE];
 
     // Read first chunk to initialize streaming hasher
     let count = match reader.read(&mut buffer) {
@@ -1258,7 +1261,8 @@ pub fn create_progress_bar(len: u64, prefix: &str, color: &str, show: bool) -> P
 /// # Returns
 ///
 /// Thread pool size to use. Returns CPU thread count if input is < 1,
-/// otherwise returns the parsed value.
+/// determined using `std::thread::available_parallelism()` which respects
+/// cgroups and CPU affinity settings.
 ///
 /// # Panics
 ///

@@ -151,7 +151,7 @@ fn test_get_pool_size_large_number() {
 #[test]
 fn test_get_pool_size_respects_num_threads() {
     // Test that CPU detection respects cgroups/affinity
-    // Would use num_threads::num_threads() which respects container limits
-    let thread_count = num_threads::num_threads();
+    // Would use std::thread::available_parallelism() which respects container limits
+    let thread_count = std::thread::available_parallelism();
     assert!(thread_count.map_or(1, std::num::NonZeroUsize::get) >= 1);
 }

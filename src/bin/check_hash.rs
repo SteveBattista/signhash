@@ -12,11 +12,10 @@ use main_helper::{
 };
 
 use data_encoding::HEXUPPER;
-use scoped_threadpool::Pool;
+use rayon::prelude::*;
 use std::collections::HashMap;
-use std::convert::TryInto;
 use std::env;
-use std::sync::mpsc;
+use std::sync::{mpsc, Arc, Mutex};
 use std::thread;
 
 use chrono::{DateTime, Utc};
@@ -434,47 +433,39 @@ fn spawn_writer_thread(
 fn execute_parallel_checks(
     config: &Config,
     inputfiles: Vec<String>,
-    mut manifest_map: HashMap<String, ManifestLine>,
+    manifest_map: HashMap<String, ManifestLine>,
     hasher_option: &HasherOptions,
     public_key_bytes: &[u8; PUBLICKEY_LENGTH_IN_BYTES / BITS_IN_BYTES],
     check_tx: &mpsc::Sender<CheckMessage>,
-    pool: &mut Pool,
 ) -> HashMap<String, ManifestLine> {
-    pool.scoped(|scoped| {
-        if config.manifest_only {
-            for (path, manifest) in manifest_map.drain() {
-                let tx = check_tx.clone();
-                let h = hasher_option.clone();
-                let pk = *public_key_bytes;
+    let manifest_map = Arc::new(Mutex::new(manifest_map));
 
-                scoped.execute(move || {
-                    check_line(&path, &h, &manifest, &pk, &tx, true);
-                });
-            }
-        } else {
-            for file in inputfiles {
-                match manifest_map.remove(&file) {
-                    Some(manifest) => {
-                        let tx = check_tx.clone();
-                        let h = hasher_option.clone();
-                        let pk = *public_key_bytes;
-
-                        scoped.execute(move || {
-                            check_line(&file, &h, &manifest, &pk, &tx, false);
-                        });
-                    }
-                    None => send_check_message(
-                        PRINT_MESSAGE,
-                        format!("Failure|{file}|not in manifest\n"),
-                        false,
-                        check_tx,
-                    ),
+    if config.manifest_only {
+        // Collect entries first to avoid holding lock during iteration
+        let entries: Vec<_> = manifest_map.lock().unwrap().drain().collect();
+        
+        entries.par_iter().for_each(|(path, manifest)| {
+            check_line(path, hasher_option, manifest, public_key_bytes, check_tx, true);
+        });
+    } else {
+        inputfiles.par_iter().for_each(|file| {
+            let manifest_opt = manifest_map.lock().unwrap().remove(file);
+            
+            match manifest_opt {
+                Some(manifest) => {
+                    check_line(file, hasher_option, &manifest, public_key_bytes, check_tx, false);
                 }
+                None => send_check_message(
+                    PRINT_MESSAGE,
+                    format!("Failure|{file}|not in manifest\n"),
+                    false,
+                    check_tx,
+                ),
             }
-        }
-    });
+        });
+    }
 
-    manifest_map
+    Arc::try_unwrap(manifest_map).unwrap().into_inner().unwrap()
 }
 
 /// Report missing files and verify manifest footer
@@ -508,9 +499,12 @@ fn main() {
     // Initialize key, manifest, and file list
     let (public_key_bytes, mut vec_of_lines, inputfiles) = initialize_data(&config);
 
-    // Setup channel and thread pool
+    // Setup channel and configure rayon thread pool
     let (check_tx, check_rx) = mpsc::channel();
-    let mut pool = Pool::new(config.poolnumber.try_into().unwrap());
+    rayon::ThreadPoolBuilder::new()
+        .num_threads(config.poolnumber)
+        .build_global()
+        .unwrap_or_else(|_| ());
     let (hasher_option, manifest_map, hasher, file_len, hash_algo) =
         process_and_parse_manifest(&mut vec_of_lines, &config, &check_tx);
 
@@ -535,7 +529,6 @@ fn main() {
         &hasher_option,
         &public_key_bytes,
         &check_tx,
-        &mut pool,
     );
 
     finalize_and_verify(

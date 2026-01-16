@@ -7,14 +7,24 @@ use ring::digest::{Context, SHA1_FOR_LEGACY_USE_ONLY, SHA256, SHA384, SHA512, SH
 use std::fs::File;
 use std::io::Read;
 
-#[cfg(feature = "memmap")]
+#[cfg(feature = "memmap2")]
 use anyhow::Result;
-#[cfg(feature = "memmap")]
+#[cfg(feature = "memmap2")]
 use std::convert::TryFrom;
 
-/// Buffer size for streaming file reads (64 KiB).
-/// This is a reasonable default that balances memory usage with read efficiency.
-const READ_BUFFER_SIZE: usize = 64 * 1024;
+/// Minimum buffer size for streaming file reads (64 KiB).
+const MIN_BUFFER_SIZE: usize = 64 * 1024;
+
+/// Default buffer size for streaming file reads (256 KiB).
+const DEFAULT_BUFFER_SIZE: usize = 256 * 1024;
+
+/// Maximum buffer size for streaming file reads (4 MiB).
+/// Prevents excessive memory usage for very large files.
+const MAX_BUFFER_SIZE: usize = 4 * 1024 * 1024;
+
+/// Minimum file size (in bytes) to use memory mapping.
+/// For files smaller than this, streaming is more efficient due to mmap overhead.
+const MMAP_THRESHOLD: u64 = 16 * 1024; // 16 KiB
 
 /// Supported hash algorithm types.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -184,13 +194,13 @@ impl StreamingHasher {
 /// The memory mapping is only valid while the file remains unchanged.
 /// The explicit length parameter helps prevent TOCTOU (time-of-check-time-of-use)
 /// races where the file size changes between checking and mapping.
-#[cfg(feature = "memmap")]
-fn try_memmap_file(file: &File) -> Result<Option<memmap::Mmap>> {
+#[cfg(feature = "memmap2")]
+fn try_memmap_file(file: &File) -> Result<Option<memmap2::Mmap>> {
     let metadata = file.metadata()?;
     let file_size = metadata.len();
 
-    // Can't mmap non-files or empty files
-    if !metadata.is_file() || file_size == 0 {
+    // Skip mmap for small files - streaming is more efficient
+    if !metadata.is_file() || file_size < MMAP_THRESHOLD {
         return Ok(None);
     }
 
@@ -201,7 +211,7 @@ fn try_memmap_file(file: &File) -> Result<Option<memmap::Mmap>> {
 
     // SAFETY: We've verified the file exists and has the expected size.
     // Setting explicit length prevents TOCTOU races with file modifications.
-    let map = unsafe { memmap::MmapOptions::new().len(len).map(file)? };
+    let map = unsafe { memmap2::MmapOptions::new().len(len).map(file)? };
     Ok(Some(map))
 }
 
@@ -213,8 +223,9 @@ fn try_memmap_file(file: &File) -> Result<Option<memmap::Mmap>> {
 ///
 /// Memory mapping is typically faster for large files as it avoids
 /// intermediate buffering and allows the OS to optimize page caching.
+/// Only uses mmap for files larger than MMAP_THRESHOLD.
 fn try_hash_memmap(hasher: &HasherOptions, file: &File) -> Option<Vec<u8>> {
-    #[cfg(feature = "memmap")]
+    #[cfg(feature = "memmap2")]
     {
         if let Ok(Some(map)) = try_memmap_file(file) {
             return Some(hasher.hash_once(&map));
@@ -224,17 +235,66 @@ fn try_hash_memmap(hasher: &HasherOptions, file: &File) -> Option<Vec<u8>> {
     None
 }
 
-/// Hash a file using streaming reads (fallback path).
+/// Calculate optimal buffer size based on file size.
+///
+/// Uses adaptive sizing:
+/// - Small files (<1MB): 64 KiB buffer
+/// - Medium files (1MB-10MB): 256 KiB buffer  
+/// - Large files (10MB-100MB): 1 MiB buffer
+/// - Very large files (>100MB): 4 MiB buffer (capped at MAX_BUFFER_SIZE)
+///
+/// This balances memory usage with I/O performance.
+fn calculate_buffer_size(file_size: Option<u64>) -> usize {
+    match file_size {
+        Some(size) if size < 1024 * 1024 => MIN_BUFFER_SIZE,           // <1MB: 64KB
+        Some(size) if size < 10 * 1024 * 1024 => DEFAULT_BUFFER_SIZE,  // 1-10MB: 256KB
+        Some(size) if size < 100 * 1024 * 1024 => 1024 * 1024,         // 10-100MB: 1MB
+        Some(_) => MAX_BUFFER_SIZE,                                     // >100MB: 4MB
+        None => DEFAULT_BUFFER_SIZE,                                    // Unknown: 256KB
+    }
+}
+
+/// Hash a file using streaming reads with adaptive buffer sizing.
 ///
 /// Reads the file in chunks and incrementally updates the hash.
+/// Uses adaptive buffer sizing based on file size for optimal performance.
 /// This is slower than memory mapping but works for all file types
 /// and doesn't require the memmap feature.
 ///
 /// # Panics
 /// Panics if reading from the file fails.
+fn hash_streaming_file(hasher: &HasherOptions, file: &mut File) -> Vec<u8> {
+    // Get file size for adaptive buffer sizing
+    let file_size = file.metadata().ok().map(|m| m.len());
+    let buffer_size = calculate_buffer_size(file_size);
+    
+    let mut inner = hasher.create_hasher();
+    let mut buffer = vec![0_u8; buffer_size];
+
+    loop {
+        let count = file
+            .read(&mut buffer)
+            .unwrap_or_else(|e| panic!("Failed to read file for hashing: {}", e));
+
+        if count == 0 {
+            break;
+        }
+        inner.update(&buffer[..count]);
+    }
+
+    inner.finalize()
+}
+
+/// Hash a generic reader using streaming reads (fallback path).
+///
+/// Uses default buffer size since we cannot determine reader size.
+///
+/// # Panics
+/// Panics if reading from the reader fails.
+#[allow(dead_code)]
 fn hash_streaming(hasher: &HasherOptions, mut reader: impl Read) -> Vec<u8> {
     let mut inner = hasher.create_hasher();
-    let mut buffer = vec![0_u8; READ_BUFFER_SIZE];
+    let mut buffer = vec![0_u8; DEFAULT_BUFFER_SIZE];
 
     loop {
         let count = reader
@@ -252,13 +312,17 @@ fn hash_streaming(hasher: &HasherOptions, mut reader: impl Read) -> Vec<u8> {
 
 /// Hash a file, using memory mapping if available, falling back to streaming.
 ///
+/// Automatically selects the best strategy:
+/// - Files ≥16KB: Attempts memory mapping for zero-copy hashing
+/// - Files <16KB or mmap failure: Uses adaptive streaming with buffer sizing
+///
 /// # Panics
 /// Panics if the file cannot be opened or read.
 #[must_use]
 pub fn hash_file(hasher: &HasherOptions, filepath: &std::ffi::OsStr) -> Vec<u8> {
     use std::path::Path;
     let path = Path::new(filepath);
-    let file = File::open(filepath)
+    let mut file = File::open(filepath)
         .unwrap_or_else(|e| panic!("Cannot open file {}: {}", path.display(), e));
 
     // Try fast path (memory-mapped) first
@@ -266,6 +330,6 @@ pub fn hash_file(hasher: &HasherOptions, filepath: &std::ffi::OsStr) -> Vec<u8> 
         return digest;
     }
 
-    // Fall back to streaming
-    hash_streaming(hasher, file)
+    // Fall back to streaming with adaptive buffer size
+    hash_streaming_file(hasher, &mut file)
 }

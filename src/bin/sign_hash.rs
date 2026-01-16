@@ -10,9 +10,8 @@ use main_helper::{
     SIGN_HEADER_MESSAGE_COUNT,
 };
 
-use scoped_threadpool::Pool;
+use rayon::prelude::*;
 use std::collections::HashMap;
-use std::convert::TryInto;
 use std::env;
 use std::io::{stdout, Write};
 use std::sync::mpsc;
@@ -109,9 +108,12 @@ fn main() {
     create_keys(&mut public_key_bytes, &mut private_key_bytes);
     write_key(&public_key_bytes, public_key_file, PUBIC_KEY_STRING_ED25519);
 
-    // Setup channels and thread pool
+    // Setup channels and configure rayon thread pool
     let (sign_tx, sign_rx) = mpsc::channel();
-    let mut pool = Pool::new(poolnumber.try_into().unwrap());
+    rayon::ThreadPoolBuilder::new()
+        .num_threads(poolnumber)
+        .build_global()
+        .unwrap_or_else(|_| ());
 
     // Write manifest headers
     write_headers(
@@ -148,22 +150,26 @@ fn main() {
     let mut nonce_bytes = [0u8; NONCE_LENGTH_IN_BYTES / BITS_IN_BYTES];
     let mut nonces: HashMap<[u8; NONCE_LENGTH_IN_BYTES / BITS_IN_BYTES], i32> = HashMap::new();
 
-    pool.scoped(|scoped| {
-        stdout().flush().unwrap();
-        for file in inputfiles {
-            let thread_tx = sign_tx.clone();
-            let thread_hasher = hasher_option.clone();
+    stdout().flush().unwrap();
+    
+    // Generate unique nonces for all files first
+    let file_nonce_pairs: Vec<(String, [u8; NONCE_LENGTH_IN_BYTES / BITS_IN_BYTES])> = inputfiles
+        .into_iter()
+        .map(|file| {
             provide_unique_nonce(&mut nonce_bytes, &mut nonces, rand::rng());
-            scoped.execute(move || {
-                create_line(
-                    &file,
-                    &thread_hasher,
-                    &nonce_bytes,
-                    &private_key_bytes,
-                    &thread_tx,
-                );
-            });
-        }
+            (file, nonce_bytes)
+        })
+        .collect();
+
+    // Process files in parallel
+    file_nonce_pairs.par_iter().for_each(|(file, nonce)| {
+        create_line(
+            file,
+            &hasher_option,
+            nonce,
+            &private_key_bytes,
+            &sign_tx,
+        );
     });
 
     let _res = writer_child.join();
