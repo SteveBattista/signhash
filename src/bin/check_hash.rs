@@ -432,7 +432,7 @@ fn spawn_writer_thread(
 /// Execute parallel checks and return any remaining manifest entries
 fn execute_parallel_checks(
     config: &Config,
-    inputfiles: Vec<String>,
+    inputfiles: &[String],
     manifest_map: HashMap<String, ManifestLine>,
     hasher_option: &HasherOptions,
     public_key_bytes: &[u8; PUBLICKEY_LENGTH_IN_BYTES / BITS_IN_BYTES],
@@ -443,17 +443,31 @@ fn execute_parallel_checks(
     if config.manifest_only {
         // Collect entries first to avoid holding lock during iteration
         let entries: Vec<_> = manifest_map.lock().unwrap().drain().collect();
-        
+
         entries.par_iter().for_each(|(path, manifest)| {
-            check_line(path, hasher_option, manifest, public_key_bytes, check_tx, true);
+            check_line(
+                path,
+                hasher_option,
+                manifest,
+                public_key_bytes,
+                check_tx,
+                true,
+            );
         });
     } else {
         inputfiles.par_iter().for_each(|file| {
             let manifest_opt = manifest_map.lock().unwrap().remove(file);
-            
+
             match manifest_opt {
                 Some(manifest) => {
-                    check_line(file, hasher_option, &manifest, public_key_bytes, check_tx, false);
+                    check_line(
+                        file,
+                        hasher_option,
+                        &manifest,
+                        public_key_bytes,
+                        check_tx,
+                        false,
+                    );
                 }
                 None => send_check_message(
                     PRINT_MESSAGE,
@@ -504,7 +518,7 @@ fn main() {
     rayon::ThreadPoolBuilder::new()
         .num_threads(config.poolnumber)
         .build_global()
-        .unwrap_or_else(|_| ());
+        .unwrap_or(());
     let (hasher_option, manifest_map, hasher, file_len, hash_algo) =
         process_and_parse_manifest(&mut vec_of_lines, &config, &check_tx);
 
@@ -524,7 +538,7 @@ fn main() {
 
     let remaining_manifest = execute_parallel_checks(
         &config,
-        inputfiles,
+        &inputfiles,
         manifest_map,
         &hasher_option,
         &public_key_bytes,

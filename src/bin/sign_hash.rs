@@ -113,7 +113,7 @@ fn main() {
     rayon::ThreadPoolBuilder::new()
         .num_threads(poolnumber)
         .build_global()
-        .unwrap_or_else(|_| ());
+        .unwrap_or(());
 
     // Write manifest headers
     write_headers(
@@ -151,7 +151,7 @@ fn main() {
     let mut nonces: HashMap<[u8; NONCE_LENGTH_IN_BYTES / BITS_IN_BYTES], i32> = HashMap::new();
 
     stdout().flush().unwrap();
-    
+
     // Generate unique nonces for all files first
     let file_nonce_pairs: Vec<(String, [u8; NONCE_LENGTH_IN_BYTES / BITS_IN_BYTES])> = inputfiles
         .into_iter()
@@ -163,13 +163,7 @@ fn main() {
 
     // Process files in parallel
     file_nonce_pairs.par_iter().for_each(|(file, nonce)| {
-        create_line(
-            file,
-            &hasher_option,
-            nonce,
-            &private_key_bytes,
-            &sign_tx,
-        );
+        create_line(file, &hasher_option, nonce, &private_key_bytes, &sign_tx);
     });
 
     let _res = writer_child.join();

@@ -223,7 +223,7 @@ fn try_memmap_file(file: &File) -> Result<Option<memmap2::Mmap>> {
 ///
 /// Memory mapping is typically faster for large files as it avoids
 /// intermediate buffering and allows the OS to optimize page caching.
-/// Only uses mmap for files larger than MMAP_THRESHOLD.
+/// Only uses mmap for files larger than `MMAP_THRESHOLD`.
 fn try_hash_memmap(hasher: &HasherOptions, file: &File) -> Option<Vec<u8>> {
     #[cfg(feature = "memmap2")]
     {
@@ -241,16 +241,16 @@ fn try_hash_memmap(hasher: &HasherOptions, file: &File) -> Option<Vec<u8>> {
 /// - Small files (<1MB): 64 KiB buffer
 /// - Medium files (1MB-10MB): 256 KiB buffer  
 /// - Large files (10MB-100MB): 1 MiB buffer
-/// - Very large files (>100MB): 4 MiB buffer (capped at MAX_BUFFER_SIZE)
+/// - Very large files (>100MB): 4 MiB buffer (capped at `MAX_BUFFER_SIZE`)
 ///
 /// This balances memory usage with I/O performance.
 fn calculate_buffer_size(file_size: Option<u64>) -> usize {
     match file_size {
-        Some(size) if size < 1024 * 1024 => MIN_BUFFER_SIZE,           // <1MB: 64KB
-        Some(size) if size < 10 * 1024 * 1024 => DEFAULT_BUFFER_SIZE,  // 1-10MB: 256KB
-        Some(size) if size < 100 * 1024 * 1024 => 1024 * 1024,         // 10-100MB: 1MB
-        Some(_) => MAX_BUFFER_SIZE,                                     // >100MB: 4MB
-        None => DEFAULT_BUFFER_SIZE,                                    // Unknown: 256KB
+        Some(size) if size < 1024 * 1024 => MIN_BUFFER_SIZE, // <1MB: 64KB
+        Some(size) if size < 10 * 1024 * 1024 => DEFAULT_BUFFER_SIZE, // 1-10MB: 256KB
+        Some(size) if size < 100 * 1024 * 1024 => 1024 * 1024, // 10-100MB: 1MB
+        Some(_) => MAX_BUFFER_SIZE,                          // >100MB: 4MB
+        None => DEFAULT_BUFFER_SIZE,                         // Unknown: 256KB
     }
 }
 
@@ -267,7 +267,7 @@ fn hash_streaming_file(hasher: &HasherOptions, file: &mut File) -> Vec<u8> {
     // Get file size for adaptive buffer sizing
     let file_size = file.metadata().ok().map(|m| m.len());
     let buffer_size = calculate_buffer_size(file_size);
-    
+
     let mut inner = hasher.create_hasher();
     let mut buffer = vec![0_u8; buffer_size];
 
