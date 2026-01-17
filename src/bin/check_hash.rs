@@ -106,11 +106,11 @@ impl Config {
             .get_one::<String>("input")
             .cloned()
             .unwrap_or_else(|| DEFAULT_MANIFEST_FILE_NAME.to_string());
-        
+
         let public_key_file = matches
             .get_one::<String>("public")
             .map_or(DEFAULT_PUBIC_KEY_FILE_NAME.to_string(), Clone::clone);
-        
+
         let input_directory = matches
             .get_one::<String>("directory")
             .map_or(PWD.to_string(), Clone::clone);
@@ -135,24 +135,33 @@ impl Config {
     fn validate(&self) -> Result<(), String> {
         // Check manifest file exists
         if !std::path::Path::new(&self.input_file).exists() {
-            return Err(format!("Manifest file '{}' does not exist", self.input_file));
+            return Err(format!(
+                "Manifest file '{}' does not exist",
+                self.input_file
+            ));
         }
-        
+
         // Check public key file exists
         if !std::path::Path::new(&self.public_key_file).exists() {
-            return Err(format!("Public key file '{}' does not exist", self.public_key_file));
+            return Err(format!(
+                "Public key file '{}' does not exist",
+                self.public_key_file
+            ));
         }
-        
+
         // Check input directory exists (unless manifest-only mode)
         if !self.manifest_only {
             if !std::path::Path::new(&self.input_directory).exists() {
-                return Err(format!("Directory '{}' does not exist", self.input_directory));
+                return Err(format!(
+                    "Directory '{}' does not exist",
+                    self.input_directory
+                ));
             }
             if !std::path::Path::new(&self.input_directory).is_dir() {
                 return Err(format!("'{}' is not a directory", self.input_directory));
             }
         }
-        
+
         Ok(())
     }
 }
