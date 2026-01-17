@@ -79,6 +79,40 @@ fn build_cli() -> Command {
                 .help("Check manifest validity only, ignore -d option")
                 .action(ArgAction::SetTrue),
         )
+        .after_help("EXAMPLES:
+    # Check manifest integrity only (no file verification)
+    check_hash -i manifest.txt -m
+    
+    # Verify files in directory against manifest
+    check_hash -i manifest.txt -d /data
+    
+    # Verbose mode - show all checks including successful ones
+    check_hash -i manifest.txt -d /data -v
+    
+    # Save results to file
+    check_hash -i manifest.txt -d /data -o results.txt
+    
+    # Use custom public key file
+    check_hash -i manifest.txt -u MyKey.pub -d /data
+    
+    # Check with 4 threads and save verbose output
+    check_hash -i manifest.txt -d /data -p 4 -v -o results.txt
+    
+    # Full example with all options
+    check_hash -i docs_manifest.txt -u docs_key.pub -d /home/user/documents -p 8 -v -o verification.log
+
+OUTPUT:
+    Results show:
+    - Success: Files matching manifest (in verbose mode)
+    - Failure|file|reason: Files that don't match or are missing
+    - Manifest tampering detection via signature verification
+
+NOTES:
+    - Checks file size, modification time, hash, and signature
+    - Detects both file changes and manifest tampering
+    - Use -m flag to only verify manifest signature without checking files
+    - Progress bars are shown when outputting to a file
+    - Thread pool size defaults to CPU core count if not specified or set to 0")
 }
 
 /// Configuration parsed from CLI arguments
@@ -140,6 +174,17 @@ impl Config {
                 self.input_file
             ));
         }
+        if !std::path::Path::new(&self.input_file).is_file() {
+            return Err(format!("'{}' is not a file", self.input_file));
+        }
+
+        // Try to read manifest file to check permissions
+        if let Err(e) = std::fs::File::open(&self.input_file) {
+            return Err(format!(
+                "Cannot read manifest file '{}': {e}",
+                self.input_file
+            ));
+        }
 
         // Check public key file exists
         if !std::path::Path::new(&self.public_key_file).exists() {
@@ -148,17 +193,62 @@ impl Config {
                 self.public_key_file
             ));
         }
+        if !std::path::Path::new(&self.public_key_file).is_file() {
+            return Err(format!("'{}' is not a file", self.public_key_file));
+        }
 
         // Check input directory exists (unless manifest-only mode)
         if !self.manifest_only {
-            if !std::path::Path::new(&self.input_directory).exists() {
+            let dir_path = std::path::Path::new(&self.input_directory);
+            if !dir_path.exists() {
                 return Err(format!(
                     "Directory '{}' does not exist",
                     self.input_directory
                 ));
             }
-            if !std::path::Path::new(&self.input_directory).is_dir() {
+            if !dir_path.is_dir() {
                 return Err(format!("'{}' is not a directory", self.input_directory));
+            }
+
+            // Check if directory is readable
+            if let Err(e) = std::fs::read_dir(&self.input_directory) {
+                return Err(format!(
+                    "Cannot read directory '{}': {e}",
+                    self.input_directory
+                ));
+            }
+        }
+
+        // Validate output file can be created (if specified)
+        if self.fileoutput {
+            let output_path = std::path::Path::new(&self.output_file);
+
+            // Check if parent directory exists and is writable
+            if let Some(parent) = output_path.parent() {
+                if !parent.exists() {
+                    return Err(format!(
+                        "Output directory '{}' does not exist",
+                        parent.display()
+                    ));
+                }
+
+                // Try to create a test file to check write permissions
+                let test_file = parent.join(".signhash_write_test");
+                if let Err(e) = std::fs::File::create(&test_file) {
+                    return Err(format!(
+                        "Cannot write to output directory '{}': {e}",
+                        parent.display()
+                    ));
+                }
+                let _ = std::fs::remove_file(test_file);
+            }
+
+            // Warn if output file already exists
+            if output_path.exists() {
+                eprintln!(
+                    "Warning: Output file '{}' already exists and will be overwritten",
+                    self.output_file
+                );
             }
         }
 
@@ -167,6 +257,24 @@ impl Config {
 }
 
 /// Parse manifest headers and return the hasher config, streaming hasher, byte count, and algorithm name.
+///
+/// Reads and validates the manifest header lines (version, command, hash algorithm, etc.)
+/// and initializes a streaming hasher for integrity verification.
+///
+/// # Arguments
+///
+/// * `vec_of_lines` - Mutable vector of manifest lines (headers are removed as processed)
+/// * `fileoutput` - Whether to show progress updates
+/// * `nonce_bar` - Progress bar to update during header parsing
+///
+/// # Returns
+///
+/// Tuple of (`HasherOptions`, `StreamingHasher`, `byte_count`, `algorithm_name`)
+///
+/// # Behavior
+///
+/// Removes header lines from `vec_of_lines` as they're processed and adds them
+/// to the streaming hasher for manifest integrity verification.
 fn parse_manifest_headers(
     vec_of_lines: &mut Vec<String>,
     fileoutput: bool,
@@ -228,7 +336,23 @@ fn parse_manifest_headers(
     (hasher_option, hasher, file_len, hash_algo)
 }
 
-/// Parse file entries from manifest, checking for duplicate nonces
+/// Parse file entries from manifest, checking for duplicate nonces.
+///
+/// Processes the file entry section of the manifest, detecting duplicate nonces
+/// and building a map of file paths to their expected metadata.
+///
+/// # Arguments
+///
+/// * `vec_of_lines` - Mutable vector of manifest lines (entries are removed as processed)
+/// * `hasher` - Streaming hasher to update with entry data
+/// * `file_len` - Current byte count in manifest
+/// * `fileoutput` - Whether to show progress updates
+/// * `nonce_bar` - Progress bar to update during parsing
+/// * `check_tx` - Channel for sending duplicate nonce warnings
+///
+/// # Returns
+///
+/// Tuple of (`manifest_map`, `updated_hasher`, `updated_byte_count`)
 fn parse_manifest_entries(
     vec_of_lines: &mut Vec<String>,
     hasher: hash_helper::StreamingHasher,
@@ -284,7 +408,24 @@ fn parse_manifest_entries(
     (manifest_map, hasher, file_len)
 }
 
-/// Verify manifest footer (length, hash, signature)
+/// Verify manifest footer (length, hash, signature).
+///
+/// Validates the manifest's integrity by checking:
+/// 1. File length matches computed byte count
+/// 2. Manifest hash matches recomputed hash
+/// 3. Ed25519 signature verifies correctly
+///
+/// # Arguments
+///
+/// * `vec_of_lines` - Remaining manifest lines (footer section)
+/// * `hasher` - Streaming hasher with all manifest content
+/// * `file_len` - Expected manifest byte count
+/// * `public_key_bytes` - Ed25519 public key for signature verification
+/// * `check_tx` - Channel for sending verification results
+///
+/// # Behavior
+///
+/// Sends pass/fail messages for each check (length, hash, signature) via channel.
 fn verify_manifest_footer(
     vec_of_lines: &mut Vec<String>,
     mut hasher: hash_helper::StreamingHasher,
@@ -365,7 +506,22 @@ fn verify_manifest_footer(
     }
 }
 
-/// Initialize environment: load public key, read manifest, and collect input files
+/// Initialize environment: load public key, read manifest, and collect input files.
+///
+/// Performs initial setup by loading the public key from disk, reading the entire
+/// manifest file into memory, and collecting files from the input directory.
+///
+/// # Arguments
+///
+/// * `config` - Configuration containing file paths and options
+///
+/// # Returns
+///
+/// Tuple of (`public_key_bytes`, `manifest_lines`, `input_files`)
+///
+/// # Panics
+///
+/// Panics if public key cannot be read or manifest file cannot be opened.
 fn initialize_data(
     config: &Config,
 ) -> (
@@ -388,7 +544,19 @@ fn initialize_data(
     (public_key_bytes, vec_of_lines, inputfiles)
 }
 
-/// Parse manifest headers and entries, returning parsed structures and hash context
+/// Parse manifest headers and entries, returning parsed structures and hash context.
+///
+/// Orchestrates parsing of both manifest headers and file entries with progress tracking.
+///
+/// # Arguments
+///
+/// * `vec_of_lines` - Manifest lines to parse
+/// * `config` - Configuration containing display options
+/// * `check_tx` - Channel for sending parse warnings/errors
+///
+/// # Returns
+///
+/// Tuple of (`hasher_options`, `manifest_map`, `streaming_hasher`, `byte_count`, `algorithm_name`)
 fn process_and_parse_manifest(
     vec_of_lines: &mut Vec<String>,
     config: &Config,
@@ -424,7 +592,17 @@ fn process_and_parse_manifest(
     (hasher_option, manifest_map, hasher, file_len, hash_algo)
 }
 
-/// Log initial execution information
+/// Log initial execution information.
+///
+/// Sends diagnostic information about the verification run to the output channel.
+///
+/// # Arguments
+///
+/// * `args` - Command-line arguments used to invoke the program
+/// * `now` - Start timestamp
+/// * `config` - Configuration containing thread count and options
+/// * `hash_algo` - Hash algorithm name from manifest
+/// * `check_tx` - Channel for sending log messages
 fn log_execution_info(
     args: &[String],
     now: &DateTime<Utc>,
@@ -454,7 +632,20 @@ fn log_execution_info(
     send_check_message(PRINT_MESSAGE, "Signature|ED25519\n", true, check_tx);
 }
 
-/// Spawn writer thread responsible for emitting results
+/// Spawn writer thread responsible for emitting results.
+///
+/// Creates a background thread that receives check messages and writes them
+/// to either a file or stdout.
+///
+/// # Arguments
+///
+/// * `config` - Configuration containing output settings
+/// * `progress_bar` - Progress bar to update as checks complete
+/// * `check_rx` - Channel receiver for check messages
+///
+/// # Returns
+///
+/// Join handle for the writer thread.
 fn spawn_writer_thread(
     config: &Config,
     progress_bar: ProgressBar,
@@ -469,7 +660,23 @@ fn spawn_writer_thread(
     })
 }
 
-/// Execute parallel checks and return any remaining manifest entries
+/// Execute parallel checks and return any remaining manifest entries.
+///
+/// Verifies files against manifest entries in parallel using Rayon.
+/// In manifest-only mode, verifies signatures without checking actual files.
+///
+/// # Arguments
+///
+/// * `config` - Configuration containing mode and thread settings
+/// * `inputfiles` - Files found in input directory
+/// * `manifest_map` - Expected file metadata from manifest
+/// * `hasher_option` - Hashing algorithm configuration
+/// * `public_key_bytes` - Ed25519 public key for signature verification
+/// * `check_tx` - Channel for sending verification results
+///
+/// # Returns
+///
+/// Remaining manifest entries that weren't found in the input directory.
 fn execute_parallel_checks(
     config: &Config,
     inputfiles: &[String],
@@ -522,7 +729,19 @@ fn execute_parallel_checks(
     Arc::try_unwrap(manifest_map).unwrap().into_inner().unwrap()
 }
 
-/// Report missing files and verify manifest footer
+/// Report missing files and verify manifest footer.
+///
+/// Reports any files that were in the manifest but not found on disk,
+/// then verifies the manifest's integrity (length, hash, signature).
+///
+/// # Arguments
+///
+/// * `manifest_map` - Remaining manifest entries (files not found)
+/// * `vec_of_lines` - Remaining manifest lines (footer)
+/// * `hasher` - Streaming hasher with manifest content
+/// * `file_len` - Manifest byte count
+/// * `public_key_bytes` - Ed25519 public key
+/// * `check_tx` - Channel for sending results and end signal
 fn finalize_and_verify(
     manifest_map: HashMap<String, ManifestLine>,
     vec_of_lines: &mut Vec<String>,

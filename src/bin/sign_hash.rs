@@ -21,6 +21,14 @@ use std::time::Instant;
 use chrono::{DateTime, Utc};
 use clap::{Arg, Command};
 
+/// Build the command-line interface definition for `sign_hash`.
+///
+/// Creates a CLI parser with all supported arguments for file hashing and signing.
+/// Includes comprehensive help text with examples and usage notes.
+///
+/// # Returns
+///
+/// Configured `Command` object ready for argument parsing.
 fn build_cli() -> Command {
     Command::new("sign_hash")
         .version("1.0.0")
@@ -54,8 +62,165 @@ fn build_cli() -> Command {
             .short('d').long("directory")
             .value_name("DIRECTORY")
             .help("Directory to hash. Default: current directory"))
+        .after_help("EXAMPLES:
+    # Hash current directory with default settings (SHA256)
+    sign_hash
+    
+    # Hash specific directory and save manifest to file
+    sign_hash -d /data -o manifest.txt
+    
+    # Use BLAKE3 algorithm with 4 threads
+    sign_hash -d /data -a blake3 -p 4 -o manifest.txt
+    
+    # Hash with custom public key filename
+    sign_hash -d /data -u MyKey.pub -o manifest.txt
+    
+    # Include custom header file in manifest
+    sign_hash -d /data -i header.txt -o manifest.txt
+    
+    # Use SHA512 algorithm and output to stdout
+    sign_hash -d /data -a 512
+    
+    # Full example with all options
+    sign_hash -d /home/user/documents -a blake3 -p 8 -o docs_manifest.txt -u docs_key.pub
+
+NOTES:
+    - Public key file is automatically created (default: Signpub.txt)
+    - Private key is never written to disk for security
+    - Progress bars are shown when outputting to a file
+    - Supports SHA1(128), SHA256(256), SHA384(384), SHA512(512), SHA512_256(512_256), blake3
+    - Thread pool size defaults to CPU core count if not specified or set to 0")
 }
 
+/// Perform pre-flight validation before starting heavy operations.
+///
+/// Validates all inputs before beginning expensive file collection and hashing.
+/// This prevents wasted work if inputs are invalid.
+///
+/// # Arguments
+///
+/// * `input_directory` - Directory to hash (must exist and be readable)
+/// * `manifest_file` - Path for output manifest file
+/// * `public_key_file` - Path where public key will be written
+/// * `header_file` - Optional header file to include ("|||" means none)
+/// * `fileoutput` - Whether output is to a file (vs STDIO)
+///
+/// # Returns
+///
+/// `Ok(())` if all inputs are valid, `Err(String)` with error message otherwise.
+///
+/// # Errors
+///
+/// Returns error if:
+/// - Directory doesn't exist or isn't readable
+/// - Header file doesn't exist or isn't readable (when specified)
+/// - Output directory doesn't exist or isn't writable (when fileoutput=true)
+/// - Public key directory doesn't exist
+fn validate_inputs(
+    input_directory: &str,
+    manifest_file: &str,
+    public_key_file: &str,
+    header_file: &str,
+    fileoutput: bool,
+) -> Result<(), String> {
+    // Validate input directory
+    let dir_path = std::path::Path::new(input_directory);
+    if !dir_path.exists() {
+        return Err(format!("Directory '{input_directory}' does not exist"));
+    }
+    if !dir_path.is_dir() {
+        return Err(format!("'{input_directory}' is not a directory"));
+    }
+
+    // Check if directory is readable
+    if let Err(e) = std::fs::read_dir(input_directory) {
+        return Err(format!("Cannot read directory '{input_directory}': {e}"));
+    }
+
+    // Validate header file if specified
+    if header_file != "|||" {
+        let header_path = std::path::Path::new(header_file);
+        if !header_path.exists() {
+            return Err(format!("Header file '{header_file}' does not exist"));
+        }
+        if !header_path.is_file() {
+            return Err(format!("'{header_file}' is not a file"));
+        }
+    }
+
+    // Validate output file can be created (if specified)
+    if fileoutput {
+        let manifest_path = std::path::Path::new(manifest_file);
+
+        // Check if parent directory exists and is writable
+        if let Some(parent) = manifest_path.parent() {
+            if !parent.exists() {
+                return Err(format!(
+                    "Output directory '{}' does not exist",
+                    parent.display()
+                ));
+            }
+
+            // Try to create a test file to check write permissions
+            let test_file = parent.join(".signhash_write_test");
+            if let Err(e) = std::fs::File::create(&test_file) {
+                return Err(format!(
+                    "Cannot write to output directory '{}': {e}",
+                    parent.display()
+                ));
+            }
+            let _ = std::fs::remove_file(test_file);
+        }
+
+        // Warn if manifest file already exists
+        if manifest_path.exists() {
+            eprintln!(
+                "Warning: Manifest file '{manifest_file}' already exists and will be overwritten"
+            );
+        }
+    }
+
+    // Validate public key file can be created
+    let pubkey_path = std::path::Path::new(public_key_file);
+    if let Some(parent) = pubkey_path.parent() {
+        if !parent.exists() {
+            return Err(format!(
+                "Public key directory '{}' does not exist",
+                parent.display()
+            ));
+        }
+    }
+
+    // Warn if public key file already exists
+    if pubkey_path.exists() {
+        eprintln!(
+            "Warning: Public key file '{public_key_file}' already exists and will be overwritten"
+        );
+    }
+
+    Ok(())
+}
+
+/// Entry point for the `sign_hash` binary.
+///
+/// Collects all files in the specified directory, computes cryptographic hashes,
+/// generates a unique nonce for each file, signs each entry with Ed25519, and
+/// produces a signed manifest file.
+///
+/// # Process
+///
+/// 1. Parse command-line arguments
+/// 2. Validate all inputs (directory, files, permissions)
+/// 3. Collect all files recursively from input directory
+/// 4. Generate Ed25519 key pair and write public key to file
+/// 5. Hash files in parallel using Rayon thread pool
+/// 6. Sign each manifest entry with private key
+/// 7. Write manifest with headers, file entries, and signature
+///
+/// # Exit Codes
+///
+/// - 0: Success
+/// - 1: Validation error, unsupported algorithm, or thread panic
 #[allow(clippy::too_many_lines)]
 fn main() {
     let now: DateTime<Utc> = Utc::now();
@@ -100,13 +265,15 @@ fn main() {
             .map_or("0", String::as_str),
     );
 
-    // Validate input directory exists
-    if !std::path::Path::new(input_directory).exists() {
-        eprintln!("Error: Directory '{input_directory}' does not exist");
-        std::process::exit(1);
-    }
-    if !std::path::Path::new(input_directory).is_dir() {
-        eprintln!("Error: '{input_directory}' is not a directory");
+    // Pre-flight validation
+    if let Err(e) = validate_inputs(
+        input_directory,
+        &manifest_file,
+        public_key_file,
+        header_file,
+        fileoutput,
+    ) {
+        eprintln!("Error: {e}");
         std::process::exit(1);
     }
 
