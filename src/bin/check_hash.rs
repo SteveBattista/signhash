@@ -102,14 +102,22 @@ impl Config {
             .unwrap_or_else(|| NO_OUTPUTFILE.to_string());
         let fileoutput = output_file != NO_OUTPUTFILE;
 
+        let input_file = matches
+            .get_one::<String>("input")
+            .cloned()
+            .unwrap_or_else(|| DEFAULT_MANIFEST_FILE_NAME.to_string());
+        
+        let public_key_file = matches
+            .get_one::<String>("public")
+            .map_or(DEFAULT_PUBIC_KEY_FILE_NAME.to_string(), Clone::clone);
+        
+        let input_directory = matches
+            .get_one::<String>("directory")
+            .map_or(PWD.to_string(), Clone::clone);
+
         Self {
-            public_key_file: matches
-                .get_one::<String>("public")
-                .map_or(DEFAULT_PUBIC_KEY_FILE_NAME.to_string(), Clone::clone),
-            input_file: matches
-                .get_one::<String>("input")
-                .cloned()
-                .unwrap_or_else(|| DEFAULT_MANIFEST_FILE_NAME.to_string()),
+            public_key_file,
+            input_file,
             output_file,
             fileoutput,
             poolnumber: get_pool_size(
@@ -117,12 +125,35 @@ impl Config {
                     .get_one::<String>("pool")
                     .map_or("0", String::as_str),
             ),
-            input_directory: matches
-                .get_one::<String>("directory")
-                .map_or(PWD.to_string(), Clone::clone),
+            input_directory,
             verbose: matches.get_flag("verbose"),
             manifest_only: matches.get_flag("manifestonly"),
         }
+    }
+
+    /// Validate configuration and check that required files exist
+    fn validate(&self) -> Result<(), String> {
+        // Check manifest file exists
+        if !std::path::Path::new(&self.input_file).exists() {
+            return Err(format!("Manifest file '{}' does not exist", self.input_file));
+        }
+        
+        // Check public key file exists
+        if !std::path::Path::new(&self.public_key_file).exists() {
+            return Err(format!("Public key file '{}' does not exist", self.public_key_file));
+        }
+        
+        // Check input directory exists (unless manifest-only mode)
+        if !self.manifest_only {
+            if !std::path::Path::new(&self.input_directory).exists() {
+                return Err(format!("Directory '{}' does not exist", self.input_directory));
+            }
+            if !std::path::Path::new(&self.input_directory).is_dir() {
+                return Err(format!("'{}' is not a directory", self.input_directory));
+            }
+        }
+        
+        Ok(())
     }
 }
 
@@ -510,15 +541,23 @@ fn main() {
     let args: Vec<String> = env::args().collect();
     let config = Config::from_matches(&build_cli().get_matches());
 
+    // Validate configuration
+    if let Err(e) = config.validate() {
+        eprintln!("Error: {e}");
+        std::process::exit(1);
+    }
+
     // Initialize key, manifest, and file list
     let (public_key_bytes, mut vec_of_lines, inputfiles) = initialize_data(&config);
 
     // Setup channel and configure rayon thread pool
     let (check_tx, check_rx) = mpsc::channel();
-    rayon::ThreadPoolBuilder::new()
+    if let Err(e) = rayon::ThreadPoolBuilder::new()
         .num_threads(config.poolnumber)
         .build_global()
-        .unwrap_or(());
+    {
+        eprintln!("Warning: Failed to configure thread pool: {e}. Using default configuration.");
+    }
     let (hasher_option, manifest_map, hasher, file_len, hash_algo) =
         process_and_parse_manifest(&mut vec_of_lines, &config, &check_tx);
 
@@ -554,5 +593,9 @@ fn main() {
         &check_tx,
     );
 
-    let _res = writer_child.join();
+    // Wait for writer thread to finish and handle any errors
+    if let Err(e) = writer_child.join() {
+        eprintln!("Error: Writer thread panicked: {e:?}");
+        std::process::exit(1);
+    }
 }

@@ -56,6 +56,7 @@ fn build_cli() -> Command {
             .help("Directory to hash. Default: current directory"))
 }
 
+#[allow(clippy::too_many_lines)]
 fn main() {
     let now: DateTime<Utc> = Utc::now();
     let start = Instant::now();
@@ -71,10 +72,11 @@ fn main() {
     let signing = matches
         .get_one::<String>("signing")
         .map_or("ED25519", String::as_str);
-    assert!(
-        signing == "ED25519",
-        "Please choose ED25519 for signature algorithm."
-    );
+    if signing != "ED25519" {
+        eprintln!("Error: Unsupported signing algorithm '{signing}'");
+        eprintln!("Only ED25519 is currently supported.");
+        std::process::exit(1);
+    }
 
     let manifest_file = matches
         .get_one::<String>("output")
@@ -98,6 +100,16 @@ fn main() {
             .map_or("0", String::as_str),
     );
 
+    // Validate input directory exists
+    if !std::path::Path::new(input_directory).exists() {
+        eprintln!("Error: Directory '{input_directory}' does not exist");
+        std::process::exit(1);
+    }
+    if !std::path::Path::new(input_directory).is_dir() {
+        eprintln!("Error: '{input_directory}' is not a directory");
+        std::process::exit(1);
+    }
+
     // Collect files
     let inputfiles = collect_files(input_directory, fileoutput);
     let num_files = inputfiles.len();
@@ -110,10 +122,12 @@ fn main() {
 
     // Setup channels and configure rayon thread pool
     let (sign_tx, sign_rx) = mpsc::channel();
-    rayon::ThreadPoolBuilder::new()
+    if let Err(e) = rayon::ThreadPoolBuilder::new()
         .num_threads(poolnumber)
         .build_global()
-        .unwrap_or(());
+    {
+        eprintln!("Warning: Failed to configure thread pool: {e}. Using default configuration.");
+    }
 
     // Write manifest headers
     write_headers(
@@ -150,7 +164,9 @@ fn main() {
     let mut nonce_bytes = [0u8; NONCE_LENGTH_IN_BYTES / BITS_IN_BYTES];
     let mut nonces: HashMap<[u8; NONCE_LENGTH_IN_BYTES / BITS_IN_BYTES], i32> = HashMap::new();
 
-    stdout().flush().unwrap();
+    if let Err(e) = stdout().flush() {
+        eprintln!("Warning: Failed to flush stdout: {e}");
+    }
 
     // Generate unique nonces for all files first
     let file_nonce_pairs: Vec<(String, [u8; NONCE_LENGTH_IN_BYTES / BITS_IN_BYTES])> = inputfiles
@@ -166,5 +182,9 @@ fn main() {
         create_line(file, &hasher_option, nonce, &private_key_bytes, &sign_tx);
     });
 
-    let _res = writer_child.join();
+    // Wait for writer thread to finish and handle any errors
+    if let Err(e) = writer_child.join() {
+        eprintln!("Error: Writer thread panicked: {e:?}");
+        std::process::exit(1);
+    }
 }
