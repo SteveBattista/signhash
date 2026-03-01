@@ -1,0 +1,15 @@
+[build]
+# Enable incremental compilation by default
+incremental = true
+
+[term]
+color = "always"
+
+[cargo-new]
+name = "Developer Name"
+email = "dev@example.com"
+
+# Use faster compilation settings but avoid problematic linker configs
+# [target.x86_64-unknown-linux-gnu]
+# linker = "clang" 
+# rustflags = ["-C", "link-arg=-fuse-ld=lld"]

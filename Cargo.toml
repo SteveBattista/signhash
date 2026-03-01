@@ -14,12 +14,24 @@ default = ["memmap2"]
 opt-level = 3
 debug = false
 rpath = false
-lto = false
+lto = "thin"                    # Enable thin LTO for better performance
 debug-assertions = false
-codegen-units = 16
+codegen-units = 1               # Better optimization with fewer codegen units
 panic = 'unwind'
-incremental = false
-overflow-checks = true
+incremental = true              # Enable incremental compilation for faster rebuilds
+overflow-checks = false         # Disable for max performance in release
+
+# Fast development builds
+[profile.dev]
+opt-level = 1                   # Some optimization for faster dev builds
+incremental = true
+debug = true
+
+# Profile for development with faster compilation
+[profile.dev-opt]
+inherits = "dev"
+opt-level = 2
+debug = 1
 
 [dependencies]
 ring = "0.17.14"
@@ -39,3 +51,8 @@ anyhow = "1.0.34"
 
 [dev-dependencies]
 tempfile = "3.24.0"
+criterion = { version = "0.5", features = ["html_reports"] }
+
+[[bench]]
+name = "performance"
+harness = false

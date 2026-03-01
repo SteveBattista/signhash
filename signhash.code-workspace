@@ -1,0 +1,61 @@
+{
+    "folders": [
+        {
+            "path": "."
+        }
+    ],
+    "settings": {
+        "rust-analyzer.cargo.buildScripts.enable": true,
+        "rust-analyzer.cargo.features": "all",
+        "rust-analyzer.checkOnSave.command": "check",
+        "rust-analyzer.checkOnSave.allTargets": true,
+        "rust-analyzer.procMacro.enable": true,
+        
+        // Fast incremental builds
+        "rust-analyzer.cargo.extraEnv": {
+            "RUSTFLAGS": "-C incremental"
+        },
+        
+        // File watching optimizations
+        "files.watcherExclude": {
+            "**/target/**": true,
+            "**/.git/objects/**": true,
+            "**/.git/subtree-cache/**": true
+        },
+        
+        // Editor optimizations
+        "editor.formatOnSave": true,
+        "editor.codeActionsOnSave": {
+            "source.fixAll.rust-analyzer": true
+        }
+    },
+    "tasks": {
+        "version": "2.0.0",
+        "tasks": [
+            {
+                "label": "Quick Check",
+                "type": "shell",
+                "command": "make",
+                "args": ["quick"],
+                "group": {
+                    "kind": "build",
+                    "isDefault": true
+                }
+            },
+            {
+                "label": "Dev Build",
+                "type": "shell",
+                "command": "make",
+                "args": ["dev"],
+                "group": "build"
+            },
+            {
+                "label": "Fast Tests",
+                "type": "shell",
+                "command": "make",
+                "args": ["test"],
+                "group": "test"
+            }
+        ]
+    }
+}

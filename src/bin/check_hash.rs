@@ -1,8 +1,5 @@
-mod hash_helper;
-mod main_helper;
-
-use hash_helper::HasherOptions;
-use main_helper::{
+use signhash::hash_helper::{self, HasherOptions};
+use signhash::main_helper::{
     check_line, collect_files, create_progress_bar, get_pool_size, parse_manifest_line,
     read_manifest_file, read_public_key, report_duplicative_and_insert_nonce, send_check_message,
     send_pass_fail_check_message, write_check_from_channel, CheckMessage, ManifestLine,

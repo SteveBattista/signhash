@@ -1,8 +1,5 @@
-mod hash_helper;
-mod main_helper;
-
-use hash_helper::HasherOptions;
-use main_helper::{
+use signhash::hash_helper::HasherOptions;
+use signhash::main_helper::{
     collect_files, create_keys, create_line, create_progress_bar, get_pool_size,
     provide_unique_nonce, write_headers, write_key, write_manifest_from_channel, WriterContext,
     BITS_IN_BYTES, DEFAULT_PUBIC_KEY_FILE_NAME, NONCE_LENGTH_IN_BYTES, NO_OUTPUTFILE,
