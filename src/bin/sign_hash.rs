@@ -1,3 +1,25 @@
+//! SignHash File Signing Binary
+//!
+//! Creates cryptographically signed manifest files for directories.
+//! Generates Ed25519 key pairs, computes file hashes using configurable
+//! algorithms (SHA family or BLAKE3), and produces tamper-evident manifests.
+//!
+//! # Features
+//!
+//! - Multi-threaded file hashing using rayon
+//! - Ed25519 digital signatures for integrity verification  
+//! - Multiple hash algorithms: SHA1, SHA256, SHA384, SHA512, SHA512_256, BLAKE3
+//! - Memory-mapped I/O for large files (≥16KB)
+//! - Adaptive buffer sizing for optimal performance
+//! - Unique nonce generation to prevent precomputed attacks
+//! - Progress tracking with visual indicators
+//!
+//! # Usage
+//!
+//! ```bash
+//! sign_hash -d /path/to/directory -o manifest.txt -u public.key
+//! ```
+
 use signhash::hash_helper::HasherOptions;
 use signhash::main_helper::{
     collect_files, create_keys, create_line, create_progress_bar, get_pool_size,
@@ -213,6 +235,28 @@ fn validate_inputs(
 /// 5. Hash files in parallel using Rayon thread pool
 /// 6. Sign each manifest entry with private key
 /// 7. Write manifest with headers, file entries, and signature
+///
+/// Entry point for file hashing and signing operations.
+///
+/// Parses command line arguments, validates inputs, collects files from the target
+/// directory, generates Ed25519 keys, and creates a cryptographically signed manifest
+/// with file hashes and metadata.
+///
+/// # Process Overview
+///
+/// 1. Parse and validate command line arguments
+/// 2. Generate Ed25519 key pair and write public key to file
+/// 3. Collect all files from input directory recursively
+/// 4. Create manifest headers with metadata and configuration
+/// 5. Hash all files in parallel using rayon thread pool
+/// 6. Generate unique nonces for each file to prevent rainbow table attacks
+/// 7. Sign each manifest entry with Ed25519 private key
+/// 8. Write complete signed manifest to output file or STDIO
+///
+/// # Exit Codes
+///
+/// - 0: Success  
+/// - 1: Validation error, unsupported algorithm, or thread panic
 ///
 /// # Exit Codes
 ///

@@ -2,7 +2,7 @@
 
 use data_encoding::HEXUPPER;
 use rand::rngs::ThreadRng;
-use rand::RngCore;
+use rand::Rng;
 use std::collections::{HashMap, HashSet};
 use std::sync::mpsc::channel;
 

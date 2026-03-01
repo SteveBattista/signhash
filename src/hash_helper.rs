@@ -6,6 +6,7 @@ use blake3::Hasher as Blake3Hasher;
 use ring::digest::{Context, SHA1_FOR_LEGACY_USE_ONLY, SHA256, SHA384, SHA512, SHA512_256};
 use std::fs::File;
 use std::io::Read;
+use std::str::FromStr;
 
 #[cfg(feature = "memmap2")]
 use anyhow::Result;
@@ -26,6 +27,18 @@ const MAX_BUFFER_SIZE: usize = 4 * 1024 * 1024;
 /// For files smaller than this, streaming is more efficient due to mmap overhead.
 const MMAP_THRESHOLD: u64 = 16 * 1024; // 16 KiB
 
+/// Error type for algorithm parsing failures.
+#[derive(Debug, Clone)]
+pub struct ParseAlgorithmError(String);
+
+impl std::fmt::Display for ParseAlgorithmError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Unknown hash algorithm: {}", self.0)
+    }
+}
+
+impl std::error::Error for ParseAlgorithmError {}
+
 /// Supported hash algorithm types.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Algorithm {
@@ -37,21 +50,32 @@ pub enum Algorithm {
     Sha512_256,
 }
 
-impl Algorithm {
+impl FromStr for Algorithm {
+    type Err = ParseAlgorithmError;
+
     /// Parse algorithm from string identifier.
     ///
-    /// # Panics
-    /// Panics if the hash type string is not recognized.
-    #[must_use]
-    pub fn from_str(hash_type: &str) -> Self {
+    /// # Examples
+    ///
+    /// ```
+    /// use signhash::Algorithm;
+    /// use std::str::FromStr;
+    ///
+    /// let algo = Algorithm::from_str("blake3").unwrap();
+    /// ```
+    ///
+    /// # Errors
+    ///
+    /// Returns `ParseAlgorithmError` if the hash type string is not recognized.
+    fn from_str(hash_type: &str) -> Result<Self, Self::Err> {
         match hash_type {
-            "blake3" => Self::Blake3,
-            "128" => Self::Sha1,
-            "256" => Self::Sha256,
-            "384" => Self::Sha384,
-            "512" => Self::Sha512,
-            "512_256" => Self::Sha512_256,
-            _ => panic!("Unknown hash algorithm: {}", hash_type),
+            "blake3" => Ok(Self::Blake3),
+            "128" => Ok(Self::Sha1),
+            "256" => Ok(Self::Sha256),
+            "384" => Ok(Self::Sha384),
+            "512" => Ok(Self::Sha512),
+            "512_256" => Ok(Self::Sha512_256),
+            _ => Err(ParseAlgorithmError(hash_type.to_string())),
         }
     }
 }
@@ -96,7 +120,9 @@ impl HasherOptions {
     #[must_use]
     pub fn new(hash_type: &str) -> Self {
         Self {
-            algorithm: Algorithm::from_str(hash_type),
+            algorithm: hash_type.parse().unwrap_or_else(|e| {
+                panic!("Invalid hash algorithm '{}': {}", hash_type, e)
+            }),
         }
     }
 

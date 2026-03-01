@@ -6,7 +6,7 @@ use indicatif::HumanBytes;
 use indicatif::ProgressBar;
 use indicatif::ProgressStyle;
 use rand::prelude::ThreadRng;
-use rand::Rng;
+use rand::RngExt;
 use ring::signature::KeyPair;
 use std::collections::{BTreeMap, HashMap};
 use std::convert::TryFrom;
@@ -45,30 +45,55 @@ pub const PRINT_MESSAGE: u8 = 0;
 const TICK_MESSAGE: u8 = 1;
 #[allow(dead_code)]
 pub const END_MESSAGE: u8 = 2;
+/// Message used for reporting signing progress.
+///
+/// Contains text to display and file length for progress calculation.
 #[allow(dead_code)]
 pub struct SignMessage {
+    /// The text message to display
     pub text: String,
+    /// The length of the file being processed in bytes
     pub file_len: u64,
 }
+/// Message used for reporting verification results.
+///
+/// Contains the type of check, message text, and verbosity flag.
 #[allow(dead_code)]
 pub struct CheckMessage {
+    /// Type of check being performed (PRINT_MESSAGE, TICK_MESSAGE, or END_MESSAGE)
     pub check_type: u8,
+    /// The text message to display
     pub text: String,
+    /// Whether to display verbose output
     pub verbose: bool,
 }
 
+/// Output destination for writing data.
+///
+/// Supports either writing to a file or accumulating in a string buffer.
 pub enum Whereoutput {
+    /// Write to an open file handle
     FilePointer(File),
+    /// Accumulate text in a string buffer
     StringText(String),
 }
+/// Parsed components of a manifest file entry.
+///
+/// Each line in a manifest contains file metadata and cryptographic data.
 #[allow(dead_code)]
 #[derive(Debug)]
 pub struct ManifestLine {
+    /// Type of file entry ("File", "Directory", etc.)
     pub file_type: String,
+    /// Size of the file in bytes
     pub bytes: String,
+    /// Timestamp when the file was last modified
     pub time: String,
+    /// Cryptographic hash of the file contents
     pub hash: String,
+    /// Random nonce for preventing precomputed attacks
     pub nonce: String,
+    /// Ed25519 signature of the entry
     pub sign: String,
 }
 
@@ -218,11 +243,17 @@ pub fn write_line(wherefile: &mut Whereoutput, data: &str) {
     }
 }
 
+/// Context for writing operations containing shared configuration.
+///
+/// Holds references to output file path, progress tracking, and output mode.
 #[allow(dead_code)]
 #[derive(Clone, Copy)]
 pub struct WriterContext<'a> {
+    /// Path to the manifest file being written
     pub manifest_file: &'a str,
+    /// Progress bar for tracking operation status
     pub progress_bar: &'a ProgressBar,
+    /// Whether to write output to file (true) or collect in memory (false)
     pub file_output: bool,
 }
 
@@ -1056,7 +1087,6 @@ pub fn read_manifest_file(vec_of_lines: &mut Vec<String>, input_file: &str, file
 /// assert_eq!(path, "./test.txt");
 /// ```
 #[allow(dead_code)]
-/// Parses a manifest line and returns the file name and parsed manifest data.
 pub fn parse_manifest_line(manifest_line: &str) -> (String, ManifestLine) {
     let tokens: Vec<&str> = manifest_line.split(TOKEN_SEPARATOR).collect();
     let file_name = tokens[1].to_string();

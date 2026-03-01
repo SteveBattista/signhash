@@ -1,3 +1,25 @@
+//! SignHash Verification Binary
+//!
+//! Verifies file integrity against cryptographically signed manifests.
+//! Validates Ed25519 signatures, checks file hashes, and detects tampering
+//! in both individual files and the manifest itself.
+//!
+//! # Features
+//!
+//! - Multi-threaded file verification using rayon
+//! - Ed25519 signature verification against public keys
+//! - Support for all SignHash algorithms: SHA1, SHA256, SHA384, SHA512, SHA512_256, BLAKE3
+//! - Duplicate nonce detection for security validation
+//! - Comprehensive tamper detection (size, timestamp, hash, signature)
+//! - Progress tracking with detailed reporting
+//! - Verbose and quiet output modes
+//!
+//! # Usage
+//!
+//! ```bash
+//! check_hash -i manifest.txt -u public.key -d /path/to/directory
+//! ```
+
 use signhash::hash_helper::{self, HasherOptions};
 use signhash::main_helper::{
     check_line, collect_files, create_progress_bar, get_pool_size, parse_manifest_line,
