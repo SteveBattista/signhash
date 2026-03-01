@@ -50,8 +50,8 @@ memmap2 = { version = "0.9.10", optional = true }
 anyhow = "1.0.102"
 
 [dev-dependencies]
-tempfile = "3.24.0"
-criterion = { version = "0.5", features = ["html_reports"] }
+tempfile = "3.26.0"
+criterion = { version = "0.8.2", features = ["html_reports"] }
 
 [[bench]]
 name = "performance"
