@@ -18,7 +18,7 @@ fn benchmark_hash_algorithms(c: &mut Criterion) {
         for (size_name, size) in sizes {
             let mut group = c.benchmark_group(format!("hash_{algorithm}_{size_name}"));
             group.throughput(Throughput::Bytes(size as u64));
-            group.measurement_time(Duration::from_secs(10));
+            group.measurement_time(Duration::from_secs(60));
 
             group.bench_function("file_hash", |b| {
                 let data = vec![0u8; size];
@@ -41,7 +41,7 @@ fn benchmark_hash_algorithms(c: &mut Criterion) {
 
 fn benchmark_parallel_hashing(c: &mut Criterion) {
     let mut group = c.benchmark_group("parallel_hashing");
-    group.measurement_time(Duration::from_secs(30));
+    group.measurement_time(Duration::from_secs(60));
 
     // Create multiple test files
     let file_count = 100;
