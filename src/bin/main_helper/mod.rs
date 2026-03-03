@@ -8,13 +8,15 @@ use indicatif::ProgressStyle;
 use rand::prelude::ThreadRng;
 use rand::Rng;
 use ring::signature::KeyPair;
-use std::collections::{BTreeMap, HashMap};
+use std::collections::HashMap;
 use std::convert::TryFrom;
 use std::ffi::OsStr;
 use std::fs::{self, File};
 use std::hash::BuildHasher;
 use std::io::{BufRead, BufReader, Read, Write};
 use std::time::Instant;
+use yaml_rust2::{YamlLoader, YamlEmitter};
+use yaml_rust2::yaml::Hash;
 
 pub const SIGN_HEADER_MESSAGE_COUNT: usize = 8;
 #[allow(dead_code)]
@@ -429,19 +431,17 @@ pub fn read_private_key(private_key_bytes: &mut [u8], private_key_file: &str) {
     let mut contents = String::new();
     match file.read_to_string(&mut contents) {
         Ok(_x) => (),
-        Err(why) => panic!(
-            "Couldn't read private key file named|{}|{}",
-            private_key_file, why
-        ),
+        Err(why) => panic!("Couldn't read private key file named|{private_key_file}|{why}"),
     }
-    let deserialized_map: BTreeMap<String, String> = match serde_yaml::from_str(&contents) {
-        Ok(deserialized_map) => deserialized_map,
-        Err(why) => panic!(
-            "Couldn't parse private key YAML file in|{}|{}",
-            private_key_file, why
-        ),
+    let docs = match YamlLoader::load_from_str(&contents) {
+        Ok(docs) => docs,
+        Err(why) => panic!("Couldn't parse private key YAML file in|{private_key_file}|{why}"),
     };
-    let local_key = match HEXUPPER.decode(deserialized_map[PRIVATE_KEY_STRING_ED25519].as_bytes()) {
+    let doc = &docs[0];
+    let key_str = doc[PRIVATE_KEY_STRING_ED25519].as_str().unwrap_or_else(|| {
+        panic!("Missing or invalid private key in YAML file|{private_key_file}")
+    });
+    let local_key = match HEXUPPER.decode(key_str.as_bytes()) {
         Ok(local_key) => local_key,
         Err(why) => panic!("Couldn't decode hex encoded private key|{}", why),
     };
@@ -839,25 +839,24 @@ pub fn create_keys(public_key_bytes: &mut [u8], private_key_bytes: &mut [u8]) {
 /// ```
 #[allow(dead_code)]
 pub fn write_key(public_key_bytes: &[u8], pubic_key_file: &str, key_name: &str) {
-    let mut map = BTreeMap::new();
-    map.insert(key_name.to_string(), HEXUPPER.encode(public_key_bytes));
-    let s = match serde_yaml::to_string(&map) {
-        Ok(s) => s,
-        Err(x) => panic!("Couldn't create YAML string for|{}|key|{}", key_name, x),
-    };
+    use yaml_rust2::Yaml;
+    let mut map = Hash::new();
+    map.insert(Yaml::String(key_name.to_string()), Yaml::String(HEXUPPER.encode(public_key_bytes)));
+    let doc = Yaml::Hash(map);
+    let mut out_str = String::new();
+    {
+        let mut emitter = YamlEmitter::new(&mut out_str);
+        if let Err(x) = emitter.dump(&doc) {
+            panic!("Couldn't create YAML string for|{key_name}|key|{x}");
+        }
+    }
     let mut file = match File::create(pubic_key_file) {
         Ok(file) => file,
-        Err(why) => panic!(
-            "couldn't create|{} key at|{}|{}",
-            key_name, pubic_key_file, why
-        ),
+        Err(why) => panic!("couldn't create|{key_name} key at|{pubic_key_file}|{why}"),
     };
-    match file.write_all(s.as_bytes()) {
+    match file.write_all(out_str.as_bytes()) {
         Ok(()) => (),
-        Err(why) => panic!(
-            "Couldn't write to|{} key to|{}|{}",
-            key_name, pubic_key_file, why
-        ),
+        Err(why) => panic!("Couldn't write to|{key_name} key to|{pubic_key_file}|{why}"),
     }
 }
 /// Reads an Ed25519 public key from a YAML file.
@@ -890,24 +889,21 @@ pub fn read_public_key(public_key_file: &str, public_key_bytes: &mut [u8]) {
     let mut contents = String::new();
     match file.read_to_string(&mut contents) {
         Ok(_x) => (),
-        Err(why) => panic!(
-            "Couldn't read from public key file requested at|{}|{}",
-            public_key_file, why
-        ),
+        Err(why) => panic!("Couldn't read from public key file requested at|{public_key_file}|{why}"),
     }
-    let deserialized_map: BTreeMap<String, String> = match serde_yaml::from_str(&contents) {
-        Ok(deserialized_map) => deserialized_map,
-        Err(why) => panic!(
-            "Couldn't parse public key from YAML file requested at|{}|{}",
-            public_key_file, why
-        ),
+    let docs = match YamlLoader::load_from_str(&contents) {
+        Ok(docs) => docs,
+        Err(why) => {
+            panic!("Couldn't parse public key from YAML file requested at|{public_key_file}|{why}")
+        }
     };
-    let local_key = match HEXUPPER.decode(deserialized_map[PUBIC_KEY_STRING_ED25519].as_bytes()) {
+    let doc = &docs[0];
+    let key_str = doc[PUBIC_KEY_STRING_ED25519].as_str().unwrap_or_else(|| {
+        panic!("Missing or invalid public key in YAML file|{public_key_file}")
+    });
+    let local_key = match HEXUPPER.decode(key_str.as_bytes()) {
         Ok(local_key) => local_key,
-        Err(why) => panic!(
-            "Couldn't decode hex from public key file requested at|{}|{}",
-            public_key_file, why
-        ),
+        Err(why) => panic!("Couldn't decode hex from public key file requested at|{public_key_file}|{why}"),
     };
     public_key_bytes[..].clone_from_slice(&local_key[..]);
 }

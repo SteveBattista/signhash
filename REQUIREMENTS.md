@@ -29,7 +29,7 @@ All dependencies are automatically managed by Cargo:
 | `rayon`        | 1.8+                 | Multi-threaded parallel processing                   |
 | `clap`         | 4.5.60+              | Command-line argument parsing                        |
 | `serde`        | 1.0.117+             | Serialization framework                              |
-| `serde_yaml`   | 0.9.34-deprecated    | YAML file format support for keys                    |
+| `yaml-rust2`   | 0.8+                 | YAML file format support for keys                   |
 | `rand`         | 0.10.0               | Cryptographic random number generation               |
 | `chrono`       | 0.4.44+              | Date and time handling                               |
 | `indicatif`    | 0.18.4+              | Progress bar display                                 |
