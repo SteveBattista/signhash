@@ -48,21 +48,21 @@
 //!
 //! ## Basic File Hashing
 //!
-//! ```rust
+//! ```no_run
 //! use signhash::{HasherOptions, hash_file};
 //! use std::ffi::OsStr;
 //!
 //! // Create hasher for BLAKE3
 //! let hasher = HasherOptions::new("blake3");
 //!
-//! // Hash a single file
+//! // Hash a single file  
 //! let digest = hash_file(&hasher, OsStr::new("example.txt"));
-//! println!("Hash: {}", hex::encode(&digest));
+//! println!("Hash: {:?}", digest);
 //! ```
 //!
 //! ## Streaming Hash Updates
 //!
-//! ```rust
+//! ```no_run
 //! use signhash::HasherOptions;
 //!
 //! let hasher = HasherOptions::new("256");

@@ -436,6 +436,7 @@ fn sign_data(data: &str, private_key_bytes: &[u8]) -> ring::signature::Signature
 /// # Examples
 ///
 /// ```no_run
+/// use signhash::read_private_key;
 /// let mut key_bytes = [0u8; 85];
 /// read_private_key(&mut key_bytes, "Signpri.txt");
 /// ```
@@ -515,9 +516,12 @@ pub fn dump_header(header_file: &str) -> String {
 /// # Examples
 ///
 /// ```no_run
+/// use signhash::{HasherOptions, var_digest};
 /// use std::fs::File;
 /// let file = File::open("data.bin").unwrap();
-/// let opts = HasherOptions::default();
+/// let opts = HasherOptions::new("256");
+/// let digest = var_digest(file, opts);
+/// ```
 /// let digest = var_digest(file, opts);
 /// ```
 #[allow(dead_code)]
@@ -826,8 +830,9 @@ pub fn create_line(
 /// # Examples
 ///
 /// ```no_run
+/// use signhash::create_keys;
 /// let mut pub_key = [0u8; 32];
-/// let mut priv_key = [0u8; 83];
+/// let mut priv_key = [0u8; 85];
 /// create_keys(&mut pub_key, &mut priv_key);
 /// ```
 #[allow(dead_code)]
@@ -862,6 +867,7 @@ pub fn create_keys(public_key_bytes: &mut [u8], private_key_bytes: &mut [u8]) {
 /// # Examples
 ///
 /// ```no_run
+/// use signhash::write_key;
 /// let pub_key = [0u8; 32];
 /// write_key(&pub_key, "Signpub.txt", "ED25519_PUBLIC_KEY");
 /// ```
@@ -903,6 +909,7 @@ pub fn write_key(public_key_bytes: &[u8], pubic_key_file: &str, key_name: &str) 
 /// # Examples
 ///
 /// ```no_run
+/// use signhash::read_public_key;
 /// let mut pub_key = [0u8; 32];
 /// read_public_key("Signpub.txt", &mut pub_key);
 /// ```
@@ -953,6 +960,7 @@ pub fn read_public_key(public_key_file: &str, public_key_bytes: &mut [u8]) {
 /// # Examples
 ///
 /// ```no_run
+/// use signhash::write_keys;
 /// let pub_key = [0u8; 32];
 /// let priv_key = [0u8; 85];
 /// write_keys(&pub_key, &priv_key, "Signpub.txt", "Signpri.txt");
@@ -1032,6 +1040,7 @@ pub fn write_headers(
 /// # Examples
 ///
 /// ```no_run
+/// use signhash::read_manifest_file;
 /// let mut lines = Vec::new();
 /// read_manifest_file(&mut lines, "manifest.txt", true);
 /// ```
@@ -1082,6 +1091,7 @@ pub fn read_manifest_file(vec_of_lines: &mut Vec<String>, input_file: &str, file
 /// # Examples
 ///
 /// ```no_run
+/// use signhash::{parse_manifest_line, ManifestLine};
 /// let line = "File|./test.txt|1024|01/01/2024 12:00:00|ABC123|NONCE|SIG";
 /// let (path, manifest) = parse_manifest_line(line);
 /// assert_eq!(path, "./test.txt");
@@ -1166,11 +1176,17 @@ pub fn send_check_message(
 /// # Examples
 ///
 /// ```no_run
+/// use signhash::{send_pass_fail_check_message, CheckMessage};
+/// use std::sync::mpsc;
+/// 
+/// let (tx, rx) = mpsc::channel::<CheckMessage>();
+/// let file_len = 1024u64;
+/// let expected_len = 1024u64;
 /// send_pass_fail_check_message(
 ///     file_len == expected_len,
 ///     "File size correct",
 ///     "File size mismatch",
-///     &check_tx
+///     &tx
 /// );
 /// ```
 pub fn send_pass_fail_check_message(
@@ -1207,6 +1223,7 @@ use walkdir::WalkDir;
 /// # Examples
 ///
 /// ```no_run
+/// use signhash::collect_files;
 /// let files = collect_files("./src", true);
 /// println!("Found {} files", files.len());
 /// ```
@@ -1253,6 +1270,7 @@ pub fn collect_files(directory: &str, show_progress: bool) -> Vec<String> {
 /// # Examples
 ///
 /// ```no_run
+/// use signhash::create_progress_bar;
 /// let bar = create_progress_bar(100, "Processing:", "green", true);
 /// bar.inc(1);
 /// bar.finish();
@@ -1291,6 +1309,7 @@ pub fn create_progress_bar(len: u64, prefix: &str, color: &str, show: bool) -> P
 /// # Examples
 ///
 /// ```no_run
+/// use signhash::get_pool_size;
 /// let size = get_pool_size("4");  // returns 4
 /// let auto = get_pool_size("0");  // returns CPU count
 /// ```
