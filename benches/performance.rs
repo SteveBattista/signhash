@@ -41,7 +41,7 @@ fn benchmark_hash_algorithms(c: &mut Criterion) {
 
 fn benchmark_parallel_hashing(c: &mut Criterion) {
     let mut group = c.benchmark_group("parallel_hashing");
-    group.measurement_time(Duration::from_secs(10));
+    group.measurement_time(Duration::from_secs(30));
 
     // Create multiple test files
     let file_count = 100;
