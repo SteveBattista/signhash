@@ -1178,7 +1178,7 @@ pub fn send_check_message(
 /// ```no_run
 /// use signhash::{send_pass_fail_check_message, CheckMessage};
 /// use std::sync::mpsc;
-/// 
+///
 /// let (tx, rx) = mpsc::channel::<CheckMessage>();
 /// let file_len = 1024u64;
 /// let expected_len = 1024u64;
