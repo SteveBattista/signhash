@@ -83,8 +83,8 @@
 pub mod hash_helper;
 pub mod main_helper;
 
-// Re-export commonly used types for convenience  
-pub use hash_helper::{HasherOptions, Algorithm, ParseAlgorithmError, hash_file};
+// Re-export commonly used types for convenience
+pub use hash_helper::{hash_file, Algorithm, HasherOptions, ParseAlgorithmError};
 
 // Re-export main_helper types and functions
 pub use main_helper::*;

@@ -1,6 +1,6 @@
 use criterion::{criterion_group, criterion_main, Criterion, Throughput};
-use std::hint::black_box;
 use signhash::{hash_file, HasherOptions};
+use std::hint::black_box;
 use std::io::Write;
 use tempfile::NamedTempFile;
 
@@ -39,7 +39,7 @@ fn benchmark_hash_algorithms(c: &mut Criterion) {
 
 fn benchmark_parallel_hashing(c: &mut Criterion) {
     let mut group = c.benchmark_group("parallel_hashing");
-    
+
     // Create multiple test files
     let file_count = 100;
     let file_size = 64 * 1024; // 64KB each
@@ -58,16 +58,16 @@ fn benchmark_parallel_hashing(c: &mut Criterion) {
     for thread_count in [1, 2, 4, 8] {
         group.bench_function(format!("threads_{}", thread_count), |b| {
             let hasher = HasherOptions::new("blake3");
-            
+
             b.iter(|| {
                 use rayon::prelude::*;
-                
+
                 // Configure thread pool for this benchmark run
                 let pool = rayon::ThreadPoolBuilder::new()
                     .num_threads(thread_count)
                     .build()
                     .unwrap();
-                
+
                 let results: Vec<_> = pool.install(|| {
                     temp_files
                         .par_iter()
@@ -82,5 +82,9 @@ fn benchmark_parallel_hashing(c: &mut Criterion) {
     group.finish();
 }
 
-criterion_group!(benches, benchmark_hash_algorithms, benchmark_parallel_hashing);
+criterion_group!(
+    benches,
+    benchmark_hash_algorithms,
+    benchmark_parallel_hashing
+);
 criterion_main!(benches);

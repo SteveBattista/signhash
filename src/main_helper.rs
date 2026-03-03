@@ -1,4 +1,4 @@
-use crate::hash_helper::{HasherOptions, hash_file};
+use crate::hash_helper::{hash_file, HasherOptions};
 
 use chrono::{DateTime, Utc};
 use data_encoding::HEXUPPER;

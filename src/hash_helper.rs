@@ -120,9 +120,9 @@ impl HasherOptions {
     #[must_use]
     pub fn new(hash_type: &str) -> Self {
         Self {
-            algorithm: hash_type.parse().unwrap_or_else(|e| {
-                panic!("Invalid hash algorithm '{}': {}", hash_type, e)
-            }),
+            algorithm: hash_type
+                .parse()
+                .unwrap_or_else(|e| panic!("Invalid hash algorithm '{}': {}", hash_type, e)),
         }
     }
 
