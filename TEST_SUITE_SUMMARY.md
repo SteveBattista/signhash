@@ -2,23 +2,23 @@
 
 ## Overview
 
-Comprehensive test suite with **289 fully implemented tests** organized across **11 test files**, plus utility modules. All tests passing with strict clippy pedantic compliance.
+Comprehensive test suite with **289 fully implemented tests** organized across **11 test files**, plus utility modules and **15 documentation tests**. All tests passing with strict clippy pedantic compliance.
 
 ## Test Files Status
 
 | File                         | Test Count | Status              | Purpose                                                            |
 | ---------------------------- | ---------- | ------------------- | -----------------------------------------------------------------  |
 | `hash_helper_tests.rs`       | 47         | ✅ Complete         | Hash algorithm functionality, BLAKE3 and SHA variants              |
-| `key_management_tests.rs`    | 28         | ✅ Complete         | Ed25519 key generation, storage, and retrieval                     |
+| `key_management_tests.rs`    | 31         | ✅ Complete         | Ed25519 key generation, storage, and retrieval                     |
 | `signing_tests.rs`           | 29         | ✅ Complete         | Cryptographic signing and verification                             |
 | `manifest_parsing_tests.rs`  | 35         | ✅ Complete         | Manifest file parsing and data extraction                          |
-| `manifest_creation_tests.rs` | 31         | ✅ Complete         | Manifest creation, headers, and statistics                         |
+| `manifest_creation_tests.rs` | 20         | ✅ Complete         | Manifest creation, headers, and statistics                         |
 | `verification_tests.rs`      | 14         | ✅ Complete         | File verification against manifests                                |
-| `nonce_tests.rs`             | 19         | ✅ Complete         | Cryptographic nonce generation and collision detection             |
+| `nonce_tests.rs`             | 28         | ✅ Complete         | Cryptographic nonce generation and collision detection             |
 | `helper_utils_tests.rs`      | 15         | ✅ Complete         | Utility functions (file collection, progress bars, thread pools)   |
-| `io_tests.rs`                | 24         | ✅ Complete         | I/O operations and file handling                                   |
-| `channel_tests.rs`           | 18         | ✅ Complete         | Inter-thread communication via channels                            |
-| `integration_tests.rs`       | 20         | ✅ Complete         | End-to-end workflows                                               |
+| `io_tests.rs`                | 18         | ✅ Complete         | I/O operations and file handling                                   |
+| `channel_tests.rs`           | 19         | ✅ Complete         | Inter-thread communication via channels                            |
+| `integration_tests.rs`       | 24         | ✅ Complete         | End-to-end workflows                                               |
 | `test_utils.rs`              | 9          | ✅ Complete         | Common test utilities with comprehensive tests                     |
 | **TOTAL**                    | **289**    | ✅ **All Passing**  | **Complete test coverage**                                         |
 
@@ -29,20 +29,20 @@ Comprehensive test suite with **289 fully implemented tests** organized across *
 
 ## Test Categories
 
-### Unit Tests (269 tests)
+### Unit Tests (265 tests)
 
 - ✅ Hash computation and verification (47 tests)
-- ✅ Key management operations (28 tests)
+- ✅ Key management operations (31 tests)
 - ✅ Signature operations (29 tests)
-- ✅ Manifest parsing and creation (66 tests)
-- ✅ File I/O operations (24 tests)
-- ✅ Channel communication (18 tests)
-- ✅ Nonce generation (19 tests)
+- ✅ Manifest parsing and creation (55 tests)
+- ✅ File I/O operations (18 tests)
+- ✅ Channel communication (19 tests)
+- ✅ Nonce generation (28 tests)
 - ✅ Helper utilities (15 tests)
 - ✅ Test utilities (9 tests)
 - ✅ Verification operations (14 tests)
 
-### Integration Tests (20 tests)
+### Integration Tests (24 tests)
 
 - ✅ Complete sign and verify workflows
 - ✅ Tampering detection
@@ -51,6 +51,11 @@ Comprehensive test suite with **289 fully implemented tests** organized across *
 - ✅ Performance verification
 - ✅ Nested directory structures
 - ✅ Progress bar integration
+
+### Documentation Tests (16 tests)
+
+- ✅ Function examples and usage (15 tests)
+- ⚠️ Ignored test cases (1 test)
 
 ## Current Status
 
@@ -64,6 +69,7 @@ Comprehensive test suite with **289 fully implemented tests** organized across *
 - ✅ **Documentation standards** - Function names in docs use backticks
 - ✅ **Panic expectations** - All should_panic tests have expected messages
 - ✅ **Modern Rust idioms** - Inline format strings, write! macros, no unnecessary borrows
+- ✅ **Modern dependencies** - Migrated from deprecated serde_yaml to yaml-rust2
 
 ## Code Quality Achievements
 
@@ -135,18 +141,18 @@ tests/
 ├── README.md                      # Test suite documentation
 ├── test_utils.rs                  # Common utilities (9 tests)
 ├── hash_helper_tests.rs           # Hash algorithm tests (47 tests)
-├── key_management_tests.rs        # Key operations tests (28 tests)
+├── key_management_tests.rs        # Key operations tests (31 tests)
 ├── signing_tests.rs               # Signature tests (29 tests)
 ├── manifest_parsing_tests.rs      # Parsing tests (35 tests)
-├── manifest_creation_tests.rs     # Creation tests (31 tests)
+├── manifest_creation_tests.rs     # Creation tests (20 tests)
 ├── verification_tests.rs          # Verification tests (14 tests)
-├── nonce_tests.rs                 # Nonce tests (19 tests)
+├── nonce_tests.rs                 # Nonce tests (28 tests)
 ├── helper_utils_tests.rs          # Utility tests (15 tests)
-├── io_tests.rs                    # I/O tests (24 tests)
-├── channel_tests.rs               # Channel tests (18 tests)
-└── integration_tests.rs           # End-to-end tests (20 tests)
+├── io_tests.rs                    # I/O tests (18 tests)
+├── channel_tests.rs               # Channel tests (19 tests)
+└── integration_tests.rs           # End-to-end tests (24 tests)
 ```
 
 ## Summary
 
-**289 fully implemented, passing tests** with strict code quality standards enforced through clippy pedantic linting. The test suite is production-ready and provides comprehensive coverage of all signhash functionality.
+**289 fully implemented, passing tests** (plus 15 documentation tests) with strict code quality standards enforced through clippy pedantic linting. The test suite is production-ready and provides comprehensive coverage of all signhash functionality.

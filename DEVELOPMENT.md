@@ -62,7 +62,7 @@ Use targeted test runs for faster feedback:
 ./scripts/test.sh hash        # Hash-related tests only
 ./scripts/test.sh crypto      # Crypto-related tests only  
 ./scripts/test.sh integration # Integration tests only
-./scripts/test.sh all         # Full test suite
+./scripts/test.sh all         # Full test suite (289 tests)
 ```
 
 ## 💡 IDE Integration
@@ -154,7 +154,14 @@ make ci    # Runs check, lint, test-all, format-check
 Or manually:
 
 1. `make check` - Fast syntax/type validation
-2. `make lint` - Clippy linting  
-3. `make test-all` - Full test suite
+2. `make lint` - Clippy linting (pedantic compliance)
+3. `make test-all` - Full test suite (289 tests)
 4. `make format-check` - Code formatting validation
 5. `make bench` - Performance regression check (if relevant)
+
+### Quality Standards
+
+- ✅ All 289 tests passing
+- ✅ Zero clippy::pedantic warnings
+- ✅ Modern Rust idioms (yaml-rust2, inline format strings)
+- ✅ Comprehensive documentation with examples

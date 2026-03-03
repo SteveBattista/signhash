@@ -3,7 +3,8 @@
 ![SignHash Icon](./Gemini_Generated_Image_d93h3cd93h3cd93h.png)
 
 **Version:** 1.0.0  
-**Manifest Format:** 0.8.0
+**Manifest Format:** 0.8.0  
+**Rust Edition:** 2024
 
 sign_hash - Takes a directory, hashes files and signs them with Ed25519 signatures.  
 check_hash - Takes manifest and public key from a running of sign_hash and looks at a directory to both check to see if the files changed and also checks if manifest was tampered.
@@ -158,7 +159,8 @@ When working on a live Linux system /proc/kcore can be very large (e.g. 128TB). 
 - Improved progress indicators with indicatif library
 - Enhanced command-line interface with clap 4.x
 - Comprehensive code documentation
-- **Extensive test suite:** 220+ comprehensive tests covering all core functionality
+- **Extensive test suite:** 289 comprehensive tests covering all core functionality
+- **Modern dependencies:** Migrated from deprecated serde_yaml to yaml-rust2
 
 ## Performance
 
@@ -194,28 +196,33 @@ Dynamic buffer allocation minimizes memory overhead while maximizing throughput:
 
 ## Testing
 
-The project includes a comprehensive test suite with 220+ tests covering:
+The project includes a comprehensive test suite with 289 tests covering:
 
-### Cryptographic Operations (139 tests)
+### Unit Tests (265 tests)
 
-- **Hash Algorithms (38 tests):** BLAKE3, SHA1, SHA256, SHA384, SHA512, SHA512_256
+- **Hash Algorithms (47 tests):** BLAKE3, SHA1, SHA256, SHA384, SHA512, SHA512_256
   - File hashing with all algorithms
   - Streaming hasher interface
   - Edge cases: empty files, large files (1MB+), Unicode content
   
-- **Ed25519 Cryptography (42 tests):**
-  - Key pair generation and management (22 tests)
-  - YAML serialization/deserialization
-  - Deterministic signing (20 tests)
+- **Ed25519 Cryptography (31 tests):**
+  - Key pair generation and management
+  - YAML serialization/deserialization with yaml-rust2
+  - Deterministic signing and verification
   - Signature verification with valid/invalid signatures
   - Edge cases: empty data, special characters
 
-- **Manifest Operations (46 tests):**
-  - Parsing manifest files (26 tests)
+- **Signing Operations (29 tests):**
+  - Cryptographic signing and verification
+  - Multi-signature scenarios
+  - Error handling and edge cases
+
+- **Manifest Operations (55 tests):**
+  - Parsing manifest files (35 tests)
   - Creating manifest entries (20 tests)
   - Field validation and error handling
 
-- **Nonce Generation (19 tests):**
+- **Nonce Generation (28 tests):**
   - Random generation with cryptographic strength
   - Uniqueness and collision detection
   - Statistical randomness validation
@@ -225,12 +232,22 @@ The project includes a comprehensive test suite with 220+ tests covering:
   - Symlink and directory handling
   - Tamper detection
 
-### Infrastructure Tests (80+ tests)
+- **Helper Functions (15 tests):** File collection, progress bars, thread pools
+- **Test Utilities (9 tests):** Common test helper functions
+- **Channel Communication (19 tests):** Inter-thread message passing
+- **I/O Operations (18 tests):** File handling and streaming
 
-- **I/O Operations (18 tests):** File writing, header dumping, streaming
-- **Channel Communication (19 tests):** Message passing, progress tracking
-- **Integration Tests (15 tests):** End-to-end workflows, tampering detection
-- **Helper Functions:** Test utilities and file operations
+### Integration Tests (24 tests)
+
+- **End-to-end workflows:** Complete sign and verify operations
+- **Tampering detection:** Manifest and file modification scenarios
+- **Multi-file scenarios:** Complex directory structures
+- **Error handling:** Comprehensive error condition testing
+
+### Documentation Tests (15 tests)
+
+- Function examples and usage patterns
+- Code sample validation
 
 ### Running Tests
 
@@ -251,11 +268,13 @@ All cryptographic tests use real implementations (ring, blake3) rather than mock
 ## Development Status
 
 - ✅ Core functionality complete and tested
-- ✅ 220+ comprehensive tests covering all features
+- ✅ 289 comprehensive tests covering all features
 - ✅ All hash algorithms validated (BLAKE3, SHA family)
 - ✅ Ed25519 signing/verification fully tested
 - ✅ Manifest parsing and creation verified
-- ⚠️ Module refactoring needed for public API access
+- ✅ Modern dependencies (yaml-rust2 migration complete)
+- ✅ Clippy pedantic compliance achieved
+- ✅ Production-ready code quality
 
 ## Possible Road-map (v2.0)
 
