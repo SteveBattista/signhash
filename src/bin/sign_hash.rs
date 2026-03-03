@@ -1,4 +1,4 @@
-//! SignHash File Signing Binary
+//! `SignHash` File Signing Binary
 //!
 //! Creates cryptographically signed manifest files for directories.
 //! Generates Ed25519 key pairs, computes file hashes using configurable
@@ -8,7 +8,7 @@
 //!
 //! - Multi-threaded file hashing using rayon
 //! - Ed25519 digital signatures for integrity verification  
-//! - Multiple hash algorithms: SHA1, SHA256, SHA384, SHA512, SHA512_256, BLAKE3
+//! - Multiple hash algorithms: SHA1, SHA256, SHA384, SHA512, `SHA512_256`, BLAKE3
 //! - Memory-mapped I/O for large files (≥16KB)
 //! - Adaptive buffer sizing for optimal performance
 //! - Unique nonce generation to prevent precomputed attacks

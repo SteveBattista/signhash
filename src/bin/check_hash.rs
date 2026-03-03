@@ -1,4 +1,4 @@
-//! SignHash Verification Binary
+//! `SignHash` Verification Binary
 //!
 //! Verifies file integrity against cryptographically signed manifests.
 //! Validates Ed25519 signatures, checks file hashes, and detects tampering
@@ -8,7 +8,7 @@
 //!
 //! - Multi-threaded file verification using rayon
 //! - Ed25519 signature verification against public keys
-//! - Support for all SignHash algorithms: SHA1, SHA256, SHA384, SHA512, SHA512_256, BLAKE3
+//! - Support for all `SignHash` algorithms: SHA1, SHA256, SHA384, SHA512, `SHA512_256`, BLAKE3
 //! - Duplicate nonce detection for security validation
 //! - Comprehensive tamper detection (size, timestamp, hash, signature)
 //! - Progress tracking with detailed reporting

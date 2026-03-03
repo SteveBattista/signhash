@@ -15,7 +15,7 @@ fn benchmark_hash_algorithms(c: &mut Criterion) {
 
     for algorithm in algorithms {
         for (size_name, size) in sizes {
-            let mut group = c.benchmark_group(format!("hash_{}_{}", algorithm, size_name));
+            let mut group = c.benchmark_group(format!("hash_{algorithm}_{size_name}"));
             group.throughput(Throughput::Bytes(size as u64));
 
             group.bench_function("file_hash", |b| {
@@ -56,7 +56,7 @@ fn benchmark_parallel_hashing(c: &mut Criterion) {
     group.throughput(Throughput::Bytes((file_count * file_size) as u64));
 
     for thread_count in [1, 2, 4, 8] {
-        group.bench_function(format!("threads_{}", thread_count), |b| {
+        group.bench_function(format!("threads_{thread_count}"), |b| {
             let hasher = HasherOptions::new("blake3");
 
             b.iter(|| {

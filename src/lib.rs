@@ -1,11 +1,11 @@
-//! SignHash Library
+//! `SignHash` Library
 //!
 //! A comprehensive cryptographic file hashing and signing library for creating
 //! tamper-evident manifests and verifying file integrity.
 //!
 //! # Overview
 //!
-//! SignHash provides tools for:
+//! `SignHash` provides tools for:
 //! - Creating cryptographically signed manifests of directory contents
 //! - Verifying file integrity against signed manifests  
 //! - Detecting tampering in both files and manifest metadata

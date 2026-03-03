@@ -60,7 +60,7 @@ pub struct SignMessage {
 /// Contains the type of check, message text, and verbosity flag.
 #[allow(dead_code)]
 pub struct CheckMessage {
-    /// Type of check being performed (PRINT_MESSAGE, TICK_MESSAGE, or END_MESSAGE)
+    /// Type of check being performed (`PRINT_MESSAGE`, `TICK_MESSAGE`, or `END_MESSAGE`)
     pub check_type: u8,
     /// The text message to display
     pub text: String,
@@ -181,6 +181,12 @@ pub fn provide_unique_nonce<S: BuildHasher>(
 /// Continuously receives messages until `END_MESSAGE` is received.
 /// `TICK_MESSAGE` updates progress bar, other messages are written based
 /// on verbose flag. Finishes progress bar when complete.
+///
+/// # Panics
+///
+/// Panics if:
+/// - Output file cannot be created
+/// - Channel receive operation fails
 #[allow(dead_code)]
 pub fn write_check_from_channel(
     verbose: bool,
@@ -274,6 +280,13 @@ pub struct WriterContext<'a> {
 /// (duration, file count, total bytes, speed), generates nonce, computes
 /// manifest hash, and signs it with private key. Updates progress bar as
 /// entries are processed.
+///
+/// # Panics
+///
+/// Panics if:
+/// - Manifest file cannot be created
+/// - Writing to file fails
+/// - Channel receive operation fails
 #[allow(dead_code)]
 #[allow(clippy::too_many_lines)]
 pub fn write_manifest_from_channel(
@@ -485,6 +498,7 @@ pub fn read_private_key(private_key_bytes: &mut [u8], private_key_file: &str) {
 ///
 /// Panics if file cannot be opened or read.
 #[allow(dead_code)]
+#[must_use]
 pub fn dump_header(header_file: &str) -> String {
     let mut file = match File::open(header_file) {
         Ok(file) => file,
@@ -520,8 +534,6 @@ pub fn dump_header(header_file: &str) -> String {
 /// use std::fs::File;
 /// let file = File::open("data.bin").unwrap();
 /// let opts = HasherOptions::new("256");
-/// let digest = var_digest(file, opts);
-/// ```
 /// let digest = var_digest(file, opts);
 /// ```
 #[allow(dead_code)]
@@ -571,6 +583,14 @@ pub fn var_digest<R: Read>(mut reader: R, hasher_opts: HasherOptions) -> Vec<u8>
 /// Compares file length, modification time, type, and hash against manifest.
 /// Verifies Ed25519 signature over the manifest line. Sends success/failure
 /// messages via channel for each check. Handles symlinks and missing files.
+///
+/// # Panics
+///
+/// Panics if:
+/// - File metadata operations fail unexpectedly
+/// - Hash computation encounters I/O errors
+/// - Signature verification fails due to key format issues
+/// - Channel send operations fail
 #[allow(dead_code)]
 #[allow(clippy::too_many_lines)]
 pub fn check_line(
@@ -745,6 +765,15 @@ pub fn check_line(
 /// Collects file metadata (type, size, modification time), computes hash,
 /// formats manifest line with nonce, signs it with Ed25519, and sends via
 /// channel. Handles files, directories, symlinks, and bad symlinks.
+///
+/// # Panics
+///
+/// Panics if:
+/// - File metadata retrieval fails unexpectedly
+/// - Hash computation encounters I/O errors
+/// - `DateTime` conversion fails
+/// - Signing operation fails due to key format issues
+/// - Channel send operations fail
 #[allow(dead_code)]
 pub fn create_line(
     path: &str,
@@ -1097,6 +1126,7 @@ pub fn read_manifest_file(vec_of_lines: &mut Vec<String>, input_file: &str, file
 /// assert_eq!(path, "./test.txt");
 /// ```
 #[allow(dead_code)]
+#[must_use]
 pub fn parse_manifest_line(manifest_line: &str) -> (String, ManifestLine) {
     let tokens: Vec<&str> = manifest_line.split(TOKEN_SEPARATOR).collect();
     let file_name = tokens[1].to_string();
@@ -1227,6 +1257,11 @@ use walkdir::WalkDir;
 /// let files = collect_files("./src", true);
 /// println!("Found {} files", files.len());
 /// ```
+///
+/// # Panics
+///
+/// Panics if progress bar template is invalid.
+#[must_use]
 pub fn collect_files(directory: &str, show_progress: bool) -> Vec<String> {
     let spinner = ProgressBar::new_spinner();
     if show_progress {
@@ -1275,6 +1310,11 @@ pub fn collect_files(directory: &str, show_progress: bool) -> Vec<String> {
 /// bar.inc(1);
 /// bar.finish();
 /// ```
+///
+/// # Panics
+///
+/// Panics if progress bar template is invalid.
+#[must_use]
 pub fn create_progress_bar(len: u64, prefix: &str, color: &str, show: bool) -> ProgressBar {
     let bar = ProgressBar::new(len);
     if show {
