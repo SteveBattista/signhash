@@ -3,9 +3,10 @@
 use data_encoding::HEXUPPER;
 use ring::rand::SystemRandom;
 use ring::signature::{Ed25519KeyPair, KeyPair};
-use std::collections::BTreeMap;
 use std::fs::{self, File};
 use tempfile::TempDir;
+use yaml_rust2::yaml::Hash;
+use yaml_rust2::{Yaml, YamlEmitter, YamlLoader};
 
 mod test_utils;
 
@@ -81,12 +82,17 @@ fn test_write_key_creates_yaml_file() {
     let public_key = key_pair.public_key().as_ref();
 
     // Write key to YAML
-    let mut map = BTreeMap::new();
+    let mut map = Hash::new();
     map.insert(
-        PUBIC_KEY_STRING_ED25519.to_string(),
-        HEXUPPER.encode(public_key),
+        Yaml::String(PUBIC_KEY_STRING_ED25519.to_string()),
+        Yaml::String(HEXUPPER.encode(public_key)),
     );
-    let yaml_string = serde_yaml::to_string(&map).unwrap();
+    let doc = Yaml::Hash(map);
+    let mut yaml_string = String::new();
+    {
+        let mut emitter = YamlEmitter::new(&mut yaml_string);
+        emitter.dump(&doc).unwrap();
+    }
     fs::write(&key_file, yaml_string).unwrap();
 
     // Verify file exists and is readable
@@ -105,9 +111,17 @@ fn test_write_key_hex_encoded() {
     let hex_encoded = HEXUPPER.encode(&test_key);
 
     // Write to YAML
-    let mut map = BTreeMap::new();
-    map.insert("TEST_KEY".to_string(), hex_encoded.clone());
-    let yaml_string = serde_yaml::to_string(&map).unwrap();
+    let mut map = Hash::new();
+    map.insert(
+        Yaml::String("TEST_KEY".to_string()),
+        Yaml::String(hex_encoded.clone()),
+    );
+    let doc = Yaml::Hash(map);
+    let mut yaml_string = String::new();
+    {
+        let mut emitter = YamlEmitter::new(&mut yaml_string);
+        emitter.dump(&doc).unwrap();
+    }
     fs::write(&key_file, yaml_string).unwrap();
 
     // Read back and verify hex encoding
@@ -135,23 +149,26 @@ fn test_write_key_valid_yaml_structure() {
     let public_key = key_pair.public_key().as_ref();
 
     // Write YAML
-    let mut map = BTreeMap::new();
+    let mut map = Hash::new();
     map.insert(
-        PUBIC_KEY_STRING_ED25519.to_string(),
-        HEXUPPER.encode(public_key),
+        Yaml::String(PUBIC_KEY_STRING_ED25519.to_string()),
+        Yaml::String(HEXUPPER.encode(public_key)),
     );
-    let yaml_string = serde_yaml::to_string(&map).unwrap();
+    let doc = Yaml::Hash(map);
+    let mut yaml_string = String::new();
+    {
+        let mut emitter = YamlEmitter::new(&mut yaml_string);
+        emitter.dump(&doc).unwrap();
+    }
     fs::write(&key_file, &yaml_string).unwrap();
 
     // Parse YAML back
     let content = fs::read_to_string(&key_file).unwrap();
-    let parsed: BTreeMap<String, String> = serde_yaml::from_str(&content).unwrap();
+    let docs = YamlLoader::load_from_str(&content).unwrap();
+    let doc = &docs[0];
+    let key_str = doc[PUBIC_KEY_STRING_ED25519].as_str().unwrap();
 
-    assert!(parsed.contains_key(PUBIC_KEY_STRING_ED25519));
-    assert_eq!(
-        parsed[PUBIC_KEY_STRING_ED25519],
-        HEXUPPER.encode(public_key)
-    );
+    assert_eq!(key_str, HEXUPPER.encode(public_key));
 }
 
 // ===== Key Reading Tests =====
@@ -166,21 +183,25 @@ fn test_read_public_key_valid_file() {
     let pkcs8_bytes = Ed25519KeyPair::generate_pkcs8(&rng).unwrap();
     let key_pair = Ed25519KeyPair::from_pkcs8(pkcs8_bytes.as_ref()).unwrap();
     let original_key = key_pair.public_key().as_ref();
-
-    let mut map = BTreeMap::new();
+    let mut map = Hash::new();
     map.insert(
-        PUBIC_KEY_STRING_ED25519.to_string(),
-        HEXUPPER.encode(original_key),
+        Yaml::String(PUBIC_KEY_STRING_ED25519.to_string()),
+        Yaml::String(HEXUPPER.encode(original_key)),
     );
-    let yaml_string = serde_yaml::to_string(&map).unwrap();
+    let doc = Yaml::Hash(map);
+    let mut yaml_string = String::new();
+    {
+        let mut emitter = YamlEmitter::new(&mut yaml_string);
+        emitter.dump(&doc).unwrap();
+    }
     fs::write(&key_file, yaml_string).unwrap();
 
     // Read key back
     let content = fs::read_to_string(&key_file).unwrap();
-    let parsed: BTreeMap<String, String> = serde_yaml::from_str(&content).unwrap();
-    let decoded_key = HEXUPPER
-        .decode(parsed[PUBIC_KEY_STRING_ED25519].as_bytes())
-        .unwrap();
+    let docs = YamlLoader::load_from_str(&content).unwrap();
+    let doc = &docs[0];
+    let key_str = doc[PUBIC_KEY_STRING_ED25519].as_str().unwrap();
+    let decoded_key = HEXUPPER.decode(key_str.as_bytes()).unwrap();
 
     // Verify keys match
     assert_eq!(decoded_key, original_key);
@@ -203,7 +224,7 @@ fn test_read_public_key_invalid_yaml() {
 
     // Attempt to parse
     let content = fs::read_to_string(&key_file).unwrap();
-    let result: Result<BTreeMap<String, String>, _> = serde_yaml::from_str(&content);
+    let result = YamlLoader::load_from_str(&content);
     assert!(result.is_err());
 }
 
@@ -213,18 +234,25 @@ fn test_read_public_key_invalid_hex() {
     let key_file = temp_dir.path().join("invalid_hex.yaml");
 
     // Write YAML with invalid hex
-    let mut map = BTreeMap::new();
+    let mut map = Hash::new();
     map.insert(
-        PUBIC_KEY_STRING_ED25519.to_string(),
-        "NOTVALIDHEX!!!".to_string(),
+        Yaml::String(PUBIC_KEY_STRING_ED25519.to_string()),
+        Yaml::String("NOTVALIDHEX!!!".to_string()),
     );
-    let yaml_string = serde_yaml::to_string(&map).unwrap();
+    let doc = Yaml::Hash(map);
+    let mut yaml_string = String::new();
+    {
+        let mut emitter = YamlEmitter::new(&mut yaml_string);
+        emitter.dump(&doc).unwrap();
+    }
     fs::write(&key_file, yaml_string).unwrap();
 
     // Read and attempt to decode
     let content = fs::read_to_string(&key_file).unwrap();
-    let parsed: BTreeMap<String, String> = serde_yaml::from_str(&content).unwrap();
-    let result = HEXUPPER.decode(parsed[PUBIC_KEY_STRING_ED25519].as_bytes());
+    let docs = YamlLoader::load_from_str(&content).unwrap();
+    let doc = &docs[0];
+    let key_str = doc[PUBIC_KEY_STRING_ED25519].as_str().unwrap();
+    let result = HEXUPPER.decode(key_str.as_bytes());
     assert!(result.is_err());
 }
 
@@ -234,17 +262,25 @@ fn test_read_public_key_wrong_length() {
     let key_file = temp_dir.path().join("wrong_length.yaml");
 
     // Write YAML with wrong-length key (should be 32 bytes = 64 hex chars)
-    let mut map = BTreeMap::new();
-    map.insert(PUBIC_KEY_STRING_ED25519.to_string(), "ABCD".to_string());
-    let yaml_string = serde_yaml::to_string(&map).unwrap();
+    let mut map = Hash::new();
+    map.insert(
+        Yaml::String(PUBIC_KEY_STRING_ED25519.to_string()),
+        Yaml::String("ABCD".to_string()),
+    );
+    let doc = Yaml::Hash(map);
+    let mut yaml_string = String::new();
+    {
+        let mut emitter = YamlEmitter::new(&mut yaml_string);
+        emitter.dump(&doc).unwrap();
+    }
     fs::write(&key_file, yaml_string).unwrap();
 
     // Read and decode
     let content = fs::read_to_string(&key_file).unwrap();
-    let parsed: BTreeMap<String, String> = serde_yaml::from_str(&content).unwrap();
-    let decoded = HEXUPPER
-        .decode(parsed[PUBIC_KEY_STRING_ED25519].as_bytes())
-        .unwrap();
+    let docs = YamlLoader::load_from_str(&content).unwrap();
+    let doc = &docs[0];
+    let key_str = doc[PUBIC_KEY_STRING_ED25519].as_str().unwrap();
+    let decoded = HEXUPPER.decode(key_str.as_bytes()).unwrap();
 
     // Verify it's not 32 bytes
     assert_ne!(decoded.len(), 32);
@@ -261,20 +297,25 @@ fn test_read_private_key_valid_file() {
     let original_key = pkcs8_bytes.as_ref();
 
     // Write to YAML
-    let mut map = BTreeMap::new();
+    let mut map = Hash::new();
     map.insert(
-        PRIVATE_KEY_STRING_ED25519.to_string(),
-        HEXUPPER.encode(original_key),
+        Yaml::String(PRIVATE_KEY_STRING_ED25519.to_string()),
+        Yaml::String(HEXUPPER.encode(original_key)),
     );
-    let yaml_string = serde_yaml::to_string(&map).unwrap();
+    let doc = Yaml::Hash(map);
+    let mut yaml_string = String::new();
+    {
+        let mut emitter = YamlEmitter::new(&mut yaml_string);
+        emitter.dump(&doc).unwrap();
+    }
     fs::write(&key_file, yaml_string).unwrap();
 
     // Read back
     let content = fs::read_to_string(&key_file).unwrap();
-    let parsed: BTreeMap<String, String> = serde_yaml::from_str(&content).unwrap();
-    let decoded_key = HEXUPPER
-        .decode(parsed[PRIVATE_KEY_STRING_ED25519].as_bytes())
-        .unwrap();
+    let docs = YamlLoader::load_from_str(&content).unwrap();
+    let doc = &docs[0];
+    let key_str = doc[PRIVATE_KEY_STRING_ED25519].as_str().unwrap();
+    let decoded_key = HEXUPPER.decode(key_str.as_bytes()).unwrap();
 
     // Verify
     assert_eq!(decoded_key, original_key);
@@ -302,20 +343,32 @@ fn test_write_keys_creates_both_files() {
     let key_pair = Ed25519KeyPair::from_pkcs8(pkcs8_bytes.as_ref()).unwrap();
 
     // Write public key
-    let mut pub_map = BTreeMap::new();
+    let mut pub_map = Hash::new();
     pub_map.insert(
-        PUBIC_KEY_STRING_ED25519.to_string(),
-        HEXUPPER.encode(key_pair.public_key().as_ref()),
+        Yaml::String(PUBIC_KEY_STRING_ED25519.to_string()),
+        Yaml::String(HEXUPPER.encode(key_pair.public_key().as_ref())),
     );
-    fs::write(&pub_file, serde_yaml::to_string(&pub_map).unwrap()).unwrap();
+    let pub_doc = Yaml::Hash(pub_map);
+    let mut pub_yaml = String::new();
+    {
+        let mut emitter = YamlEmitter::new(&mut pub_yaml);
+        emitter.dump(&pub_doc).unwrap();
+    }
+    fs::write(&pub_file, pub_yaml).unwrap();
 
     // Write private key
-    let mut priv_map = BTreeMap::new();
+    let mut priv_map = Hash::new();
     priv_map.insert(
-        PRIVATE_KEY_STRING_ED25519.to_string(),
-        HEXUPPER.encode(pkcs8_bytes.as_ref()),
+        Yaml::String(PRIVATE_KEY_STRING_ED25519.to_string()),
+        Yaml::String(HEXUPPER.encode(pkcs8_bytes.as_ref())),
     );
-    fs::write(&priv_file, serde_yaml::to_string(&priv_map).unwrap()).unwrap();
+    let priv_doc = Yaml::Hash(priv_map);
+    let mut priv_yaml = String::new();
+    {
+        let mut emitter = YamlEmitter::new(&mut priv_yaml);
+        emitter.dump(&priv_doc).unwrap();
+    }
+    fs::write(&priv_file, priv_yaml).unwrap();
 
     // Verify both exist
     assert!(pub_file.exists());
@@ -336,32 +389,44 @@ fn test_key_roundtrip() {
     let original_priv = pkcs8_bytes.as_ref().to_vec();
 
     // Write keys
-    let mut pub_map = BTreeMap::new();
+    let mut pub_map = Hash::new();
     pub_map.insert(
-        PUBIC_KEY_STRING_ED25519.to_string(),
-        HEXUPPER.encode(&original_pub),
+        Yaml::String(PUBIC_KEY_STRING_ED25519.to_string()),
+        Yaml::String(HEXUPPER.encode(&original_pub)),
     );
-    fs::write(&pub_file, serde_yaml::to_string(&pub_map).unwrap()).unwrap();
+    let pub_doc = Yaml::Hash(pub_map);
+    let mut pub_yaml = String::new();
+    {
+        let mut emitter = YamlEmitter::new(&mut pub_yaml);
+        emitter.dump(&pub_doc).unwrap();
+    }
+    fs::write(&pub_file, pub_yaml).unwrap();
 
-    let mut priv_map = BTreeMap::new();
+    let mut priv_map = Hash::new();
     priv_map.insert(
-        PRIVATE_KEY_STRING_ED25519.to_string(),
-        HEXUPPER.encode(&original_priv),
+        Yaml::String(PRIVATE_KEY_STRING_ED25519.to_string()),
+        Yaml::String(HEXUPPER.encode(&original_priv)),
     );
-    fs::write(&priv_file, serde_yaml::to_string(&priv_map).unwrap()).unwrap();
+    let priv_doc = Yaml::Hash(priv_map);
+    let mut priv_yaml = String::new();
+    {
+        let mut emitter = YamlEmitter::new(&mut priv_yaml);
+        emitter.dump(&priv_doc).unwrap();
+    }
+    fs::write(&priv_file, priv_yaml).unwrap();
 
     // Read keys back
     let pub_content = fs::read_to_string(&pub_file).unwrap();
-    let pub_parsed: BTreeMap<String, String> = serde_yaml::from_str(&pub_content).unwrap();
-    let read_pub = HEXUPPER
-        .decode(pub_parsed[PUBIC_KEY_STRING_ED25519].as_bytes())
-        .unwrap();
+    let pub_docs = YamlLoader::load_from_str(&pub_content).unwrap();
+    let pub_doc = &pub_docs[0];
+    let pub_key_str = pub_doc[PUBIC_KEY_STRING_ED25519].as_str().unwrap();
+    let read_pub = HEXUPPER.decode(pub_key_str.as_bytes()).unwrap();
 
     let priv_content = fs::read_to_string(&priv_file).unwrap();
-    let priv_parsed: BTreeMap<String, String> = serde_yaml::from_str(&priv_content).unwrap();
-    let read_priv = HEXUPPER
-        .decode(priv_parsed[PRIVATE_KEY_STRING_ED25519].as_bytes())
-        .unwrap();
+    let priv_docs = YamlLoader::load_from_str(&priv_content).unwrap();
+    let priv_doc = &priv_docs[0];
+    let priv_key_str = priv_doc[PRIVATE_KEY_STRING_ED25519].as_str().unwrap();
+    let read_priv = HEXUPPER.decode(priv_key_str.as_bytes()).unwrap();
 
     // Verify roundtrip
     assert_eq!(read_pub, original_pub);
@@ -378,26 +443,43 @@ fn test_write_key_overwrites_existing() {
     let pkcs8_1 = Ed25519KeyPair::generate_pkcs8(&rng).unwrap();
     let key_pair_1 = Ed25519KeyPair::from_pkcs8(pkcs8_1.as_ref()).unwrap();
     let key1 = key_pair_1.public_key().as_ref();
-
-    let mut map1 = BTreeMap::new();
-    map1.insert(PUBIC_KEY_STRING_ED25519.to_string(), HEXUPPER.encode(key1));
-    fs::write(&key_file, serde_yaml::to_string(&map1).unwrap()).unwrap();
+    let mut map1 = Hash::new();
+    map1.insert(
+        Yaml::String(PUBIC_KEY_STRING_ED25519.to_string()),
+        Yaml::String(HEXUPPER.encode(key1)),
+    );
+    let doc1 = Yaml::Hash(map1);
+    let mut yaml1 = String::new();
+    {
+        let mut emitter = YamlEmitter::new(&mut yaml1);
+        emitter.dump(&doc1).unwrap();
+    }
+    fs::write(&key_file, yaml1).unwrap();
 
     // Write second key (overwrite)
     let pkcs8_2 = Ed25519KeyPair::generate_pkcs8(&rng).unwrap();
     let key_pair_2 = Ed25519KeyPair::from_pkcs8(pkcs8_2.as_ref()).unwrap();
     let key2 = key_pair_2.public_key().as_ref();
 
-    let mut map2 = BTreeMap::new();
-    map2.insert(PUBIC_KEY_STRING_ED25519.to_string(), HEXUPPER.encode(key2));
-    fs::write(&key_file, serde_yaml::to_string(&map2).unwrap()).unwrap();
+    let mut map2 = Hash::new();
+    map2.insert(
+        Yaml::String(PUBIC_KEY_STRING_ED25519.to_string()),
+        Yaml::String(HEXUPPER.encode(key2)),
+    );
+    let doc2 = Yaml::Hash(map2);
+    let mut yaml2 = String::new();
+    {
+        let mut emitter = YamlEmitter::new(&mut yaml2);
+        emitter.dump(&doc2).unwrap();
+    }
+    fs::write(&key_file, yaml2).unwrap();
 
     // Read back - should be second key
     let content = fs::read_to_string(&key_file).unwrap();
-    let parsed: BTreeMap<String, String> = serde_yaml::from_str(&content).unwrap();
-    let read_key = HEXUPPER
-        .decode(parsed[PUBIC_KEY_STRING_ED25519].as_bytes())
-        .unwrap();
+    let yaml_docs = YamlLoader::load_from_str(&content).unwrap();
+    let doc = &yaml_docs[0];
+    let key_str = doc[PUBIC_KEY_STRING_ED25519].as_str().unwrap();
+    let read_key = HEXUPPER.decode(key_str.as_bytes()).unwrap();
 
     assert_eq!(read_key, key2);
     assert_ne!(read_key, key1);
@@ -464,18 +546,24 @@ fn test_yaml_preserves_key_data() {
 
     // Write and read multiple times
     for _ in 0..3 {
-        let mut map = BTreeMap::new();
+        let mut map = Hash::new();
         map.insert(
-            PUBIC_KEY_STRING_ED25519.to_string(),
-            HEXUPPER.encode(original),
+            Yaml::String(PUBIC_KEY_STRING_ED25519.to_string()),
+            Yaml::String(HEXUPPER.encode(original)),
         );
-        fs::write(&key_file, serde_yaml::to_string(&map).unwrap()).unwrap();
+        let doc = Yaml::Hash(map);
+        let mut yaml_string = String::new();
+        {
+            let mut emitter = YamlEmitter::new(&mut yaml_string);
+            emitter.dump(&doc).unwrap();
+        }
+        fs::write(&key_file, yaml_string).unwrap();
 
         let content = fs::read_to_string(&key_file).unwrap();
-        let parsed: BTreeMap<String, String> = serde_yaml::from_str(&content).unwrap();
-        let decoded = HEXUPPER
-            .decode(parsed[PUBIC_KEY_STRING_ED25519].as_bytes())
-            .unwrap();
+        let docs = YamlLoader::load_from_str(&content).unwrap();
+        let doc = &docs[0];
+        let key_str = doc[PUBIC_KEY_STRING_ED25519].as_str().unwrap();
+        let decoded = HEXUPPER.decode(key_str.as_bytes()).unwrap();
 
         assert_eq!(decoded, original);
     }
@@ -506,23 +594,29 @@ fn test_multiple_keys_in_same_yaml() {
     let key_pair = Ed25519KeyPair::from_pkcs8(pkcs8_bytes.as_ref()).unwrap();
 
     // Write both keys to same file
-    let mut map = BTreeMap::new();
+    let mut map = Hash::new();
     map.insert(
-        PUBIC_KEY_STRING_ED25519.to_string(),
-        HEXUPPER.encode(key_pair.public_key().as_ref()),
+        Yaml::String(PUBIC_KEY_STRING_ED25519.to_string()),
+        Yaml::String(HEXUPPER.encode(key_pair.public_key().as_ref())),
     );
     map.insert(
-        PRIVATE_KEY_STRING_ED25519.to_string(),
-        HEXUPPER.encode(pkcs8_bytes.as_ref()),
+        Yaml::String(PRIVATE_KEY_STRING_ED25519.to_string()),
+        Yaml::String(HEXUPPER.encode(pkcs8_bytes.as_ref())),
     );
-
-    fs::write(&key_file, serde_yaml::to_string(&map).unwrap()).unwrap();
+    let doc = Yaml::Hash(map);
+    let mut yaml_string = String::new();
+    {
+        let mut emitter = YamlEmitter::new(&mut yaml_string);
+        emitter.dump(&doc).unwrap();
+    }
+    fs::write(&key_file, yaml_string).unwrap();
 
     // Read back both keys
     let content = fs::read_to_string(&key_file).unwrap();
-    let parsed: BTreeMap<String, String> = serde_yaml::from_str(&content).unwrap();
+    let docs = YamlLoader::load_from_str(&content).unwrap();
+    let doc = &docs[0];
 
-    assert!(parsed.contains_key(PUBIC_KEY_STRING_ED25519));
-    assert!(parsed.contains_key(PRIVATE_KEY_STRING_ED25519));
-    assert_eq!(parsed.len(), 2);
+    assert!(doc[PUBIC_KEY_STRING_ED25519].as_str().is_some());
+    assert!(doc[PRIVATE_KEY_STRING_ED25519].as_str().is_some());
+    assert_eq!(doc.as_hash().unwrap().len(), 2);
 }

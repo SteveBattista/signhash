@@ -15,8 +15,8 @@ use std::fs::{self, File};
 use std::hash::BuildHasher;
 use std::io::{BufRead, BufReader, Read, Write};
 use std::time::Instant;
-use yaml_rust2::{YamlLoader, YamlEmitter};
 use yaml_rust2::yaml::Hash;
+use yaml_rust2::{YamlEmitter, YamlLoader};
 
 pub const SIGN_HEADER_MESSAGE_COUNT: usize = 8;
 #[allow(dead_code)]
@@ -898,7 +898,10 @@ pub fn create_keys(public_key_bytes: &mut [u8], private_key_bytes: &mut [u8]) {
 pub fn write_key(public_key_bytes: &[u8], pubic_key_file: &str, key_name: &str) {
     use yaml_rust2::Yaml;
     let mut map = Hash::new();
-    map.insert(Yaml::String(key_name.to_string()), Yaml::String(HEXUPPER.encode(public_key_bytes)));
+    map.insert(
+        Yaml::String(key_name.to_string()),
+        Yaml::String(HEXUPPER.encode(public_key_bytes)),
+    );
     let doc = Yaml::Hash(map);
     let mut out_str = String::new();
     {
@@ -956,9 +959,9 @@ pub fn read_public_key(public_key_file: &str, public_key_bytes: &mut [u8]) {
         }
     };
     let doc = &docs[0];
-    let key_str = doc[PUBIC_KEY_STRING_ED25519].as_str().unwrap_or_else(|| {
-        panic!("Missing or invalid public key in YAML file|{public_key_file}")
-    });
+    let key_str = doc[PUBIC_KEY_STRING_ED25519]
+        .as_str()
+        .unwrap_or_else(|| panic!("Missing or invalid public key in YAML file|{public_key_file}"));
     let local_key = match HEXUPPER.decode(key_str.as_bytes()) {
         Ok(local_key) => local_key,
         Err(why) => {
