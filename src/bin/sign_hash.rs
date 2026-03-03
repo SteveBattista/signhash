@@ -22,17 +22,17 @@
 
 use signhash::hash_helper::HasherOptions;
 use signhash::main_helper::{
-    collect_files, create_keys, create_line, create_progress_bar, get_pool_size,
-    provide_unique_nonce, write_headers, write_key, write_manifest_from_channel, WriterContext,
-    BITS_IN_BYTES, DEFAULT_PUBIC_KEY_FILE_NAME, NONCE_LENGTH_IN_BYTES, NO_OUTPUTFILE,
+    BITS_IN_BYTES, DEFAULT_PUBIC_KEY_FILE_NAME, NO_OUTPUTFILE, NONCE_LENGTH_IN_BYTES,
     PRIVATEKEY_LENGTH_IN_BYTES, PUBIC_KEY_STRING_ED25519, PUBLICKEY_LENGTH_IN_BYTES, PWD,
-    SIGN_HEADER_MESSAGE_COUNT,
+    SIGN_HEADER_MESSAGE_COUNT, WriterContext, collect_files, create_keys, create_line,
+    create_progress_bar, get_pool_size, provide_unique_nonce, write_headers, write_key,
+    write_manifest_from_channel,
 };
 
 use rayon::prelude::*;
 use std::collections::HashMap;
 use std::env;
-use std::io::{stdout, Write};
+use std::io::{Write, stdout};
 use std::sync::mpsc;
 use std::thread;
 use std::time::Instant;
@@ -201,13 +201,13 @@ fn validate_inputs(
 
     // Validate public key file can be created
     let pubkey_path = std::path::Path::new(public_key_file);
-    if let Some(parent) = pubkey_path.parent() {
-        if !parent.exists() {
-            return Err(format!(
-                "Public key directory '{}' does not exist",
-                parent.display()
-            ));
-        }
+    if let Some(parent) = pubkey_path.parent()
+        && !parent.exists()
+    {
+        return Err(format!(
+            "Public key directory '{}' does not exist",
+            parent.display()
+        ));
     }
 
     // Warn if public key file already exists

@@ -2,7 +2,7 @@
 name = "signhash"
 version = "1.0.0"
 authors = ["Stephen Battista <stephen.battista@gmail.com>"]
-edition = "2018"
+edition = "2024"
 
 
 

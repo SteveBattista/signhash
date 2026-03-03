@@ -48,7 +48,7 @@ fn hash_file(hasher: HasherOptions, path: &std::path::Path) -> Vec<u8> {
     match hasher {
         HasherOptions::Blake3 => blake3::hash(&contents).as_bytes().to_vec(),
         HasherOptions::Sha256 => {
-            use ring::digest::{digest, SHA256};
+            use ring::digest::{SHA256, digest};
             digest(&SHA256, &contents).as_ref().to_vec()
         }
     }

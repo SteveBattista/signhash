@@ -1,14 +1,14 @@
 //! Tests for signing and verification functions
 
 use ring::rand::SystemRandom;
-use ring::signature::{Ed25519KeyPair, KeyPair, UnparsedPublicKey, ED25519};
+use ring::signature::{ED25519, Ed25519KeyPair, KeyPair, UnparsedPublicKey};
 
 mod test_utils;
 
 // Helper function to sign data (mimics sign_data)
 fn sign_data(data: &str, private_key_bytes: &[u8]) -> ring::signature::Signature {
     let key_pair = Ed25519KeyPair::from_pkcs8(private_key_bytes)
-        .unwrap_or_else(|why| panic!("Couldn't load key pair from PKCS8 data.|{}", why));
+        .unwrap_or_else(|why| panic!("Couldn't load key pair from PKCS8 data.|{why}"));
     key_pair.sign(data.as_bytes())
 }
 

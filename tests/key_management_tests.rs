@@ -116,9 +116,11 @@ fn test_write_key_hex_encoded() {
     assert!(content.contains("TEST_KEY"));
 
     // Verify uppercase hex
-    assert!(hex_encoded
-        .chars()
-        .all(|c| c.is_uppercase() || c.is_ascii_digit()));
+    assert!(
+        hex_encoded
+            .chars()
+            .all(|c| c.is_uppercase() || c.is_ascii_digit())
+    );
 }
 
 #[test]

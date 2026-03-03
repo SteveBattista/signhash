@@ -1,12 +1,12 @@
-use crate::hash_helper::{hash_file, HasherOptions};
+use crate::hash_helper::{HasherOptions, hash_file};
 
 use chrono::{DateTime, Utc};
 use data_encoding::HEXUPPER;
 use indicatif::HumanBytes;
 use indicatif::ProgressBar;
 use indicatif::ProgressStyle;
-use rand::prelude::ThreadRng;
 use rand::RngExt;
+use rand::prelude::ThreadRng;
 use ring::signature::KeyPair;
 use std::collections::{BTreeMap, HashMap};
 use std::convert::TryFrom;
@@ -201,10 +201,7 @@ pub fn write_check_from_channel(
     if fileoutput {
         filepointer = match File::create(output_file) {
             Ok(filepointer) => filepointer,
-            Err(why) => panic!(
-                "couldn't create check file requested at|{}|{}",
-                output_file, why
-            ),
+            Err(why) => panic!("couldn't create check file requested at|{output_file}|{why}"),
         };
         wherefile = Whereoutput::FilePointer(filepointer);
     } else {
@@ -238,9 +235,9 @@ pub fn write_check_from_channel(
 /// Panics if writing to file fails.
 pub fn write_line(wherefile: &mut Whereoutput, data: &str) {
     match wherefile {
-        Whereoutput::FilePointer(ref mut file) => {
+        Whereoutput::FilePointer(file) => {
             if let Err(why) = file.write_all(data.as_bytes()) {
-                panic!("Couldn't write|{}|to the manifest file|{}.", data, why);
+                panic!("Couldn't write|{data}|to the manifest file|{why}.");
             }
         }
         Whereoutput::StringText(_string) => {
@@ -431,7 +428,7 @@ pub fn write_manifest_from_channel(
 #[allow(dead_code)]
 fn sign_data(data: &str, private_key_bytes: &[u8]) -> ring::signature::Signature {
     let key_pair = ring::signature::Ed25519KeyPair::from_pkcs8(private_key_bytes)
-        .unwrap_or_else(|why| panic!("Couldn't load key pair from PKCS8 data.|{}", why));
+        .unwrap_or_else(|why| panic!("Couldn't load key pair from PKCS8 data.|{why}"));
     key_pair.sign(data.as_bytes())
 }
 
@@ -457,29 +454,20 @@ fn sign_data(data: &str, private_key_bytes: &[u8]) -> ring::signature::Signature
 pub fn read_private_key(private_key_bytes: &mut [u8], private_key_file: &str) {
     let mut file = match File::open(private_key_file) {
         Ok(file) => file,
-        Err(why) => panic!(
-            "Couldn't open private key file named|{}|{}",
-            private_key_file, why
-        ),
+        Err(why) => panic!("Couldn't open private key file named|{private_key_file}|{why}"),
     };
     let mut contents = String::new();
     match file.read_to_string(&mut contents) {
         Ok(_x) => (),
-        Err(why) => panic!(
-            "Couldn't read private key file named|{}|{}",
-            private_key_file, why
-        ),
+        Err(why) => panic!("Couldn't read private key file named|{private_key_file}|{why}"),
     }
     let deserialized_map: BTreeMap<String, String> = match serde_yaml::from_str(&contents) {
         Ok(deserialized_map) => deserialized_map,
-        Err(why) => panic!(
-            "Couldn't parse private key YAML file in|{}|{}",
-            private_key_file, why
-        ),
+        Err(why) => panic!("Couldn't parse private key YAML file in|{private_key_file}|{why}"),
     };
     let local_key = match HEXUPPER.decode(deserialized_map[PRIVATE_KEY_STRING_ED25519].as_bytes()) {
         Ok(local_key) => local_key,
-        Err(why) => panic!("Couldn't decode hex encoded private key|{}", why),
+        Err(why) => panic!("Couldn't decode hex encoded private key|{why}"),
     };
     private_key_bytes[..].clone_from_slice(&local_key[..]);
 }
@@ -502,12 +490,12 @@ pub fn read_private_key(private_key_bytes: &mut [u8], private_key_file: &str) {
 pub fn dump_header(header_file: &str) -> String {
     let mut file = match File::open(header_file) {
         Ok(file) => file,
-        Err(why) => panic!("Couldn't open header file named|{}|{}", header_file, why),
+        Err(why) => panic!("Couldn't open header file named|{header_file}|{why}"),
     };
     let mut contents = String::new();
     match file.read_to_string(&mut contents) {
         Ok(_x) => (),
-        Err(why) => panic!("Couldn't read header file named|{}|{}", header_file, why),
+        Err(why) => panic!("Couldn't read header file named|{header_file}|{why}"),
     }
     contents
 }
@@ -546,7 +534,7 @@ pub fn var_digest<R: Read>(mut reader: R, hasher_opts: HasherOptions) -> Vec<u8>
     // Read first chunk to initialize streaming hasher
     let count = match reader.read(&mut buffer) {
         Ok(count) => count,
-        Err(why) => panic!("Couldn't load data from file to hash|{}", why),
+        Err(why) => panic!("Couldn't load data from file to hash|{why}"),
     };
     if count == 0 {
         return hasher_opts.finish();
@@ -557,7 +545,7 @@ pub fn var_digest<R: Read>(mut reader: R, hasher_opts: HasherOptions) -> Vec<u8>
     loop {
         let count = match reader.read(&mut buffer) {
             Ok(count) => count,
-            Err(why) => panic!("Couldn't load data from file to hash|{}", why),
+            Err(why) => panic!("Couldn't load data from file to hash|{why}"),
         };
         if count == 0 {
             break;
@@ -868,12 +856,12 @@ pub fn create_line(
 pub fn create_keys(public_key_bytes: &mut [u8], private_key_bytes: &mut [u8]) {
     let rng = ring::rand::SystemRandom::new();
     let pkcs8_bytes = match ring::signature::Ed25519KeyPair::generate_pkcs8(&rng) {
-        Err(x) => panic!("Couldn't create pks8 key|{}", x),
+        Err(x) => panic!("Couldn't create pks8 key|{x}"),
         Ok(pkcs8_bytes) => pkcs8_bytes,
     };
 
     let key_pair = match ring::signature::Ed25519KeyPair::from_pkcs8(pkcs8_bytes.as_ref()) {
-        Err(x) => panic!("Couldn't create key pair from pks8 key|{}", x),
+        Err(x) => panic!("Couldn't create key pair from pks8 key|{x}"),
         Ok(pkcs8_bytes) => pkcs8_bytes,
     };
 
@@ -906,21 +894,15 @@ pub fn write_key(public_key_bytes: &[u8], pubic_key_file: &str, key_name: &str) 
     map.insert(key_name.to_string(), HEXUPPER.encode(public_key_bytes));
     let s = match serde_yaml::to_string(&map) {
         Ok(s) => s,
-        Err(x) => panic!("Couldn't create YAML string for|{}|key|{}", key_name, x),
+        Err(x) => panic!("Couldn't create YAML string for|{key_name}|key|{x}"),
     };
     let mut file = match File::create(pubic_key_file) {
         Ok(file) => file,
-        Err(why) => panic!(
-            "couldn't create|{} key at|{}|{}",
-            key_name, pubic_key_file, why
-        ),
+        Err(why) => panic!("couldn't create|{key_name} key at|{pubic_key_file}|{why}"),
     };
     match file.write_all(s.as_bytes()) {
         Ok(()) => (),
-        Err(why) => panic!(
-            "Couldn't write to|{} key to|{}|{}",
-            key_name, pubic_key_file, why
-        ),
+        Err(why) => panic!("Couldn't write to|{key_name} key to|{pubic_key_file}|{why}"),
     }
 }
 
@@ -946,33 +928,27 @@ pub fn write_key(public_key_bytes: &[u8], pubic_key_file: &str, key_name: &str) 
 pub fn read_public_key(public_key_file: &str, public_key_bytes: &mut [u8]) {
     let mut file = match File::open(public_key_file) {
         Ok(filepointer) => filepointer,
-        Err(why) => panic!(
-            "Couldn't find public key file requested at|{}|{}",
-            public_key_file, why
-        ),
+        Err(why) => panic!("Couldn't find public key file requested at|{public_key_file}|{why}"),
     };
 
     let mut contents = String::new();
     match file.read_to_string(&mut contents) {
         Ok(_x) => (),
-        Err(why) => panic!(
-            "Couldn't read from public key file requested at|{}|{}",
-            public_key_file, why
-        ),
+        Err(why) => {
+            panic!("Couldn't read from public key file requested at|{public_key_file}|{why}")
+        }
     }
     let deserialized_map: BTreeMap<String, String> = match serde_yaml::from_str(&contents) {
         Ok(deserialized_map) => deserialized_map,
-        Err(why) => panic!(
-            "Couldn't parse public key from YAML file requested at|{}|{}",
-            public_key_file, why
-        ),
+        Err(why) => {
+            panic!("Couldn't parse public key from YAML file requested at|{public_key_file}|{why}")
+        }
     };
     let local_key = match HEXUPPER.decode(deserialized_map[PUBIC_KEY_STRING_ED25519].as_bytes()) {
         Ok(local_key) => local_key,
-        Err(why) => panic!(
-            "Couldn't decode hex from public key file requested at|{}|{}",
-            public_key_file, why
-        ),
+        Err(why) => {
+            panic!("Couldn't decode hex from public key file requested at|{public_key_file}|{why}")
+        }
     };
     public_key_bytes[..].clone_from_slice(&local_key[..]);
 }
@@ -1077,10 +1053,7 @@ pub fn write_headers(
 pub fn read_manifest_file(vec_of_lines: &mut Vec<String>, input_file: &str, fileoutput: bool) {
     let f = match File::open(input_file) {
         Ok(f) => f,
-        Err(why) => panic!(
-            "Couldn't open manifest file for input at|{}|{}",
-            input_file, why
-        ),
+        Err(why) => panic!("Couldn't open manifest file for input at|{input_file}|{why}"),
     };
     let spinner = ProgressBar::new_spinner();
     let file = BufReader::new(&f);
@@ -1162,7 +1135,7 @@ fn send_sign_message(
         file_len: len,
     };
     if let Err(why) = sign_tx.send(message) {
-        panic!("Couldn't send to writing thread.|{}", why);
+        panic!("Couldn't send to writing thread.|{why}");
     }
 }
 
@@ -1190,7 +1163,7 @@ pub fn send_check_message(
         verbose,
     };
     if let Err(why) = check_tx.send(message) {
-        panic!("Couldn't send to writing thread.|{}\n", why);
+        panic!("Couldn't send to writing thread.|{why}\n");
     }
 }
 
@@ -1355,7 +1328,7 @@ pub fn create_progress_bar(len: u64, prefix: &str, color: &str, show: bool) -> P
 /// ```
 pub fn get_pool_size(input: &str) -> usize {
     let size = input.parse::<usize>().unwrap_or_else(|why| {
-        panic!("Please choose a number for the number of threads.|{}", why);
+        panic!("Please choose a number for the number of threads.|{why}");
     });
     if size < 1 {
         std::thread::available_parallelism()

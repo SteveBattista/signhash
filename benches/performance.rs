@@ -1,5 +1,5 @@
-use criterion::{criterion_group, criterion_main, Criterion, Throughput};
-use signhash::{hash_file, HasherOptions};
+use criterion::{Criterion, Throughput, criterion_group, criterion_main};
+use signhash::{HasherOptions, hash_file};
 use std::hint::black_box;
 use std::io::Write;
 use tempfile::NamedTempFile;

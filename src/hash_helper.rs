@@ -122,7 +122,7 @@ impl HasherOptions {
         Self {
             algorithm: hash_type
                 .parse()
-                .unwrap_or_else(|e| panic!("Invalid hash algorithm '{}': {}", hash_type, e)),
+                .unwrap_or_else(|e| panic!("Invalid hash algorithm '{hash_type}': {e}")),
         }
     }
 
@@ -300,7 +300,7 @@ fn hash_streaming_file(hasher: &HasherOptions, file: &mut File) -> Vec<u8> {
     loop {
         let count = file
             .read(&mut buffer)
-            .unwrap_or_else(|e| panic!("Failed to read file for hashing: {}", e));
+            .unwrap_or_else(|e| panic!("Failed to read file for hashing: {e}"));
 
         if count == 0 {
             break;
@@ -325,7 +325,7 @@ fn hash_streaming(hasher: &HasherOptions, mut reader: impl Read) -> Vec<u8> {
     loop {
         let count = reader
             .read(&mut buffer)
-            .unwrap_or_else(|e| panic!("Failed to read file for hashing: {}", e));
+            .unwrap_or_else(|e| panic!("Failed to read file for hashing: {e}"));
 
         if count == 0 {
             break;

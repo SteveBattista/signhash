@@ -1,8 +1,8 @@
 //! Tests for nonce generation and management
 
 use data_encoding::HEXUPPER;
-use rand::rngs::ThreadRng;
 use rand::Rng;
+use rand::rngs::ThreadRng;
 use std::collections::{HashMap, HashSet};
 use std::sync::mpsc::channel;
 
@@ -286,9 +286,11 @@ fn test_nonce_hex_encoding() {
     assert_eq!(hex_encoded.len(), 256);
 
     // Should be uppercase hex
-    assert!(hex_encoded
-        .chars()
-        .all(|c| c.is_ascii_uppercase() || c.is_ascii_digit()));
+    assert!(
+        hex_encoded
+            .chars()
+            .all(|c| c.is_ascii_uppercase() || c.is_ascii_digit())
+    );
 }
 
 #[test]

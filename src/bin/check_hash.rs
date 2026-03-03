@@ -22,19 +22,19 @@
 
 use signhash::hash_helper::{self, HasherOptions};
 use signhash::main_helper::{
-    check_line, collect_files, create_progress_bar, get_pool_size, parse_manifest_line,
-    read_manifest_file, read_public_key, report_duplicative_and_insert_nonce, send_check_message,
-    send_pass_fail_check_message, write_check_from_channel, CheckMessage, ManifestLine,
-    BITS_IN_BYTES, DEFAULT_MANIFEST_FILE_NAME, DEFAULT_PUBIC_KEY_FILE_NAME, END_MESSAGE,
-    NO_OUTPUTFILE, PRINT_MESSAGE, PUBLICKEY_LENGTH_IN_BYTES, PWD, SEPARATOR_LINE,
-    SIGNED_LENGTH_IN_BYTES, SIGN_HEADER_MESSAGE_COUNT, TOKEN_SEPARATOR,
+    BITS_IN_BYTES, CheckMessage, DEFAULT_MANIFEST_FILE_NAME, DEFAULT_PUBIC_KEY_FILE_NAME,
+    END_MESSAGE, ManifestLine, NO_OUTPUTFILE, PRINT_MESSAGE, PUBLICKEY_LENGTH_IN_BYTES, PWD,
+    SEPARATOR_LINE, SIGN_HEADER_MESSAGE_COUNT, SIGNED_LENGTH_IN_BYTES, TOKEN_SEPARATOR, check_line,
+    collect_files, create_progress_bar, get_pool_size, parse_manifest_line, read_manifest_file,
+    read_public_key, report_duplicative_and_insert_nonce, send_check_message,
+    send_pass_fail_check_message, write_check_from_channel,
 };
 
 use data_encoding::HEXUPPER;
 use rayon::prelude::*;
 use std::collections::HashMap;
 use std::env;
-use std::sync::{mpsc, Arc, Mutex};
+use std::sync::{Arc, Mutex, mpsc};
 use std::thread;
 
 use chrono::{DateTime, Utc};
