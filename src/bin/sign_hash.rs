@@ -173,6 +173,12 @@ fn validate_inputs(
 
         // Check if parent directory exists and is writable
         if let Some(parent) = manifest_path.parent() {
+            // An empty parent means the current directory; normalise to "."
+            let parent = if parent.as_os_str().is_empty() {
+                std::path::Path::new(".")
+            } else {
+                parent
+            };
             if !parent.exists() {
                 return Err(format!(
                     "Output directory '{}' does not exist",

@@ -244,6 +244,12 @@ impl Config {
 
             // Check if parent directory exists and is writable
             if let Some(parent) = output_path.parent() {
+                // An empty parent means the current directory; normalise to "."
+                let parent = if parent.as_os_str().is_empty() {
+                    std::path::Path::new(".")
+                } else {
+                    parent
+                };
                 if !parent.exists() {
                     return Err(format!(
                         "Output directory '{}' does not exist",
