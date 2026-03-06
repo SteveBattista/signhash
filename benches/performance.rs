@@ -39,9 +39,5 @@ fn benchmark_hash_algorithms(c: &mut Criterion) {
     }
 }
 
-
-criterion_group!(
-    benches,
-    benchmark_hash_algorithms,
-);
+criterion_group!(benches, benchmark_hash_algorithms,);
 criterion_main!(benches);
