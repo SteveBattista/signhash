@@ -161,3 +161,5 @@ When adding new tests:
 - Integration tests: Cover main user workflows
 - Edge cases: Handle error conditions and boundary cases
 - Performance tests: Verify multi-threading efficiency
+
+Licensed under the MIT License. Copyright 2026 MITRE | #26-0488 03/06/26

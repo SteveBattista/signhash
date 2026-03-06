@@ -165,3 +165,5 @@ Or manually:
 - ✅ Zero clippy::pedantic warnings
 - ✅ Modern Rust idioms (yaml-rust2, inline format strings)
 - ✅ Comprehensive documentation with examples
+
+Licensed under the MIT License. Copyright 2026 MITRE | #26-0488 03/06/26

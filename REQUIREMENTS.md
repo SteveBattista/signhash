@@ -245,3 +245,5 @@ Package manager support may be added in future versions.
 - **Platform Testing**: Cross-platform compatibility validated
 
 For more information about development workflows, see [`DEVELOPMENT.md`](DEVELOPMENT.md).
+
+Licensed under the MIT License. Copyright 2026 MITRE | #26-0488 03/06/26
