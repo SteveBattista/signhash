@@ -1,0 +1,889 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SignHash - Cryptographically Signed File Integrity</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow-x: hidden;
+        }
+
+        .presentation {
+            width: 90%;
+            max-width: 1200px;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            overflow: hidden;
+        }
+
+        .slide {
+            display: none;
+            padding: 60px;
+            min-height: 600px;
+            animation: fadeIn 0.5s;
+        }
+
+        .slide.active {
+            display: block;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        h1 {
+            color: #667eea;
+            font-size: 3em;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        h2 {
+            color: #764ba2;
+            font-size: 2.5em;
+            margin-bottom: 30px;
+            border-bottom: 3px solid #667eea;
+            padding-bottom: 10px;
+        }
+
+        h3 {
+            color: #667eea;
+            font-size: 1.8em;
+            margin: 25px 0 15px 0;
+        }
+
+        h4 {
+            color: #764ba2;
+            font-size: 1.4em;
+            margin: 20px 0 10px 0;
+        }
+
+        p, li {
+            font-size: 1.2em;
+            line-height: 1.8;
+            color: #333;
+            margin-bottom: 15px;
+        }
+
+        ul {
+            margin-left: 40px;
+            margin-bottom: 20px;
+        }
+
+        .highlight {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 3px 10px;
+            border-radius: 5px;
+            font-weight: bold;
+        }
+
+        .code-block {
+            background: #2d2d2d;
+            color: #f8f8f2;
+            padding: 20px;
+            border-radius: 10px;
+            font-family: 'Courier New', monospace;
+            font-size: 1em;
+            margin: 20px 0;
+            overflow-x: auto;
+        }
+
+        .command {
+            color: #50fa7b;
+        }
+
+        .flag {
+            color: #ff79c6;
+        }
+
+        .feature-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin: 30px 0;
+        }
+
+        .feature-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 25px;
+            border-radius: 15px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+            transition: transform 0.3s;
+        }
+
+        .feature-card:hover {
+            transform: translateY(-5px);
+        }
+
+        .feature-card h4 {
+            color: white;
+            margin-bottom: 10px;
+        }
+
+        .feature-card p {
+            color: rgba(255, 255, 255, 0.9);
+            font-size: 1em;
+        }
+
+        .navigation {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px 60px;
+            background: #f8f9fa;
+            border-top: 2px solid #e0e0e0;
+        }
+
+        .nav-button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            font-size: 1.1em;
+            border-radius: 25px;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-weight: bold;
+        }
+
+        .nav-button:hover:not(:disabled) {
+            transform: scale(1.05);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .nav-button:disabled {
+            opacity: 0.3;
+            cursor: not-allowed;
+        }
+
+        .slide-counter {
+            font-size: 1.1em;
+            color: #667eea;
+            font-weight: bold;
+        }
+
+        .problem-box {
+            background: #fff3cd;
+            border-left: 5px solid #ffc107;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 5px;
+        }
+
+        .solution-box {
+            background: #d4edda;
+            border-left: 5px solid #28a745;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 5px;
+        }
+
+        .warning-box {
+            background: #f8d7da;
+            border-left: 5px solid #dc3545;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 5px;
+        }
+
+        .info-box {
+            background: #d1ecf1;
+            border-left: 5px solid #17a2b8;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 5px;
+        }
+
+        .subtitle {
+            text-align: center;
+            font-size: 1.4em;
+            color: #666;
+            margin-bottom: 20px;
+        }
+
+        .version-info {
+            text-align: center;
+            font-size: 1.1em;
+            color: #999;
+            margin: 20px 0;
+        }
+
+        .center-content {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            height: 100%;
+        }
+
+        .emoji {
+            font-size: 3em;
+            margin-bottom: 20px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+        }
+
+        th, td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+
+        th {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            font-weight: bold;
+        }
+
+        tr:hover {
+            background: #f5f5f5;
+        }
+
+        .two-column {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+            margin: 20px 0;
+        }
+
+        .workflow-step {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 10px;
+            margin: 15px 0;
+            border-left: 4px solid #667eea;
+        }
+
+        .workflow-step h4 {
+            margin-top: 0;
+        }
+
+        strong {
+            color: #764ba2;
+        }
+    </style>
+</head>
+<body>
+    <div class="presentation">
+        <!-- Slide 1: Title -->
+        <div class="slide active">
+            <div class="center-content">
+                <div class="emoji">🔐</div>
+                <h1>SignHash</h1>
+                <p class="subtitle">Cryptographically Signed File Integrity Verification</p>
+                <div class="version-info">
+                    Version 1.0.0 | Manifest Format 0.8.0 | Rust Edition 2024
+                </div>
+                <p style="text-align: center; margin-top: 40px; font-size: 1.3em;">
+                    A high-performance Rust tool for creating and verifying<br>
+                    cryptographically signed file manifests
+                </p>
+            </div>
+        </div>
+
+        <!-- Slide 2: The Problem -->
+        <div class="slide">
+            <h2>🤔 The Problem</h2>
+            
+            <div class="problem-box">
+                <h3>Traditional Hash Files Are Vulnerable</h3>
+                <p>When you download software or files, providers often give you a list of checksums (hashes). But there's a critical flaw:</p>
+            </div>
+
+            <ul>
+                <li><strong>No guarantee the hash file itself is authentic</strong> - An attacker could replace both the files AND the hash list</li>
+                <li><strong>No way to verify integrity</strong> - If someone modifies the hash file, you have no way to detect it</li>
+                <li><strong>Trust is manual</strong> - You must separately verify the hash file through other channels</li>
+            </ul>
+
+            <div class="info-box">
+                <h4>Example Attack Scenario:</h4>
+                <p>An attacker compromises a download server, replaces your file with malware, and simply updates the hash list to match. You verify the hashes and think everything is fine! 😱</p>
+            </div>
+        </div>
+
+        <!-- Slide 3: The Solution -->
+        <div class="slide">
+            <h2>✅ The Solution: SignHash</h2>
+            
+            <div class="solution-box">
+                <h3>Cryptographic Signing Ensures Authenticity</h3>
+                <p>SignHash uses <span class="highlight">Ed25519 digital signatures</span> to cryptographically sign each file hash in the manifest.</p>
+            </div>
+
+            <h3>How It Works:</h3>
+            <div class="workflow-step">
+                <h4>1. Creating a Manifest (sign_hash)</h4>
+                <p>Hash all files in a directory and sign each entry with a private key. The public key is saved separately.</p>
+            </div>
+
+            <div class="workflow-step">
+                <h4>2. Verification (check_hash)</h4>
+                <p>Using the public key, verify that:</p>
+                <ul>
+                    <li>The manifest hasn't been tampered with</li>
+                    <li>Each file hash matches what was originally signed</li>
+                    <li>File metadata (size, timestamp) is correct</li>
+                </ul>
+            </div>
+
+            <div class="info-box">
+                <p><strong>Key Insight:</strong> By not writing out the private key, it becomes impossible to tamper with files and update the manifest later. The public key alone can only verify, not create new signatures.</p>
+            </div>
+        </div>
+
+        <!-- Slide 4: Key Features -->
+        <div class="slide">
+            <h2>⚡ Key Features</h2>
+            
+            <div class="feature-grid">
+                <div class="feature-card">
+                    <h4>🔢 Multiple Hash Algorithms</h4>
+                    <p>SHA1, SHA256, SHA384, SHA512, SHA512_256, and BLAKE3</p>
+                </div>
+                <div class="feature-card">
+                    <h4>🚀 High Performance</h4>
+                    <p>Rayon-based multi-threading with work-stealing parallelism</p>
+                </div>
+                <div class="feature-card">
+                    <h4>💾 Optimized I/O</h4>
+                    <p>Memory-mapped files for zero-copy hashing. Adaptive buffers (64KB-4MB)</p>
+                </div>
+                <div class="feature-card">
+                    <h4>🔐 Ed25519 Signatures</h4>
+                    <p>Industry-standard cryptographic signing of every manifest entry</p>
+                </div>
+                <div class="feature-card">
+                    <h4>📊 Progress Indicators</h4>
+                    <p>Real-time progress bars during file operations</p>
+                </div>
+                <div class="feature-card">
+                    <h4>🔗 Symlink Detection</h4>
+                    <p>Identifies and properly handles symbolic links</p>
+                </div>
+                <div class="feature-card">
+                    <h4>✓ Comprehensive Checks</h4>
+                    <p>Verifies file size, modification time, type, hash, and signature</p>
+                </div>
+                <div class="feature-card">
+                    <h4>🎲 Unique Nonces</h4>
+                    <p>128-byte random nonces prevent signature guessing attacks</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Slide 5: Performance & Architecture -->
+        <div class="slide">
+            <h2>🏗️ Architecture & Performance</h2>
+            
+            <h3>High-Performance Design</h3>
+            
+            <div class="two-column">
+                <div>
+                    <h4>Threading Strategy</h4>
+                    <ul>
+                        <li>Rayon work-stealing thread pool</li>
+                        <li>Auto-detects CPU cores</li>
+                        <li>Respects cgroups & CPU affinity</li>
+                        <li>Asynchronous writer thread</li>
+                        <li>Message channel communication</li>
+                    </ul>
+                </div>
+                <div>
+                    <h4>I/O Optimization</h4>
+                    <ul>
+                        <li><strong>≥16KB:</strong> Memory mapping (zero-copy)</li>
+                        <li><strong>&lt;1MB:</strong> 64KB buffer</li>
+                        <li><strong>1-10MB:</strong> 256KB buffer</li>
+                        <li><strong>10-100MB:</strong> 1MB buffer</li>
+                        <li><strong>>100MB:</strong> 4MB buffer</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="info-box">
+                <h4>⚡ Performance Gains</h4>
+                <ul>
+                    <li><strong>20-40% faster</strong> parallel execution (vs. previous scoped_threadpool)</li>
+                    <li><strong>50-80% faster</strong> for large files using memory-mapped I/O</li>
+                    <li><strong>BLAKE3:</strong> Uses Rayon parallelization and native SIMD instructions</li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- Slide 6: Using sign_hash -->
+        <div class="slide">
+            <h2>📝 Using sign_hash</h2>
+            
+            <h3>Create Signed Manifests</h3>
+            
+            <h4>Basic Usage:</h4>
+            <div class="code-block">
+<span class="command">./sign_hash</span> <span class="flag">-d</span> ./my_files <span class="flag">-o</span> manifest.txt
+
+# Hash all files in ./my_files directory
+# Create signed manifest in manifest.txt
+# Generate public key (Signpub.txt)
+            </div>
+
+            <h4>With Options:</h4>
+            <div class="code-block">
+<span class="command">./sign_hash</span> <span class="flag">-d</span> ./my_files <span class="flag">-o</span> manifest.txt <span class="flag">-a</span> blake3 <span class="flag">-p</span> 8
+
+# Use BLAKE3 hash algorithm
+# Use 8 threads for processing
+            </div>
+
+            <h4>With Custom Header:</h4>
+            <div class="code-block">
+<span class="command">./sign_hash</span> <span class="flag">-d</span> ./my_files <span class="flag">-o</span> manifest.txt <span class="flag">-i</span> header.txt
+
+# Include custom header information in manifest
+            </div>
+
+            <h3>Available Options:</h3>
+            <table>
+                <tr>
+                    <th>Flag</th>
+                    <th>Description</th>
+                    <th>Default</th>
+                </tr>
+                <tr>
+                    <td>-a, --hash</td>
+                    <td>Hash algorithm (SHA256/SHA512/blake3/etc.)</td>
+                    <td>SHA256</td>
+                </tr>
+                <tr>
+                    <td>-s, --signing</td>
+                    <td>Signing algorithm</td>
+                    <td>ED25519</td>
+                </tr>
+                <tr>
+                    <td>-u, --public</td>
+                    <td>Public key file location</td>
+                    <td>Signpub.txt</td>
+                </tr>
+                <tr>
+                    <td>-o, --output</td>
+                    <td>Manifest output file</td>
+                    <td>STDOUT</td>
+                </tr>
+                <tr>
+                    <td>-p, --pool</td>
+                    <td>Thread pool size</td>
+                    <td>CPU cores</td>
+                </tr>
+                <tr>
+                    <td>-d, --directory</td>
+                    <td>Directory to hash</td>
+                    <td>Current dir</td>
+                </tr>
+                <tr>
+                    <td>-i, --include</td>
+                    <td>Header file to include</td>
+                    <td>None</td>
+                </tr>
+            </table>
+        </div>
+
+        <!-- Slide 7: Using check_hash -->
+        <div class="slide">
+            <h2>✓ Using check_hash</h2>
+            
+            <h3>Verify Files and Manifest Integrity</h3>
+            
+            <h4>Check Manifest Only:</h4>
+            <div class="code-block">
+<span class="command">./check_hash</span> <span class="flag">-i</span> manifest.txt <span class="flag">-o</span> check_results.txt <span class="flag">-m</span>
+
+# Verify manifest hasn't been tampered
+# Check all signatures
+# Write results to check_results.txt
+            </div>
+
+            <h4>Check Files Against Manifest:</h4>
+            <div class="code-block">
+<span class="command">./check_hash</span> <span class="flag">-d</span> ./my_files <span class="flag">-i</span> manifest.txt <span class="flag">-o</span> check_results.txt
+
+# Verify all files match the manifest
+# Check for tampering, modifications, missing files
+# Verify manifest signatures
+            </div>
+
+            <h4>Verbose Mode:</h4>
+            <div class="code-block">
+<span class="command">./check_hash</span> <span class="flag">-d</span> ./my_files <span class="flag">-i</span> manifest.txt <span class="flag">-v</span>
+
+# Print ALL checks including successful ones
+# Output to STDOUT
+            </div>
+
+            <h3>Available Options:</h3>
+            <table>
+                <tr>
+                    <th>Flag</th>
+                    <th>Description</th>
+                    <th>Default</th>
+                </tr>
+                <tr>
+                    <td>-u, --public</td>
+                    <td>Public key file location</td>
+                    <td>Signpub.txt</td>
+                </tr>
+                <tr>
+                    <td>-i, --input</td>
+                    <td>Manifest file location</td>
+                    <td>Manifest.txt</td>
+                </tr>
+                <tr>
+                    <td>-o, --output</td>
+                    <td>Output file location</td>
+                    <td>STDOUT</td>
+                </tr>
+                <tr>
+                    <td>-p, --pool</td>
+                    <td>Thread pool size</td>
+                    <td>CPU cores</td>
+                </tr>
+                <tr>
+                    <td>-d, --directory</td>
+                    <td>Directory to check</td>
+                    <td>Current dir</td>
+                </tr>
+                <tr>
+                    <td>-v, --verbose</td>
+                    <td>Print matches as well as failures</td>
+                    <td>False</td>
+                </tr>
+                <tr>
+                    <td>-m, --manifestonly</td>
+                    <td>Check manifest validity only</td>
+                    <td>False</td>
+                </tr>
+            </table>
+        </div>
+
+        <!-- Slide 8: Security Considerations -->
+        <div class="slide">
+            <h2>🔒 Security Considerations</h2>
+            
+            <h3>What Needs Protection?</h3>
+            
+            <div class="two-column">
+                <div>
+                    <h4>🔐 Confidentiality (Encryption)</h4>
+                    <div class="warning-box">
+                        <p><strong>Manifest file should be encrypted if:</strong></p>
+                        <ul>
+                            <li>File names are sensitive</li>
+                            <li>File existence is sensitive</li>
+                            <li>Hash matching could leak info</li>
+                            <li>Rainbow table attacks are a concern</li>
+                        </ul>
+                    </div>
+                    <div class="solution-box">
+                        <p><strong>Public key:</strong> Does NOT need to be kept secret</p>
+                    </div>
+                </div>
+                <div>
+                    <h4>✓ Integrity (Tampering)</h4>
+                    <div class="warning-box">
+                        <p><strong>Manifest & signature must be protected from tampering:</strong></p>
+                        <ul>
+                            <li>Tampered signature = detectable and possible denial of services</li>
+                            <li>Tampered manifest  = detectable and possible denial of service</li>
+                            <li>Both tampered = complete compromise</li>
+                        </ul>
+                    </div>
+                    <div class="solution-box">
+                        <p><strong>Protection methods:</strong></p>
+                        <ul>
+                            <li>Multiple storage locations</li>
+                            <li>Read signature over phone (64 hex chars)</li>
+                            <li>Store in blockchain or immutable DB</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <div class="info-box">
+                <h4>🎲 Nonce Security</h4>
+                <p>Each file gets a unique 128-byte random nonce. This makes it cryptographically infeasible (1/2^384 odds) to substitute a line from one manifest to another, even if file names and metadata match.</p>
+            </div>
+        </div>
+
+        <!-- Slide 9: Use Cases -->
+        <div class="slide">
+            <h2>💡 Use Cases</h2>
+            
+            <div class="feature-grid" style="grid-template-columns: 1fr 1fr;">
+                <div class="feature-card">
+                    <h4>📦 Software Distribution</h4>
+                    <p>Provide verifiable releases where users can confirm files haven't been tampered with after release</p>
+                </div>
+                <div class="feature-card">
+                    <h4>🔄 File Integrity Monitoring</h4>
+                    <p>Detect unauthorized changes to critical system files or configuration directories</p>
+                </div>
+                <div class="feature-card">
+                    <h4>💾 Backup Verification</h4>
+                    <p>Ensure backup archives haven't been corrupted or tampered with over time</p>
+                </div>
+                <div class="feature-card">
+                    <h4>📤 Secure File Transfer</h4>
+                    <p>Verify that files received match exactly what was sent, with cryptographic proof</p>
+                </div>
+                <div class="feature-card">
+                    <h4>🏢 Compliance & Audit</h4>
+                    <p>Create tamper-evident records of file states for regulatory compliance</p>
+                </div>
+                <div class="feature-card">
+                    <h4>🔬 Research Data Integrity</h4>
+                    <p>Ensure scientific data hasn't been altered, maintaining research integrity</p>
+                </div>
+                <div class="feature-card">
+                    <h4>📁 Document Management</h4>
+                    <p>Prove legal documents haven't been modified after signing</p>
+                </div>
+                <div class="feature-card">
+                    <h4>🎮 Game/Media Distribution</h4>
+                    <p>Allow users to verify downloads haven't been modified or infected with malware</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Slide 10: Example Workflow -->
+        <div class="slide">
+            <h2>🔄 Complete Workflow Example</h2>
+            
+            <h3>Scenario: Distributing a Software Release</h3>
+            
+            <div class="workflow-step">
+                <h4>Step 1: Developer Creates Release</h4>
+                <div class="code-block">
+<span class="command">./sign_hash</span> <span class="flag">-d</span> ./release-v2.0 <span class="flag">-o</span> manifest-v2.0.txt <span class="flag">-a</span> blake3
+
+# Creates manifest-v2.0.txt (signed hashes)
+# Creates Signpub.txt (public key)
+# Private key used and discarded
+                </div>
+                <p>Developer publishes: <strong>release files + manifest-v2.0.txt + Signpub.txt</strong></p>
+            </div>
+
+            <div class="workflow-step">
+                <h4>Step 2: User Downloads Files</h4>
+                <p>User downloads all release files, the manifest, and the public key from the distribution server.</p>
+            </div>
+
+            <div class="workflow-step">
+                <h4>Step 3: User Verifies Manifest Integrity</h4>
+                <div class="code-block">
+<span class="command">./check_hash</span> <span class="flag">-i</span> manifest-v2.0.txt <span class="flag">-m</span>
+
+# ✓ Manifest signature valid
+# ✓ All entries verified
+# ✓ No tampering detected
+                </div>
+            </div>
+
+            <div class="workflow-step">
+                <h4>Step 4: User Verifies All Files</h4>
+                <div class="code-block">
+<span class="command">./check_hash</span> <span class="flag">-d</span> ./release-v2.0 <span class="flag">-i</span> manifest-v2.0.txt <span class="flag">-v</span>
+
+# ✓ All files match manifest
+# ✓ All hashes verified
+# ✓ All signatures valid
+# ✓ Files are authentic!
+                </div>
+            </div>
+
+            <div class="solution-box">
+                <p><strong>Result:</strong> User has cryptographic proof that the files downloaded are exactly what the developer released, with no possibility of tampering.</p>
+            </div>
+        </div>
+
+        <!-- Slide 11: Technical Details -->
+        <div class="slide">
+            <h2>🔧 Technical Details</h2>
+            
+            <div class="two-column">
+                <div>
+                    <h3>Technology Stack</h3>
+                    <ul>
+                        <li><strong>Language:</strong> Rust (Edition 2024)</li>
+                        <li><strong>Crypto:</strong> ring (Ed25519)</li>
+                        <li><strong>Hashing:</strong> SHA family, BLAKE3</li>
+                        <li><strong>Threading:</strong> Rayon</li>
+                        <li><strong>I/O:</strong> memmap2, adaptive buffers</li>
+                        <li><strong>CLI:</strong> clap</li>
+                        <li><strong>Progress:</strong> indicatif</li>
+                    </ul>
+                </div>
+                <div>
+                    <h3>System Requirements</h3>
+                    <ul>
+                        <li><strong>OS:</strong> Linux, macOS, Windows</li>
+                        <li><strong>RAM:</strong> 1GB min, 4GB+ recommended</li>
+                        <li><strong>CPU:</strong> Multi-core recommended</li>
+                        <li><strong>Storage:</strong> 50MB for binaries</li>
+                        <li><strong>Rust:</strong> 1.70.0 or later</li>
+                    </ul>
+                </div>
+            </div>
+
+            <h3>Key Algorithms</h3>
+            <table>
+                <tr>
+                    <th>Component</th>
+                    <th>Algorithm</th>
+                    <th>Purpose</th>
+                </tr>
+                <tr>
+                    <td>Digital Signature</td>
+                    <td>Ed25519</td>
+                    <td>Fast, secure signing/verification</td>
+                </tr>
+                <tr>
+                    <td>Hashing (default)</td>
+                    <td>SHA-256</td>
+                    <td>Standard, widely compatible</td>
+                </tr>
+                <tr>
+                    <td>Hashing (fastest)</td>
+                    <td>BLAKE3</td>
+                    <td>Parallel, SIMD-optimized</td>
+                </tr>
+                <tr>
+                    <td>Random Nonces</td>
+                    <td>128 bytes</td>
+                    <td>Prevent signature guessing</td>
+                </tr>
+            </table>
+        </div>
+
+        <!-- Slide 12: Summary -->
+        <div class="slide">
+            <h2>📋 Summary</h2>
+            
+            <div class="center-content">
+                <h3 style="text-align: center; margin-bottom: 30px;">SignHash provides cryptographically provable file integrity</h3>
+                
+                <div class="feature-grid">
+                    <div class="feature-card">
+                        <h4>🎯 Problem Solved</h4>
+                        <p>Traditional hash files can be tampered. SignHash makes tampering detectable.</p>
+                    </div>
+                    <div class="feature-card">
+                        <h4>🔐 Technology</h4>
+                        <p>Ed25519 signatures + Multiple hash algorithms + High-performance I/O</p>
+                    </div>
+                    <div class="feature-card">
+                        <h4>🚀 Performance</h4>
+                        <p>20-80% faster than alternatives with multi-threading and memory mapping</p>
+                    </div>
+                    <div class="feature-card">
+                        <h4>✅ Use Cases</h4>
+                        <p>Software distribution, backups, compliance, file transfer, integrity monitoring</p>
+                    </div>
+                </div>
+
+                <div class="solution-box" style="margin-top: 40px; max-width: 800px;">
+                    <h4>🎉 Bottom Line</h4>
+                    <p style="font-size: 1.3em; text-align: center;">
+                        SignHash gives you <strong>cryptographic proof</strong> that files haven't been tampered with—something traditional checksums simply cannot provide.
+                    </p>
+                </div>
+
+                <div style="margin-top: 40px;">
+                    <h4>🔗 Learn More:</h4>
+                    <p style="text-align: center;">
+                        📖 README.md | 🛠️ DEVELOPMENT.md | 📋 REQUIREMENTS.md
+                        These are the views and opinion of the author and not of the MITRE corporation.
+                        Licensed under the MIT License. Copyright 2026 MITRE | #26-0488 03/06/26
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Navigation -->
+        <div class="navigation">
+            <button class="nav-button" id="prevBtn" onclick="changeSlide(-1)">← Previous</button>
+            <span class="slide-counter">
+                <span id="currentSlide">1</span> / <span id="totalSlides">12</span>
+            </span>
+            <button class="nav-button" id="nextBtn" onclick="changeSlide(1)">Next →</button>
+        </div>
+    </div>
+
+    <script>
+        let currentSlide = 1;
+        const totalSlides = document.querySelectorAll('.slide').length;
+        
+        document.getElementById('totalSlides').textContent = totalSlides;
+        
+        function showSlide(n) {
+            const slides = document.querySelectorAll('.slide');
+            const prevBtn = document.getElementById('prevBtn');
+            const nextBtn = document.getElementById('nextBtn');
+            
+            if (n > totalSlides) currentSlide = totalSlides;
+            if (n < 1) currentSlide = 1;
+            
+            slides.forEach(slide => slide.classList.remove('active'));
+            slides[currentSlide - 1].classList.add('active');
+            
+            document.getElementById('currentSlide').textContent = currentSlide;
+            
+            prevBtn.disabled = currentSlide === 1;
+            nextBtn.disabled = currentSlide === totalSlides;
+            
+            // Scroll to top of presentation
+            slides[currentSlide - 1].scrollTop = 0;
+        }
+        
+        function changeSlide(n) {
+            currentSlide += n;
+            showSlide(currentSlide);
+        }
+        
+        // Keyboard navigation
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'ArrowLeft') changeSlide(-1);
+            if (e.key === 'ArrowRight') changeSlide(1);
+            if (e.key === 'Home') {
+                currentSlide = 1;
+                showSlide(currentSlide);
+            }
+            if (e.key === 'End') {
+                currentSlide = totalSlides;
+                showSlide(currentSlide);
+            }
+        });
+        
+        // Initialize
+        showSlide(currentSlide);
+    </script>
+</body>
+</html>
