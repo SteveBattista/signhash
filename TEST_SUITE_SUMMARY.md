@@ -157,4 +157,6 @@ tests/
 
 **289 fully implemented, passing tests** (plus 15 documentation tests) with strict code quality standards enforced through clippy pedantic linting. The test suite is production-ready and provides comprehensive coverage of all signhash functionality.
 
+These are the views and opinion of the author and not of the MITRE corporation.
+
 Licensed under the MIT License. Copyright 2026 MITRE | #26-0488 03/06/26

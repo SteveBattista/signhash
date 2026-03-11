@@ -282,3 +282,7 @@ All cryptographic tests use real implementations (ring, blake3) rather than mock
 2. Add post-quantum cryptographic algorithm option in addition to Ed25519. If we used two signatures and one of them failed due to the advent of quantum computing, the second would ensure integrity
 3. Add option to store private key in secure enclave or hardware security module
 4. Support for streaming verification without loading entire manifest into memory
+
+These are the views and opinion of the author and not of the MITRE corporation.
+
+Licensed under the MIT License. Copyright 2026 MITRE | #26-0488 03/06/26

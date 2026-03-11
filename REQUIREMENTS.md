@@ -246,4 +246,6 @@ Package manager support may be added in future versions.
 
 For more information about development workflows, see [`DEVELOPMENT.md`](DEVELOPMENT.md).
 
+These are the views and opinion of the author and not of the MITRE corporation.
+
 Licensed under the MIT License. Copyright 2026 MITRE | #26-0488 03/06/26

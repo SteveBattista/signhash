@@ -166,4 +166,6 @@ Or manually:
 - ✅ Modern Rust idioms (yaml-rust2, inline format strings)
 - ✅ Comprehensive documentation with examples
 
+These are the views and opinion of the author and not of the MITRE corporation.
+
 Licensed under the MIT License. Copyright 2026 MITRE | #26-0488 03/06/26
