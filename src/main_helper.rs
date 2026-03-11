@@ -344,16 +344,13 @@ pub fn write_manifest_from_channel(
     let processed_files_u64 = u64::try_from(processed_files).unwrap_or(u64::MAX);
     let duration_ms = duration.as_millis();
     let duration_ms_u64 = u64::try_from(duration_ms).unwrap_or(u64::MAX);
-    let bytes_per_second = if duration_ms_u64 == 0 {
-        0
-    } else {
-        total_file_len.saturating_mul(1_000) / duration_ms_u64
-    };
-    let avg_bytes = if processed_files_u64 == 0 {
-        0
-    } else {
-        total_file_len / processed_files_u64
-    };
+    let bytes_per_second = total_file_len
+        .saturating_mul(1_000)
+        .checked_div(duration_ms_u64)
+        .unwrap_or(0);
+    let avg_bytes = total_file_len
+        .checked_div(processed_files_u64)
+        .unwrap_or(0);
     data = format!("Time elapsed was|{duration:?}\n");
     byte_count += data.len();
     hasher = hasher.multi_hash_update(data.as_bytes());
