@@ -388,10 +388,7 @@ fn test_manifest_with_header_lines() {
     assert_eq!(lines.len(), 4);
 
     // Skip header lines and parse data lines
-    let data_lines_count = lines
-        .iter()
-        .filter(|line| !line.starts_with('#'))
-        .count();
+    let data_lines_count = lines.iter().filter(|line| !line.starts_with('#')).count();
 
     assert_eq!(data_lines_count, 2);
 }
