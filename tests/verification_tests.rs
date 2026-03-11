@@ -1064,7 +1064,7 @@ fn test_check_line_signature_verification() {
     let pkcs8_bytes2 = Ed25519KeyPair::generate_pkcs8(&rng).unwrap();
     let key_pair2 = Ed25519KeyPair::from_pkcs8(pkcs8_bytes2.as_ref()).unwrap();
 
-    let manifest2 = manifest.clone();
+    let manifest2 = manifest;
     let (tx2, rx2) = mpsc::channel();
     check_line(
         file_path.to_str().unwrap(),
@@ -1089,7 +1089,7 @@ fn test_check_line_signature_verification() {
 // Additional helper to make ManifestLine cloneable for the last test
 impl Clone for ManifestLine {
     fn clone(&self) -> Self {
-        ManifestLine {
+        Self {
             file_type: self.file_type.clone(),
             bytes: self.bytes.clone(),
             time: self.time.clone(),

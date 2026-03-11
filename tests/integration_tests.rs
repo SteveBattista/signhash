@@ -174,9 +174,8 @@ fn test_manifest_only_verification() {
 
     // Would: check_hash --check-manifest (without checking files)
     let content = fs::read_to_string(&manifest_path).unwrap();
-    let lines: Vec<_> = content.lines().collect();
 
-    assert_eq!(lines.len(), 2);
+    assert_eq!(content.lines().count(), 2);
 }
 
 #[test]

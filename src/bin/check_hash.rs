@@ -162,11 +162,11 @@ impl Config {
 
         let public_key_file = matches
             .get_one::<String>("public")
-            .map_or(DEFAULT_PUBIC_KEY_FILE_NAME.to_string(), Clone::clone);
+            .map_or_else(|| DEFAULT_PUBIC_KEY_FILE_NAME.to_string(), Clone::clone);
 
         let input_directory = matches
             .get_one::<String>("directory")
-            .map_or(PWD.to_string(), Clone::clone);
+            .map_or_else(|| PWD.to_string(), Clone::clone);
 
         Self {
             public_key_file,

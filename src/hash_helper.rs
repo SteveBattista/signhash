@@ -270,7 +270,7 @@ fn try_hash_memmap(hasher: &HasherOptions, file: &File) -> Option<Vec<u8>> {
 /// - Very large files (>100MB): 4 MiB buffer (capped at `MAX_BUFFER_SIZE`)
 ///
 /// This balances memory usage with I/O performance.
-fn calculate_buffer_size(file_size: Option<u64>) -> usize {
+const fn calculate_buffer_size(file_size: Option<u64>) -> usize {
     match file_size {
         Some(size) if size < 1024 * 1024 => MIN_BUFFER_SIZE, // <1MB: 64KB
         Some(size) if size < 10 * 1024 * 1024 => DEFAULT_BUFFER_SIZE, // 1-10MB: 256KB

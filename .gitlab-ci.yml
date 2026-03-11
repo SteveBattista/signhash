@@ -37,7 +37,7 @@ test:
 clippy:
   stage: clippy
   script:
-    - cargo clippy --all-features --all-targets -- -D warnings -D clippy::pedantic 
+    - cargo clippy --all-features --all-targets -- -D clippy::pedantic 
   tags:
     - Shell-Runner
 

@@ -193,8 +193,7 @@ fn test_read_manifest_file_empty() {
     let content = fs::read_to_string(&manifest_path).unwrap();
     assert_eq!(content.len(), 0);
 
-    let lines: Vec<&str> = content.lines().collect();
-    assert_eq!(lines.len(), 0);
+    assert_eq!(content.lines().count(), 0);
 }
 
 #[test]
@@ -389,11 +388,10 @@ fn test_manifest_with_header_lines() {
     assert_eq!(lines.len(), 4);
 
     // Skip header lines and parse data lines
-    let data_lines: Vec<&str> = lines
+    let data_lines_count = lines
         .iter()
         .filter(|line| !line.starts_with('#'))
-        .copied()
-        .collect();
+        .count();
 
-    assert_eq!(data_lines.len(), 2);
+    assert_eq!(data_lines_count, 2);
 }
