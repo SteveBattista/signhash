@@ -348,9 +348,7 @@ pub fn write_manifest_from_channel(
         .saturating_mul(1_000)
         .checked_div(duration_ms_u64)
         .unwrap_or(0);
-    let avg_bytes = total_file_len
-        .checked_div(processed_files_u64)
-        .unwrap_or(0);
+    let avg_bytes = total_file_len.checked_div(processed_files_u64).unwrap_or(0);
     data = format!("Time elapsed was|{duration:?}\n");
     byte_count += data.len();
     hasher = hasher.multi_hash_update(data.as_bytes());
