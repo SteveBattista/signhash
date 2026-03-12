@@ -1,0 +1,34 @@
+name: Main
+
+on:
+  push:
+  pull_request:
+
+env:
+  CARGO_INCREMENTAL: '0'
+  CARGO_NET_RETRY: '10'
+  RUSTUP_MAX_RETRIES: '10'
+  RUST_BACKTRACE: '1'
+  RUSTFLAGS: -D warnings
+
+jobs:
+  ci:
+    name: ci
+    runs-on: ubuntu-latest
+    steps:
+      - name: 1) Checkout
+        uses: actions/checkout@v4
+
+      - name: 2) Install Rust (stable)
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: 3) Format
+        run: cargo fmt --all -- --check
+
+      - name: 4) Test
+        run: cargo test --all-features --workspace --no-fail-fast
+
+      - name: 5) Lint
+        run: cargo clippy --all-features --all-targets -- -D clippy::pedantic
